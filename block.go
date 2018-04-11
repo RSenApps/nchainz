@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"time"
+	"encoding/gob"
 )
 
 type TokenType uint8
@@ -14,24 +15,26 @@ const (
 	BTC
 )
 
+type BlockType uint8
+
+const (
+	MATCH BlockType = iota + 1
+	ORDER
+	TRANSFER
+	CANCEL
+	STRING
+)
+
+
 type Block struct {
 	Timestamp     int64
+	Type BlockType
 	Data          BlockData
 	PrevBlockHash []byte
 	Hash          []byte
 }
 
-type BlockData interface {
-	bytes() []byte
-}
-
-type RawData struct {
-	Data []byte
-}
-
-func (data RawData) bytes() []byte {
-	return data.Data
-}
+type BlockData interface {}
 
 type MatchData struct {
 	Matches []Match
@@ -77,15 +80,26 @@ type Cancel struct {
 	Signature   []byte
 }
 
+func GetBytes(key interface{}) ([]byte, error) {
+	var buf bytes.Buffer
+	enc := gob.NewEncoder(&buf)
+	err := enc.Encode(key)
+	if err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
 func (b *Block) SetHash() {
 	timestamp := []byte(strconv.FormatInt(b.Timestamp, 10))
-	headers := bytes.Join([][]byte{b.PrevBlockHash, b.Data.bytes(), timestamp}, []byte{})
+	databytes, _ := GetBytes(b.Data)
+	headers := bytes.Join([][]byte{b.PrevBlockHash, databytes, timestamp}, []byte{})
 	hash := sha256.Sum256(headers)
 	b.Hash = hash[:]
 }
 
 func NewBlock(data string, prevBlockHash []byte) *Block {
-	block := &Block{time.Now().Unix(), RawData{[]byte(data)}, prevBlockHash, []byte{}}
+	block := &Block{time.Now().Unix(), STRING,[]byte(data), prevBlockHash, []byte{}}
 	block.SetHash()
 	return block
 }
