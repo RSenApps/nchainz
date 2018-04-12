@@ -18,23 +18,22 @@ const (
 type BlockType uint8
 
 const (
-	MATCH BlockType = iota + 1
+	MATCH    BlockType = iota + 1
 	ORDER
 	TRANSFER
 	CANCEL
 	STRING
 )
 
-
 type Block struct {
 	Timestamp     int64
-	Type BlockType
+	Type          BlockType
 	Data          BlockData
 	PrevBlockHash []byte
 	Hash          []byte
 }
 
-type BlockData interface {}
+type BlockData interface{}
 
 type MatchData struct {
 	Matches []Match
@@ -92,14 +91,16 @@ func GetBytes(key interface{}) ([]byte, error) {
 
 func (b *Block) SetHash() {
 	timestamp := []byte(strconv.FormatInt(b.Timestamp, 10))
+	t := make([]byte, 1)
+	t[0] = byte(b.Type)
 	databytes, _ := GetBytes(b.Data)
-	headers := bytes.Join([][]byte{b.PrevBlockHash, databytes, timestamp}, []byte{})
+	headers := bytes.Join([][]byte{b.PrevBlockHash, databytes, timestamp, t}, []byte{})
 	hash := sha256.Sum256(headers)
 	b.Hash = hash[:]
 }
 
 func NewBlock(data string, prevBlockHash []byte) *Block {
-	block := &Block{time.Now().Unix(), STRING,[]byte(data), prevBlockHash, []byte{}}
+	block := &Block{time.Now().Unix(), STRING, []byte(data), prevBlockHash, []byte{}}
 	block.SetHash()
 	return block
 }
