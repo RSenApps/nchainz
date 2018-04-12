@@ -26,9 +26,9 @@ func main() {
 	chain.AddBlock("Send 3 BNB to Nick")
 
 	for _, block := range chain.blocks {
-		fmt.Println("Prev hash:", block.PrevBlockHash)
-		fmt.Println("Data:", block.Data.(string))
-		fmt.Println("Hash:", block.Hash)
+		fmt.Printf("Prev hash: %x\n", block.PrevBlockHash)
+		fmt.Printf("Data: %s\n", block.Data)
+		fmt.Printf("Hash: %x\n", block.Hash)
 		fmt.Println("---------------------------------------")
 	}
 }
