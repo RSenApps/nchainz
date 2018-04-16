@@ -1,11 +1,9 @@
 package main
 
 import (
-	"strconv"
 	"bytes"
-	"crypto/sha256"
-	"time"
 	"encoding/gob"
+	"time"
 )
 
 type TokenType uint8
@@ -18,7 +16,7 @@ const (
 type BlockType uint8
 
 const (
-	MATCH    BlockType = iota + 1
+	MATCH BlockType = iota + 1
 	ORDER
 	TRANSFER
 	CANCEL
@@ -31,6 +29,7 @@ type Block struct {
 	Data          BlockData
 	PrevBlockHash []byte
 	Hash          []byte
+	Nonce         int
 }
 
 type BlockData interface{}
@@ -89,18 +88,14 @@ func GetBytes(key interface{}) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func (b *Block) SetHash() {
-	timestamp := []byte(strconv.FormatInt(b.Timestamp, 10))
-	t := make([]byte, 1)
-	t[0] = byte(b.Type)
-	databytes, _ := GetBytes(b.Data)
-	headers := bytes.Join([][]byte{b.PrevBlockHash, databytes, timestamp, t}, []byte{})
-	hash := sha256.Sum256(headers)
-	b.Hash = hash[:]
-}
-
 func NewBlock(data string, prevBlockHash []byte) *Block {
-	block := &Block{time.Now().Unix(), STRING, []byte(data), prevBlockHash, []byte{}}
-	block.SetHash()
+	block := &Block{time.Now().Unix(), STRING, []byte(data), prevBlockHash, []byte{}, 0}
+
+	// Add block
+	pow := NewProofOfWork(block)
+	nonce, hash := pow.Run()
+	block.Hash = hash[:]
+	block.Nonce = nonce
+
 	return block
 }

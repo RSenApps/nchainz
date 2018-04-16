@@ -1,23 +1,9 @@
 package main
 
 import (
-	"bytes"
-	"encoding/gob"
 	"fmt"
+	"strconv"
 )
-
-func decode(b []byte) string {
-	r := bytes.NewBuffer(b)
-	d := gob.NewDecoder(r)
-
-	var data string
-
-	if d.Decode(&data) == nil {
-		return data
-	} else {
-		return "ERROR"
-	}
-}
 
 func main() {
 	chain := NewBlockchain()
@@ -26,9 +12,11 @@ func main() {
 	chain.AddBlock("Send 3 BNB to Nick")
 
 	for _, block := range chain.blocks {
-		fmt.Printf("Prev hash: %x\n", block.PrevBlockHash)
+		fmt.Printf("Prev Hash: %x\n", block.PrevBlockHash)
 		fmt.Printf("Data: %s\n", block.Data)
 		fmt.Printf("Hash: %x\n", block.Hash)
+		pow := NewProofOfWork(block)
+		fmt.Printf("Validated Proof of Work: %s\n", strconv.FormatBool(pow.Validate()))
 		fmt.Println("---------------------------------------")
 	}
 }
