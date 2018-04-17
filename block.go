@@ -76,6 +76,8 @@ type Transfer struct {
 type Cancel struct {
 	BlockIndex  uint64
 	BlockOffset uint8
+	BlockHash []byte
+	Address []byte
 	Signature   []byte
 }
 

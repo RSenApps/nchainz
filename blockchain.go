@@ -71,6 +71,11 @@ func NewBlockchain() *Blockchain {
 	return &Blockchain{tipHash, db}
 }
 
+func (bc *Blockchain) GetBalance(address string) uint64 {
+	//TODO: add code to track balances for addresses
+	return 0
+}
+
 func (bc *Blockchain) AddBlock(data string) {
 	var lastHash []byte // Hash of last block
 
