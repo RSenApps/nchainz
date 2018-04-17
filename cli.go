@@ -31,6 +31,11 @@ func (cli *CLI) addBlock(data string) {
 	fmt.Println("Success!")
 }
 
+func (cli *CLI) getBalance(address string) {
+	/*bc := NewBlockchain(address)
+	defer bc.db.Close()*/
+}
+
 func (cli *CLI) printChain() {
 	bci := cli.bc.Iterator()
 
