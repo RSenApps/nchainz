@@ -5,7 +5,6 @@ import (
 	"log"
 )
 
-const dbFile = "blockchain.db"
 const blocksBucket = "blocks"
 
 type Blockchain struct {
@@ -19,7 +18,7 @@ type BlockchainIterator struct {
 	db          *bolt.DB // DB connection
 }
 
-func NewBlockchain() *Blockchain {
+func NewBlockchain(dbFile string) *Blockchain {
 	var tipHash []byte // Tip of chain
 
 	// Open BoltDB file
@@ -126,7 +125,7 @@ func (bc *Blockchain) Iterator() *BlockchainIterator {
 //
 // Next returns next block starting from the tip
 //
-func (bci *BlockchainIterator) Next() *Block {
+func (bci *BlockchainIterator) Next() (*Block, error) {
 	var block *Block
 
 	// Read only transaction to get next block
@@ -138,12 +137,22 @@ func (bci *BlockchainIterator) Next() *Block {
 		return nil
 	})
 
-	if err != nil {
-		log.Panic(err)
-	}
-
 	// Blocks are obtained newest to oldest
 	bci.currentHash = block.PrevBlockHash
 
-	return block
+	return block, err
+}
+
+// TODO: Write this in an efficient way
+func (bc *Blockchain) GetStartHeight() int {
+	bci := bc.Iterator()
+	height := 0
+
+	_, err := bci.Next()
+	for err != nil {
+		height++
+		_, err = bci.Next()
+	}
+
+	return height
 }

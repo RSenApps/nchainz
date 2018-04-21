@@ -10,13 +10,13 @@ import (
 
 // For processing cmd line arguments
 type CLI struct {
-	bc *Blockchain
 }
 
 func (cli *CLI) printUsage() {
 	fmt.Println("Usage:")
 	fmt.Println("  addblock -data BLOCK_DATA - add a block to the blockchain")
 	fmt.Println("  printchain - print all the blocks of the blockchain")
+	fmt.Println("  node - start up a full node")
 }
 
 func (cli *CLI) validateArgs() {
@@ -27,7 +27,10 @@ func (cli *CLI) validateArgs() {
 }
 
 func (cli *CLI) addBlock(data string) {
-	cli.bc.AddBlock(data)
+	bc := NewBlockchain("blockchain.db")
+	defer bc.db.Close()
+
+	bc.AddBlock(data)
 	fmt.Println("Success!")
 }
 
@@ -37,10 +40,13 @@ func (cli *CLI) getBalance(address string) {
 }
 
 func (cli *CLI) printChain() {
-	bci := cli.bc.Iterator()
+	bc := NewBlockchain("blockchain.db")
+	defer bc.db.Close()
+
+	bci := bc.Iterator()
 
 	for {
-		block := bci.Next()
+		block, _ := bci.Next()
 
 		fmt.Printf("Prev Hash: %x\n", block.PrevBlockHash)
 		fmt.Printf("Data: %s\n", block.Data)
@@ -55,6 +61,14 @@ func (cli *CLI) printChain() {
 	}
 }
 
+func (cli *CLI) node(args []string) {
+	// TODO: parse args properly
+	port, _ := strconv.Atoi(args[2])
+	seed := args[3]
+
+	StartNode(uint(port), seed)
+}
+
 // Run parses cmd line arguments and processes cmds
 func (cli *CLI) Run() {
 	cli.validateArgs()
@@ -62,6 +76,7 @@ func (cli *CLI) Run() {
 	// Use flag package to parse cmd line arguments
 	addBlockCmd := flag.NewFlagSet("addblock", flag.ExitOnError)
 	printChainCmd := flag.NewFlagSet("printchain", flag.ExitOnError)
+	nodeCmd := flag.NewFlagSet("node", flag.ExitOnError)
 
 	addBlockData := addBlockCmd.String("data", "", "Block data")
 
@@ -73,6 +88,11 @@ func (cli *CLI) Run() {
 		}
 	case "printchain":
 		err := printChainCmd.Parse(os.Args[2:])
+		if err != nil {
+			log.Panic(err)
+		}
+	case "node":
+		err := nodeCmd.Parse(os.Args[2:])
 		if err != nil {
 			log.Panic(err)
 		}
@@ -91,5 +111,9 @@ func (cli *CLI) Run() {
 
 	if printChainCmd.Parsed() {
 		cli.printChain()
+	}
+
+	if nodeCmd.Parsed() {
+		cli.node(os.Args)
 	}
 }
