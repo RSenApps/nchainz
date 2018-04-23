@@ -16,11 +16,11 @@ type Blockchains struct {
 	consensusState ConsensusState
 }
 
-func (blockchains *Blockchains) RollbackTokenBlock() {
+func (blockchains *Blockchains) RollbackTokenToHeight(token int, height uint64) {
 
 }
 
-func (blockchains *Blockchains) RollbackMatchBlock() {
+func (blockchains *Blockchains) RollbackMatchToHeight(height uint64) {
 
 }
 
@@ -42,4 +42,33 @@ func (blockchains *Blockchains) GetUnconfirmedMatches() map[uint64]bool {
 
 func (blockchains *Blockchains) GetBalance(token int, address string) uint64 {
 	return blockchains.consensusState.tokenStates[token].balances[address]
+}
+
+func (blockchains *Blockchains) CreateNew() {
+	//instantiates state and blockchains
+}
+
+func (blockchains *Blockchains) GetHeightMatching() uint64 {
+	return 0
+}
+
+func (blockchains *Blockchains) GetHeightToken(token int) uint64 {
+	return 0
+}
+
+// for use in applying updates to other nodes
+func (blockchains *Blockchains) SerializeUpdatesMatching(startIndex uint64) []byte {
+	return []byte{}
+}
+
+func (blockchains *Blockchains) SerializeUpdatesToken(token int, startIndex uint64) []byte {
+	return []byte{}
+}
+
+func (blockchains *Blockchains) ApplyUpdatesMatching(startIndex uint64, updates []byte) {
+
+}
+
+func (blockchains *Blockchains) ApplyUpdatesToken(token int, startIndex uint64, updates []byte){
+
 }
