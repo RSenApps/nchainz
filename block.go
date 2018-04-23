@@ -38,7 +38,8 @@ type BlockData interface{}
 
 type MatchData struct {
 	Matches []Match
-	CancelMatch []CancelMatch
+	CancelMatches []CancelMatch
+	CreateTokens []CreateToken
 }
 
 type TokenData struct {
@@ -46,6 +47,14 @@ type TokenData struct {
 	CancelOrders   []CancelOrder
 	TransactionConfirmed   []TransactionConfirmed
 	Transfers []Transfer
+}
+
+type CreateToken struct {
+	Symbol string
+	TotalSupply uint64
+	Decimals uint8
+	CreatorAddress string //TODO: []byte
+	Signature []byte
 }
 
 type Match struct {
@@ -61,14 +70,14 @@ type Order struct {
 	BuyTokenType  TokenType
 	AmountToSell  uint64
 	AmountToBuy   uint64
-	SellerAddress []byte
+	SellerAddress string //TODO: []byte
 	Signature []byte
 }
 
 type Transfer struct {
 	Amount      uint64
-	FromAddress []byte
-	ToAddress   []byte
+	FromAddress string //TODO: []byte
+	ToAddress   string //TODO: []byte
 	Signature   []byte
 }
 
