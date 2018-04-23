@@ -34,7 +34,7 @@ func NewBlockchain() *Blockchain {
 
 		if b == nil { // Bucket exists
 			// Create genesis block
-			genesisBlock := NewBlock("Genesis Block", []byte{})
+			genesisBlock := NewGenesisBlock("Genesis Block")
 
 			// Create bucket
 			b, err := tx.CreateBucket([]byte(blocksBucket))
@@ -71,12 +71,7 @@ func NewBlockchain() *Blockchain {
 	return &Blockchain{tipHash, db}
 }
 
-func (bc *Blockchain) GetBalance(address string) uint64 {
-	//TODO: add code to track balances for addresses
-	return 0
-}
-
-func (bc *Blockchain) AddBlock(data string) {
+func (bc *Blockchain) AddBlock(data BlockData, blockType BlockType) {
 	var lastHash []byte // Hash of last block
 
 	// Read-only transaction to get hash of last block
@@ -91,7 +86,7 @@ func (bc *Blockchain) AddBlock(data string) {
 	}
 
 	// New block to add
-	newBlock := NewBlock(data, lastHash)
+	newBlock := NewBlock(data, blockType, lastHash)
 
 	// Read-write transaction to store new block in DB
 	err = bc.db.Update(func(tx *bolt.Tx) error {

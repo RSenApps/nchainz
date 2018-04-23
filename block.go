@@ -46,6 +46,8 @@ type TokenData struct {
 	Transfers []Transfer
 }
 
+
+//TODO: change offsets to ids
 type Match struct {
 	SellTokenType     TokenType
 	BuyTokenType      TokenType
@@ -91,42 +93,13 @@ func GetBytes(key interface{}) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func NewTokenBlock(tokenData TokenData, prevBlockHash []byte) *Block {
-	tokenBytes, _ := GetBytes(tokenData)
-	block := &Block{time.Now().Unix(), STRING, tokenBytes, prevBlockHash, []byte{}, 0}
-
-	// Add block
-	pow := NewProofOfWork(block)
-	nonce, hash := pow.Run()
-	block.Hash = hash[:]
-	block.Nonce = nonce
-
-	return block
+func NewGenesisBlock(data BlockData) *Block {
+	return NewBlock(data, STRING, []byte{})
 }
 
-func NewMatchBlock(matchData MatchData, prevBlockHash []byte) *Block {
-	matchBytes, _ := GetBytes(matchData)
-	block := &Block{time.Now().Unix(), STRING, matchBytes, prevBlockHash, []byte{}, 0}
 
-	// Add block
-	pow := NewProofOfWork(block)
-	nonce, hash := pow.Run()
-	block.Hash = hash[:]
-	block.Nonce = nonce
-
-	return block
-}
-
-func NewGenesisTokenBlock(tokenData TokenData) *Block {
-	return NewTokenBlock(tokenData, []byte{})
-}
-
-func NewGenesisMatchBlock(matchData MatchData) *Block {
-	return NewMatchBlock(matchData, []byte{})
-}
-
-func NewBlock(data string, prevBlockHash []byte) *Block {
-	block := &Block{time.Now().Unix(), STRING, []byte(data), prevBlockHash, []byte{}, 0}
+func NewBlock(data BlockData, blockType BlockType, prevBlockHash []byte) *Block {
+	block := &Block{time.Now().Unix(), blockType, data, prevBlockHash, []byte{}, 0}
 
 	// Add block
 	pow := NewProofOfWork(block)

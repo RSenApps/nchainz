@@ -27,7 +27,7 @@ func (cli *CLI) validateArgs() {
 }
 
 func (cli *CLI) addBlock(data string) {
-	cli.bc.AddBlock(data)
+	cli.bc.AddBlock(data, STRING)
 	fmt.Println("Success!")
 }
 

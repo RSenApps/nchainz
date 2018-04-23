@@ -2,6 +2,8 @@ package main
 
 import "log"
 
+//import "log"
+
 func NewTransfer(from, to string, amount uint64, bc *Blockchain) Transfer {
 	//TODO: need to take a lock as otherwise this is a race
 	if amount < bc.GetBalance(from) {
@@ -20,6 +22,7 @@ func NewOrder(buyTokenType TokenType, amountToSell uint64, amountToBuy uint64, s
 	if amountToBuy < bc.GetBalance(sellerAddress) {
 		log.Panic("Error Not enough funds")
 	}
+
 	return Order{
 		BuyTokenType:  buyTokenType,
 		AmountToSell:  amountToSell,
