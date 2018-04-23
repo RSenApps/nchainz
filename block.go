@@ -21,6 +21,7 @@ const (
 	ORDER
 	TRANSFER
 	CANCEL
+	TRANSACTION_CONFIRMED
 	STRING
 )
 
@@ -37,27 +38,23 @@ type BlockData interface{}
 
 type MatchData struct {
 	Matches []Match
-	Cancels []Cancel
+	CancelMatch []CancelMatch
 }
 
 type TokenData struct {
 	Orders    []Order
-	Cancels   []Cancel
+	CancelOrders   []CancelOrder
+	TransactionConfirmed   []TransactionConfirmed
 	Transfers []Transfer
 }
 
-
-//TODO: change offsets to ids
 type Match struct {
-	SellTokenType     TokenType
-	BuyTokenType      TokenType
+	MatchID uint64
+	SellOrderID uint64
+	BuyOrderID uint64
+	SellSignature   []byte
+	BuySignature    []byte
 	AmountSold        uint64
-	SellerBlockIndex  uint64
-	BuyerBlockIndex   uint64
-	SellerOrderOffset uint8
-	BuyerOrderOffset  uint8
-	SellerBlockHash   []byte
-	BuyerBlockHash    []byte
 }
 
 type Order struct {
@@ -65,7 +62,7 @@ type Order struct {
 	AmountToSell  uint64
 	AmountToBuy   uint64
 	SellerAddress []byte
-	Signature     []byte
+	Signature []byte
 }
 
 type Transfer struct {
@@ -75,12 +72,19 @@ type Transfer struct {
 	Signature   []byte
 }
 
-type Cancel struct {
-	BlockIndex  uint64
-	BlockOffset uint8
-	BlockHash []byte
-	Address []byte
+type CancelMatch struct {
+	CancelMatchID uint64
+	OrderID uint64
 	Signature   []byte
+}
+
+type CancelOrder struct {
+	CancelMatchID uint64
+}
+
+type TransactionConfirmed struct {
+	MatchID uint64
+	MatchHash []byte
 }
 
 func GetBytes(key interface{}) ([]byte, error) {
