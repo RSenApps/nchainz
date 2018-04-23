@@ -14,14 +14,17 @@ const (
 	BTC
 )
 
+type TokenInfo struct {
+	Symbol string
+	TotalSupply uint64
+	Decimals uint8
+}
+
 type BlockType uint8
 
 const (
-	MATCH BlockType = iota + 1
-	ORDER
-	TRANSFER
-	CANCEL
-	TRANSACTION_CONFIRMED
+	TOKEN BlockType = iota + 1
+	MATCH
 	STRING
 )
 
@@ -50,9 +53,7 @@ type TokenData struct {
 }
 
 type CreateToken struct {
-	Symbol string
-	TotalSupply uint64
-	Decimals uint8
+	TokenInfo TokenInfo
 	CreatorAddress string //TODO: []byte
 	Signature []byte
 }

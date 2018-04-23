@@ -1,15 +1,5 @@
 package main
 
-type ConsensusStateToken struct {
-	openOrders []Order
-	balances map[string]uint64
-}
-
-type ConsensusState struct {
-	tokenStates []ConsensusStateToken
-	unconfirmedMatchIDs map[uint64]bool
-}
-
 type Blockchains struct {
 	matchChain Blockchain
 	tokenChains []Blockchain
@@ -24,12 +14,40 @@ func (blockchains *Blockchains) RollbackMatchToHeight(height uint64) {
 
 }
 
-func (blockchains *Blockchains) AddTokenBlock(block Block) {
+func (blockchains *Blockchains) AddTokenBlock(token int, tokenData TokenData) {
+	for _, order := range tokenData.Orders {
+		blockchains.consensusState.AddOrder(token, order)
+	}
 
+	for _, cancelOrder := range tokenData.CancelOrders {
+		blockchains.consensusState.AddCancelOrder(token, cancelOrder)
+	}
+
+	for _, transactionConfirmed := range tokenData.TransactionConfirmed {
+		blockchains.consensusState.AddTransactionConfirmed(token, transactionConfirmed)
+	}
+
+	for _, transfer := range tokenData.Transfers {
+		blockchains.consensusState.AddTransfer(token, transfer)
+	}
+
+	blockchains.tokenChains[token].AddBlock(tokenData, TOKEN)
 }
 
-func (blockchains *Blockchains) AddMatchBlock(block Block) {
+func (blockchains *Blockchains) AddMatchBlock(matchData MatchData) {
+	for _, match := range matchData.Matches {
+		blockchains.consensusState.AddMatch(match)
+	}
 
+	for _, cancelMatch := range matchData.CancelMatches {
+		blockchains.consensusState.AddCancelMatch(cancelMatch)
+	}
+
+	for _, createToken := range matchData.CreateTokens {
+		blockchains.consensusState.AddCreateToken(createToken)
+	}
+
+	blockchains.matchChain.AddBlock(matchData, MATCH)
 }
 
 func (blockchains *Blockchains) GetOpenOrders(token int) []Order {

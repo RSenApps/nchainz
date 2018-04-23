@@ -4,22 +4,22 @@ import "log"
 
 //import "log"
 
-func NewTransfer(from, to string, amount uint64, bc *Blockchain) Transfer {
+func NewTransfer(token int, from, to string, amount uint64, blockchains *Blockchains) Transfer {
 	//TODO: need to take a lock as otherwise this is a race
-	if amount < bc.GetBalance(from) {
+	if amount < blockchains.GetBalance(token, from) {
 		log.Panic("Error Not enough funds")
 	}
 	return Transfer{
 		Amount:      amount,
-		FromAddress: []byte(from),
-		ToAddress:   []byte(to),
+		FromAddress: from,
+		ToAddress:   to,
 		Signature:   nil,
 	}
 }
 
-func NewOrder(buyTokenType TokenType, amountToSell uint64, amountToBuy uint64, sellerAddress string, bc *Blockchain) Order {
+func NewOrder(sellTokenType int, buyTokenType TokenType, amountToSell uint64, amountToBuy uint64, sellerAddress string, blockchains *Blockchains) Order {
 	//TODO: need to take a lock as otherwise this is a race
-	if amountToBuy < bc.GetBalance(sellerAddress) {
+	if amountToBuy < blockchains.GetBalance(sellTokenType, sellerAddress) {
 		log.Panic("Error Not enough funds")
 	}
 
@@ -27,20 +27,18 @@ func NewOrder(buyTokenType TokenType, amountToSell uint64, amountToBuy uint64, s
 		BuyTokenType:  buyTokenType,
 		AmountToSell:  amountToSell,
 		AmountToBuy:   amountToBuy,
-		SellerAddress: []byte(sellerAddress),
+		SellerAddress: sellerAddress,
 		Signature:     nil,
 	}
 }
 
-func NewCancel(blockIndex uint64, blockOffset uint8, address string, bc *Blockchain) Cancel {
-	//TODO: validate block exists and is owned by address
-	return Cancel{
-		BlockIndex:  blockIndex,
-		BlockOffset: blockOffset,
-		BlockHash:   nil, //TODO
-		Address:     []byte(address),
-		Signature:   nil,
+func NewCancelMatch(cancelMatchID uint64, orderID uint64, blockchains *Blockchain) CancelMatch {
+	//TODO: validate orderid exists and is owned by address
+	return CancelMatch{
+		CancelMatchID: cancelMatchID,
+		OrderID: orderID,
+		Signature: nil,
 	}
 }
 
-//TODO: NewMatch (do validation of match
+//TODO: NewMatch (do validation of match)
