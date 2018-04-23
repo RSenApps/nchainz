@@ -5,15 +5,12 @@ type Blockchains struct {
 	tokenChains []Blockchain
 }
 
-func (bc *Blockchain) Get
-
-
 func (bc *Blockchain) GetBalance(address string) uint64 {
-	bci := bc.Iterator()
+	/*bci := bc.Iterator()
 
 	for {
 		block := bci.Next()
 
 	}
-	return 0
+	return 0*/
 }
