@@ -84,7 +84,7 @@ func (node *Node) Version(args *VersionArgs, reply *bool) error {
 	log.Printf("Received VERSION from %s", args.From)
 	defer log.Printf("Done handling VERSION from %s", args.From)
 
-	isNew, peer, err := node.connectPeerIfNew(args.From)
+	isNew, _, err := node.connectPeerIfNew(args.From)
 	if !isNew {
 		*reply = false
 		return nil
@@ -99,26 +99,25 @@ func (node *Node) Version(args *VersionArgs, reply *bool) error {
 		// go sendGetBlocks
 	}
 
-	go node.sendAddr(peer)
-
 	*reply = true
 	return nil
 }
 
 func (node *Node) sendVersion(peer *Peer) {
+	version := 0
+	startHeight := node.getStartHeight()
+	args := VersionArgs{version, startHeight, node.myIp}
+
+	node.callVersion(peer, &args)
+}
+
+func (node *Node) callVersion(peer *Peer, args *VersionArgs) {
 	log.Printf("Sending VERSION to %s", peer.ip)
 	defer log.Printf("Done sending VERSION to %s", peer.ip)
 
-	version := 0
-	startHeight := node.getStartHeight()
-
-	args := VersionArgs{version, startHeight, node.myIp}
 	var reply bool
-
 	err := peer.client.Call("Node.Version", &args, &reply)
-	if err != nil {
-		log.Print(err)
-	}
+	node.handleRpcReply(peer, err, &reply)
 }
 
 ////////////////////////////////
@@ -149,32 +148,36 @@ func (node *Node) Addr(args *AddrArgs, reply *bool) error {
 }
 
 func (node *Node) sendAddr(peer *Peer) {
-	log.Printf("Sending ADDR to %s", peer.ip)
-	defer log.Printf("Done sending ADDR to %s", peer.ip)
-
-	ips := node.getPeerIps()
-	args := AddrArgs{ips, node.myIp}
-	var reply bool
-
-	err := peer.client.Call("Node.Addr", &args, &reply)
-	if err != nil {
-		log.Print(err)
-	}
+	args := node.getAddrArgs()
+	node.callAddr(peer, args)
 }
 
 func (node *Node) broadcastAddr() {
-	node.mu.Lock()
-	defer node.mu.Unlock()
+	args := node.getAddrArgs()
 
-	for _, peer := range node.peers {
-		if peer.state == ACTIVE {
-			go node.sendAddr(peer)
-		}
+	for _, peer := range node.getActivePeers() {
+		go node.callAddr(peer, args)
 	}
 }
 
+func (node *Node) getAddrArgs() *AddrArgs {
+	ips := node.getPeerIps()
+	args := AddrArgs{ips, node.myIp}
+
+	return &args
+}
+
+func (node *Node) callAddr(peer *Peer, args *AddrArgs) {
+	log.Printf("Sending ADDR to %s", peer.ip)
+	defer log.Printf("Done sending ADDR to %s", peer.ip)
+
+	var reply bool
+	err := peer.client.Call("Node.Addr", args, &reply)
+	node.handleRpcReply(peer, err, &reply)
+}
+
 ////////////////////////////////
-// Utils
+// Utils: Connecting
 
 func (node *Node) connectPeerIfNew(peerIp string) (isNew bool, peer *Peer, err error) {
 	node.mu.Lock()
@@ -213,6 +216,34 @@ func (node *Node) connectPeerIfNew(peerIp string) (isNew bool, peer *Peer, err e
 	log.Printf("Connected peer %s, known peers: %v", peerIp, ips)
 
 	return true, peer, nil
+}
+
+////////////////////////////////
+// Utils: RPC Management
+
+func (node *Node) handleRpcReply(peer *Peer, err error, reply *bool) {
+	if err != nil {
+		log.Print(err)
+		node.setPeerState(peer.ip, INVALID)
+	}
+}
+
+////////////////////////////////
+// Utils: State Access
+
+func (node *Node) getActivePeers() []*Peer {
+	node.mu.Lock()
+	defer node.mu.Unlock()
+
+	peers := make([]*Peer, 0)
+
+	for _, peer := range node.peers {
+		if peer.state == ACTIVE {
+			peers = append(peers, peer)
+		}
+	}
+
+	return peers
 }
 
 func (node *Node) getPeerIps() []string {
