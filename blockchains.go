@@ -1,17 +1,57 @@
 package main
 
 type Blockchains struct {
-	matchChain Blockchain
-	tokenChains []Blockchain
+	matchChain *Blockchain
+	tokenChains []*Blockchain
 	consensusState ConsensusState
 }
 
 func (blockchains *Blockchains) RollbackTokenToHeight(token int, height uint64) {
+	if height <= blockchains.tokenChains[token].GetStartHeight() {
+		return
+	}
 
+	blocksToRemove := blockchains.tokenChains[token].GetStartHeight() - height
+	for i := uint64(0); i < blocksToRemove; i++ {
+		removedData := blockchains.tokenChains[token].RemoveLastBlock().(TokenData)
+		for _, order := range removedData.Orders {
+			blockchains.consensusState.RollbackOrder(token, order)
+		}
+
+		for _, cancelOrder := range removedData.CancelOrders {
+			blockchains.consensusState.RollbackCancelOrder(token, cancelOrder)
+		}
+
+		for _, transactionConfirmed := range removedData.TransactionConfirmed {
+			blockchains.consensusState.RollbackTransactionConfirmed(token, transactionConfirmed)
+		}
+
+		for _, transfer := range removedData.Transfers {
+			blockchains.consensusState.RollbackTransfer(token, transfer)
+		}
+	}
 }
 
 func (blockchains *Blockchains) RollbackMatchToHeight(height uint64) {
+	if height <= blockchains.matchChain.GetStartHeight() {
+		return
+	}
 
+	blocksToRemove := blockchains.matchChain.GetStartHeight() - height
+	for i := uint64(0); i < blocksToRemove; i++ {
+		removedData := blockchains.matchChain.RemoveLastBlock().(MatchData)
+		for _, match := range removedData.Matches {
+			blockchains.consensusState.RollbackMatch(match)
+		}
+
+		for _, cancelMatch := range removedData.CancelMatches {
+			blockchains.consensusState.RollbackCancelMatch(cancelMatch)
+		}
+
+		for _, createToken := range removedData.CreateTokens {
+			blockchains.consensusState.RollbackCreateToken(createToken)
+		}
+	}
 }
 
 func (blockchains *Blockchains) AddTokenBlock(token int, tokenData TokenData) {
@@ -64,14 +104,15 @@ func (blockchains *Blockchains) GetBalance(token int, address string) uint64 {
 
 func (blockchains *Blockchains) CreateNew() {
 	//instantiates state and blockchains
+	blockchains.matchChain = NewBlockchain("matchchain.db")
 }
 
 func (blockchains *Blockchains) GetHeightMatching() uint64 {
-	return 0
+	return blockchains.matchChain.GetStartHeight()
 }
 
 func (blockchains *Blockchains) GetHeightToken(token int) uint64 {
-	return 0
+	return blockchains.tokenChains[token].GetStartHeight()
 }
 
 // for use in applying updates to other nodes

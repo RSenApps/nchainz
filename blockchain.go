@@ -109,6 +109,11 @@ func (bc *Blockchain) AddBlock(data BlockData, blockType BlockType) {
 	})
 }
 
+func (bc *Blockchain) RemoveLastBlock() BlockData {
+	//TODO:
+	return nil
+}
+
 //
 // Create iterator for a blockchain
 //
@@ -139,9 +144,9 @@ func (bci *BlockchainIterator) Next() (*Block, error) {
 }
 
 // TODO: Write this in an efficient way
-func (bc *Blockchain) GetStartHeight() int {
+func (bc *Blockchain) GetStartHeight() uint64 {
 	bci := bc.Iterator()
-	height := 0
+	var height uint64
 
 	_, err := bci.Next()
 	for err != nil {

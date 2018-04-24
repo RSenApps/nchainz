@@ -76,7 +76,7 @@ func StartNode(port uint, seedIp string) {
 
 type VersionArgs struct {
 	Version     int
-	StartHeight int
+	StartHeight uint64
 	From        string
 }
 
@@ -280,7 +280,7 @@ func (node *Node) setPeerState(peerIp string, state PeerState) {
 	node.peers[peerIp].state = state
 }
 
-func (node *Node) getStartHeight() int {
+func (node *Node) getStartHeight() uint64 {
 	node.mu.Lock()
 	defer node.mu.Unlock()
 
