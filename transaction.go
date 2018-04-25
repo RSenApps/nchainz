@@ -2,8 +2,6 @@ package main
 
 import "log"
 
-//import "log"
-
 func NewTransfer(token int, from, to string, amount uint64, blockchains *Blockchains) Transfer {
 	//TODO: need to take a lock as otherwise this is a race
 	if amount < blockchains.GetBalance(token, from) {
@@ -36,8 +34,8 @@ func NewCancelMatch(cancelMatchID uint64, orderID uint64, blockchains *Blockchai
 	//TODO: validate orderid exists and is owned by address
 	return CancelMatch{
 		CancelMatchID: cancelMatchID,
-		OrderID: orderID,
-		Signature: nil,
+		OrderID:       orderID,
+		Signature:     nil,
 	}
 }
 
