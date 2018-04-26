@@ -71,7 +71,7 @@ func (blockchains *Blockchains) AddTokenBlock(token int, tokenData TokenData) {
 		blockchains.consensusState.AddTransfer(token, transfer)
 	}
 
-	blockchains.tokenChains[token].AddBlock(tokenData, TOKEN)
+	blockchains.tokenChains[token].AddBlock(tokenData, TOKEN_BLOCK)
 }
 
 func (blockchains *Blockchains) AddMatchBlock(matchData MatchData) {
@@ -87,7 +87,7 @@ func (blockchains *Blockchains) AddMatchBlock(matchData MatchData) {
 		blockchains.consensusState.AddCreateToken(createToken)
 	}
 
-	blockchains.matchChain.AddBlock(matchData, MATCH)
+	blockchains.matchChain.AddBlock(matchData, MATCH_BLOCK)
 }
 
 func (blockchains *Blockchains) GetOpenOrders(token int) []Order {

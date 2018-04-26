@@ -23,9 +23,21 @@ type TokenInfo struct {
 type BlockType uint8
 
 const (
-	TOKEN BlockType = iota + 1
-	MATCH
+	TOKEN_BLOCK BlockType = iota + 1
+	MATCH_BLOCK
 	STRING
+)
+
+type TransactionType uint8
+
+const (
+	MATCH TransactionType = iota + 1
+	ORDER
+	TRANSFER
+	CANCEL_MATCH
+	CANCEL_ORDER
+	TRANSACTION_CONFIRMED
+	CREATE_TOKEN
 )
 
 type Block struct {
@@ -52,19 +64,24 @@ type TokenData struct {
 	Transfers []Transfer
 }
 
+type GenericTransaction struct {
+	transaction interface{}
+	transactionType TransactionType
+}
+
+
 type CreateToken struct {
 	TokenInfo TokenInfo
 	CreatorAddress string //TODO: []byte
 	Signature []byte
 }
 
+//surplus goes to miner
 type Match struct {
 	MatchID uint64
 	SellOrderID uint64
 	BuyOrderID uint64
-	SellSignature   []byte
-	BuySignature    []byte
-	AmountSold        uint64
+	AmountSold uint64
 }
 
 type Order struct {
@@ -94,7 +111,6 @@ type CancelOrder struct {
 
 type TransactionConfirmed struct {
 	MatchID uint64
-	MatchHash []byte
 }
 
 func GetBytes(key interface{}) ([]byte, error) {
