@@ -94,36 +94,6 @@ func (blockchains *Blockchains) AddMatchBlock(matchData MatchData) {
 	blockchains.matchChain.AddBlock(matchData, MATCH_BLOCK)
 }
 
-func (blockchains *Blockchains) AddBlock(chainIdx int, blockData BlockData) {
-	if chainIdx == 0 {
-		blockchains.AddMatchBlock(blockData.(MatchData))
-	} else {
-		blockchains.AddTokenBlock(chainIdx-1, blockData.(TokenData))
-	}
-}
-
-func (blockchains *Blockchains) GetBlock(chainIdx int, blockhash []byte) (*Block, error) {
-	bc, chainErr := blockchains.getChain(chainIdx)
-	if chainErr != nil {
-		return nil, chainErr
-	}
-
-	block, blockErr := bc.GetBlock(blockhash)
-	return block, blockErr
-}
-
-func (blockchains *Blockchains) getChain(chainIdx int) (*Blockchain, error) {
-	if chainIdx < 0 || chainIdx-1 >= len(blockchains.tokenChains) {
-		return nil, errors.New("invalid chain")
-	}
-
-	if chainIdx == 0 {
-		return blockchains.matchChain, nil
-	} else {
-		return blockchains.tokenChains[chainIdx-1], nil
-	}
-}
-
 func (blockchains *Blockchains) GetOpenOrders(token int) []Order {
 	return blockchains.consensusState.tokenStates[token].openOrders
 }
@@ -151,6 +121,53 @@ func (blockchains *Blockchains) GetHeightToken(token int) uint64 {
 	return blockchains.tokenChains[token].GetStartHeight()
 }
 
+// for use in applying updates to other nodes
+func (blockchains *Blockchains) SerializeUpdatesMatching(startIndex uint64) []byte {
+	return []byte{}
+}
+
+func (blockchains *Blockchains) SerializeUpdatesToken(token int, startIndex uint64) []byte {
+	return []byte{}
+}
+
+func (blockchains *Blockchains) ApplyUpdatesMatching(startIndex uint64, updates []byte) {
+
+}
+
+func (blockchains *Blockchains) ApplyUpdatesToken(token int, startIndex uint64, updates []byte) {
+
+}
+
+func (blockchains *Blockchains) AddBlock(chainIdx int, blockData BlockData) {
+	if chainIdx == 0 {
+		blockchains.AddMatchBlock(blockData.(MatchData))
+	} else {
+		blockchains.AddTokenBlock(chainIdx-1, blockData.(TokenData))
+	}
+}
+
+func (blockchains *Blockchains) GetBlock(chainIdx int, blockhash []byte) (*Block, error) {
+	bc, chainErr := blockchains.GetChain(chainIdx)
+	if chainErr != nil {
+		return nil, chainErr
+	}
+
+	block, blockErr := bc.GetBlock(blockhash)
+	return block, blockErr
+}
+
+func (blockchains *Blockchains) GetChain(chainIdx int) (*Blockchain, error) {
+	if chainIdx < 0 || chainIdx-1 >= len(blockchains.tokenChains) {
+		return nil, errors.New("invalid chain")
+	}
+
+	if chainIdx == 0 {
+		return blockchains.matchChain, nil
+	} else {
+		return blockchains.tokenChains[chainIdx-1], nil
+	}
+}
+
 func (blockchains *Blockchains) GetHeights() []uint64 {
 	heights := make([]uint64, 1)
 	heights[0] = blockchains.GetHeightMatching()
@@ -171,21 +188,4 @@ func (blockchains *Blockchains) GetBlockhashes() [][][]byte {
 	}
 
 	return blockhashes
-}
-
-// for use in applying updates to other nodes
-func (blockchains *Blockchains) SerializeUpdatesMatching(startIndex uint64) []byte {
-	return []byte{}
-}
-
-func (blockchains *Blockchains) SerializeUpdatesToken(token int, startIndex uint64) []byte {
-	return []byte{}
-}
-
-func (blockchains *Blockchains) ApplyUpdatesMatching(startIndex uint64, updates []byte) {
-
-}
-
-func (blockchains *Blockchains) ApplyUpdatesToken(token int, startIndex uint64, updates []byte) {
-
 }

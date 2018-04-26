@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -194,8 +195,9 @@ func (node *Node) callAddr(peer *Peer, args *AddrArgs) {
 // response: true if successful
 
 type InvArgs struct {
-	Blockhashes [][][]byte
-	From        string
+	Blockhashes  [][][]byte
+	StartHeights []uint64
+	From         string
 }
 
 func (node *Node) Inv(args *InvArgs, reply *bool) error {
@@ -209,7 +211,17 @@ func (node *Node) Inv(args *InvArgs, reply *bool) error {
 		return nil
 	}
 
-	// TODO: handle blockhashes
+	myHeights := node.bcs.GetHeights()
+
+	for chainIdx, startHeight := range args.StartHeights {
+		if chainIdx >= len(myHeights) {
+			break
+		}
+
+		if myHeights[chainIdx] < startHeight {
+			node.reconcileChain(args.From, chainIdx, args.Blockhashes[chainIdx], startHeight)
+		}
+	}
 
 	*reply = true
 	return nil
@@ -230,7 +242,8 @@ func (node *Node) BroadcastInv() {
 
 func (node *Node) getInvArgs() *InvArgs {
 	blockhashes := node.bcs.GetBlockhashes()
-	args := InvArgs{blockhashes, node.myIp}
+	startHeights := node.bcs.GetHeights()
+	args := InvArgs{blockhashes, startHeights, node.myIp}
 
 	return &args
 }
@@ -393,6 +406,40 @@ func (node *Node) connectPeerIfNew(peerIp string) (isNew bool, peer *Peer, err e
 	log.Printf("Connected peer %s, known peers: %v", peerIp, ips)
 
 	return true, peer, nil
+}
+
+////////////////////////////////
+// Utils: Chain Management
+
+func (node *Node) reconcileChain(peerIp string, chainIdx int, blockhashes [][]byte, theirHeight uint64) {
+	peer := node.peers[peerIp]
+	bc, _ := node.bcs.GetChain(chainIdx)
+
+	firstMissing := theirHeight
+	found := false
+	for _, blockhash := range blockhashes {
+		if bytes.Equal(blockhash, bc.tipHash) {
+			firstMissing++
+			found = true
+			break
+		}
+
+		firstMissing--
+	}
+
+	if !found {
+		// there was a fork
+	}
+
+	for i := firstMissing; i <= theirHeight; i++ {
+		block, err := node.SendGetBlock(peer, blockhashes[theirHeight-i], chainIdx)
+		if err != nil {
+			log.Printf(err.Error())
+			return
+		}
+
+		bc.AddBlock(block.Data, block.Type)
+	}
 }
 
 ////////////////////////////////
