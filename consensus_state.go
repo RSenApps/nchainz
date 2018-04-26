@@ -6,40 +6,40 @@ type ConsensusStateToken struct {
 }
 
 type ConsensusState struct {
-	tokenStates []ConsensusStateToken
+	tokenStates map[string]ConsensusStateToken
 	unconfirmedMatchIDs map[uint64]bool
 	createdTokens []TokenInfo
 }
 
-func (state *ConsensusState) AddOrder(token int, order Order) {
+func (state *ConsensusState) AddOrder(symbol string, order Order) {
 
 }
 
-func (state *ConsensusState) RollbackOrder(token int, order Order) {
+func (state *ConsensusState) RollbackOrder(symbol string, order Order) {
 
 }
 
-func (state *ConsensusState) AddCancelOrder(token int, cancelOrder CancelOrder) {
+func (state *ConsensusState) AddCancelOrder(symbol string, cancelOrder CancelOrder) {
 
 }
 
-func (state *ConsensusState) RollbackCancelOrder(token int, cancelOrder CancelOrder) {
+func (state *ConsensusState) RollbackCancelOrder(symbol string, cancelOrder CancelOrder) {
 
 }
 
-func (state *ConsensusState) AddTransactionConfirmed(token int, transactionConfirmed TransactionConfirmed) {
+func (state *ConsensusState) AddTransactionConfirmed(symbol string, transactionConfirmed TransactionConfirmed) {
 
 }
 
-func (state *ConsensusState) RollbackTransactionConfirmed(token int, transactionConfirmed TransactionConfirmed) {
+func (state *ConsensusState) RollbackTransactionConfirmed(symbol string, transactionConfirmed TransactionConfirmed) {
 
 }
 
-func (state *ConsensusState) AddTransfer(token int, transfer Transfer) {
+func (state *ConsensusState) AddTransfer(symbol string, transfer Transfer) {
 
 }
 
-func (state *ConsensusState) RollbackTransfer(token int, transfer Transfer) {
+func (state *ConsensusState) RollbackTransfer(symbol string, transfer Transfer) {
 
 }
 

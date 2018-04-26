@@ -4,46 +4,47 @@ import (
 	"errors"
 )
 
+const MATCH_CHAIN = "MATCH"
+
 type Blockchains struct {
-	matchChain     *Blockchain
-	tokenChains    []*Blockchain
+	chains    map[string]*Blockchain
 	consensusState ConsensusState
 }
 
-func (blockchains *Blockchains) RollbackTokenToHeight(token int, height uint64) {
-	if height <= blockchains.tokenChains[token].GetStartHeight() {
+func (blockchains *Blockchains) rollbackTokenToHeight(symbol string, height uint64) {
+	if height <= blockchains.chains[symbol].GetStartHeight() {
 		return
 	}
 
-	blocksToRemove := blockchains.tokenChains[token].GetStartHeight() - height
+	blocksToRemove := blockchains.chains[symbol].GetStartHeight() - height
 	for i := uint64(0); i < blocksToRemove; i++ {
-		removedData := blockchains.tokenChains[token].RemoveLastBlock().(TokenData)
+		removedData := blockchains.chains[symbol].RemoveLastBlock().(TokenData)
 		for _, order := range removedData.Orders {
-			blockchains.consensusState.RollbackOrder(token, order)
+			blockchains.consensusState.RollbackOrder(symbol, order)
 		}
 
 		for _, cancelOrder := range removedData.CancelOrders {
-			blockchains.consensusState.RollbackCancelOrder(token, cancelOrder)
+			blockchains.consensusState.RollbackCancelOrder(symbol, cancelOrder)
 		}
 
 		for _, transactionConfirmed := range removedData.TransactionConfirmed {
-			blockchains.consensusState.RollbackTransactionConfirmed(token, transactionConfirmed)
+			blockchains.consensusState.RollbackTransactionConfirmed(symbol, transactionConfirmed)
 		}
 
 		for _, transfer := range removedData.Transfers {
-			blockchains.consensusState.RollbackTransfer(token, transfer)
+			blockchains.consensusState.RollbackTransfer(symbol, transfer)
 		}
 	}
 }
 
-func (blockchains *Blockchains) RollbackMatchToHeight(height uint64) {
-	if height <= blockchains.matchChain.GetStartHeight() {
+func (blockchains *Blockchains) rollbackMatchToHeight(height uint64) {
+	if height <= blockchains.chains[MATCH_CHAIN].GetStartHeight() {
 		return
 	}
 
-	blocksToRemove := blockchains.matchChain.GetStartHeight() - height
+	blocksToRemove := blockchains.chains[MATCH_CHAIN].GetStartHeight() - height
 	for i := uint64(0); i < blocksToRemove; i++ {
-		removedData := blockchains.matchChain.RemoveLastBlock().(MatchData)
+		removedData := blockchains.chains[MATCH_CHAIN].RemoveLastBlock().(MatchData)
 		for _, match := range removedData.Matches {
 			blockchains.consensusState.RollbackMatch(match)
 		}
@@ -58,27 +59,33 @@ func (blockchains *Blockchains) RollbackMatchToHeight(height uint64) {
 	}
 }
 
-func (blockchains *Blockchains) AddTokenBlock(token int, tokenData TokenData) {
+func (blockchains *Blockchains) RollbackToHeight(symbol string, height uint64) {
+	if symbol == MATCH_CHAIN {
+		blockchains.rollbackMatchToHeight(height)
+	} else {
+		blockchains.rollbackTokenToHeight(symbol, height)
+	}
+}
+
+func (blockchains *Blockchains) addTokenData(symbol string, tokenData TokenData) {
 	for _, order := range tokenData.Orders {
-		blockchains.consensusState.AddOrder(token, order)
+		blockchains.consensusState.AddOrder(symbol, order)
 	}
 
 	for _, cancelOrder := range tokenData.CancelOrders {
-		blockchains.consensusState.AddCancelOrder(token, cancelOrder)
+		blockchains.consensusState.AddCancelOrder(symbol, cancelOrder)
 	}
 
 	for _, transactionConfirmed := range tokenData.TransactionConfirmed {
-		blockchains.consensusState.AddTransactionConfirmed(token, transactionConfirmed)
+		blockchains.consensusState.AddTransactionConfirmed(symbol, transactionConfirmed)
 	}
 
 	for _, transfer := range tokenData.Transfers {
-		blockchains.consensusState.AddTransfer(token, transfer)
+		blockchains.consensusState.AddTransfer(symbol, transfer)
 	}
-
-	blockchains.tokenChains[token].AddBlock(tokenData, TOKEN_BLOCK)
 }
 
-func (blockchains *Blockchains) AddMatchBlock(matchData MatchData) {
+func (blockchains *Blockchains) addMatchData(matchData MatchData) {
 	for _, match := range matchData.Matches {
 		blockchains.consensusState.AddMatch(match)
 	}
@@ -90,35 +97,38 @@ func (blockchains *Blockchains) AddMatchBlock(matchData MatchData) {
 	for _, createToken := range matchData.CreateTokens {
 		blockchains.consensusState.AddCreateToken(createToken)
 	}
-
-	blockchains.matchChain.AddBlock(matchData, MATCH_BLOCK)
 }
 
-func (blockchains *Blockchains) GetOpenOrders(token int) []Order {
-	return blockchains.consensusState.tokenStates[token].openOrders
+func (blockchains *Blockchains) AddBlock(symbol string, block Block) {
+	if symbol == MATCH_CHAIN {
+		blockchains.addMatchData(block.Data.(MatchData))
+	} else {
+		blockchains.addTokenData(symbol, block.Data.(TokenData))
+	}
+	blockchains.chains[symbol].AddBlock(block)
+}
+
+func (blockchains *Blockchains) GetOpenOrders(symbol string) []Order {
+	return blockchains.consensusState.tokenStates[symbol].openOrders
 }
 
 func (blockchains *Blockchains) GetUnconfirmedMatches() map[uint64]bool {
 	return blockchains.consensusState.unconfirmedMatchIDs
 }
 
-func (blockchains *Blockchains) GetBalance(token int, address string) uint64 {
-	return blockchains.consensusState.tokenStates[token].balances[address]
+func (blockchains *Blockchains) GetBalance(symbol string, address string) uint64 {
+	return blockchains.consensusState.tokenStates[symbol].balances[address]
 }
 
 func CreateNewBlockchains(dbName string) *Blockchains {
 	//instantiates state and blockchains
 	blockchains := &Blockchains{}
-	blockchains.matchChain = NewBlockchain(dbName)
+	blockchains.chains[MATCH_CHAIN] = NewBlockchain(dbName)
 	return blockchains
 }
 
-func (blockchains *Blockchains) GetHeightMatching() uint64 {
-	return blockchains.matchChain.GetStartHeight()
-}
-
-func (blockchains *Blockchains) GetHeightToken(token int) uint64 {
-	return blockchains.tokenChains[token].GetStartHeight()
+func (blockchains *Blockchains) GetHeight(symbol string) uint64 {
+	return blockchains.chains[MATCH_CHAIN].GetStartHeight()
 }
 
 // for use in applying updates to other nodes
@@ -138,53 +148,30 @@ func (blockchains *Blockchains) ApplyUpdatesToken(token int, startIndex uint64, 
 
 }
 
-func (blockchains *Blockchains) AddBlock(chainIdx int, blockData BlockData) {
-	if chainIdx == 0 {
-		blockchains.AddMatchBlock(blockData.(MatchData))
-	} else {
-		blockchains.AddTokenBlock(chainIdx-1, blockData.(TokenData))
-	}
-}
-
-func (blockchains *Blockchains) GetBlock(chainIdx int, blockhash []byte) (*Block, error) {
-	bc, chainErr := blockchains.GetChain(chainIdx)
-	if chainErr != nil {
-		return nil, chainErr
+func (blockchains *Blockchains) GetBlock(symbol string, blockhash []byte) (*Block, error) {
+	bc, ok := blockchains.chains[symbol]
+	if !ok {
+		return nil, errors.New("invalid chain")
 	}
 
 	block, blockErr := bc.GetBlock(blockhash)
 	return block, blockErr
 }
 
-func (blockchains *Blockchains) GetChain(chainIdx int) (*Blockchain, error) {
-	if chainIdx < 0 || chainIdx-1 >= len(blockchains.tokenChains) {
-		return nil, errors.New("invalid chain")
-	}
-
-	if chainIdx == 0 {
-		return blockchains.matchChain, nil
-	} else {
-		return blockchains.tokenChains[chainIdx-1], nil
-	}
-}
-
-func (blockchains *Blockchains) GetHeights() []uint64 {
-	heights := make([]uint64, 1)
-	heights[0] = blockchains.GetHeightMatching()
-
-	for _, tokenChain := range blockchains.tokenChains {
-		heights = append(heights, tokenChain.GetStartHeight())
+func (blockchains *Blockchains) GetHeights() map[string]uint64 {
+	heights := make(map[string]uint64)
+	for symbol, tokenChain := range blockchains.chains {
+		heights[symbol] = tokenChain.GetStartHeight()
 	}
 
 	return heights
 }
 
-func (blockchains *Blockchains) GetBlockhashes() [][][]byte {
-	blockhashes := make([][][]byte, 1)
-	blockhashes[0] = blockchains.matchChain.GetBlockhashes()
+func (blockchains *Blockchains) GetBlockhashes() map[string][][]byte {
+	blockhashes := make(map[string][][]byte)
 
-	for _, tokenChain := range blockchains.tokenChains {
-		blockhashes = append(blockhashes, tokenChain.GetBlockhashes())
+	for symbol, tokenChain := range blockchains.chains {
+		blockhashes[symbol] = tokenChain.GetBlockhashes()
 	}
 
 	return blockhashes

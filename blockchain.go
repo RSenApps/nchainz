@@ -72,7 +72,7 @@ func NewBlockchain(dbFile string) *Blockchain {
 	return &Blockchain{tipHash, db}
 }
 
-func (bc *Blockchain) AddBlock(data BlockData, blockType BlockType) {
+func (bc *Blockchain) AddBlockData(data BlockData, blockType BlockType) {
 	var lastHash []byte // Hash of last block
 
 	// Read-only transaction to get hash of last block
@@ -110,6 +110,32 @@ func (bc *Blockchain) AddBlock(data BlockData, blockType BlockType) {
 		return nil
 	})
 }
+
+func (bc *Blockchain) AddBlock(block Block) {
+	//TODO: Verify block
+
+	// Read-write transaction to store new block in DB
+	bc.db.Update(func(tx *bolt.Tx) error {
+		// Store block in bucket
+		b := tx.Bucket([]byte(blocksBucket))
+		err := b.Put(block.Hash, block.Serialize())
+		if err != nil {
+			log.Panic(err)
+		}
+
+		// Update "l" key
+		err = b.Put([]byte("l"), block.Hash)
+		if err != nil {
+			log.Panic(err)
+		}
+
+		// Update tip
+		bc.tipHash = block.Hash
+
+		return nil
+	})
+}
+
 
 func (bc *Blockchain) RemoveLastBlock() BlockData {
 	//TODO:

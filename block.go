@@ -7,13 +7,6 @@ import (
 	"time"
 )
 
-type TokenType uint8
-
-const (
-	BNB TokenType = iota + 1
-	BTC
-)
-
 type TokenInfo struct {
 	Symbol string
 	TotalSupply uint64
@@ -85,7 +78,7 @@ type Match struct {
 }
 
 type Order struct {
-	BuyTokenType  TokenType
+	BuyTokenType  string
 	AmountToSell  uint64
 	AmountToBuy   uint64
 	SellerAddress string //TODO: []byte
