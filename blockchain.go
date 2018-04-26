@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"errors"
 	"github.com/boltdb/bolt" // Run "go get github.com/boltdb/bolt/..."
 	"log"
 )
@@ -168,4 +170,18 @@ func (bc *Blockchain) GetBlockhashes() [][]byte {
 	}
 
 	return blockhashes
+}
+
+func (bc *Blockchain) GetBlock(blockhash []byte) (*Block, error) {
+	bci := bc.Iterator()
+
+	block, err := bci.Next()
+	for err != nil {
+		if bytes.Equal(block.Hash, blockhash) {
+			return block, nil
+		}
+		_, err = bci.Next()
+	}
+
+	return nil, errors.New("block not found")
 }

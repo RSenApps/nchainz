@@ -1,5 +1,9 @@
 package main
 
+import (
+	"errors"
+)
+
 type Blockchains struct {
 	matchChain     *Blockchain
 	tokenChains    []*Blockchain
@@ -88,6 +92,36 @@ func (blockchains *Blockchains) AddMatchBlock(matchData MatchData) {
 	}
 
 	blockchains.matchChain.AddBlock(matchData, MATCH_BLOCK)
+}
+
+func (blockchains *Blockchains) AddBlock(chainIdx int, blockData BlockData) {
+	if chainIdx == 0 {
+		blockchains.AddMatchBlock(blockData.(MatchData))
+	} else {
+		blockchains.AddTokenBlock(chainIdx-1, blockData.(TokenData))
+	}
+}
+
+func (blockchains *Blockchains) GetBlock(chainIdx int, blockhash []byte) (*Block, error) {
+	bc, chainErr := blockchains.getChain(chainIdx)
+	if chainErr != nil {
+		return nil, chainErr
+	}
+
+	block, blockErr := bc.GetBlock(blockhash)
+	return block, blockErr
+}
+
+func (blockchains *Blockchains) getChain(chainIdx int) (*Blockchain, error) {
+	if chainIdx < 0 || chainIdx-1 >= len(blockchains.tokenChains) {
+		return nil, errors.New("invalid chain")
+	}
+
+	if chainIdx == 0 {
+		return blockchains.matchChain, nil
+	} else {
+		return blockchains.tokenChains[chainIdx-1], nil
+	}
 }
 
 func (blockchains *Blockchains) GetOpenOrders(token int) []Order {

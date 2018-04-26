@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -77,9 +78,11 @@ func StartNode(port uint, seedIp string) {
 	rpc.Accept(inbound)
 }
 
-////////////////////////////////
+//////////////////////////////////
 // VERSION
-// sends handshake to new peer
+// Handshake for a new peer
+// request: data about yourself
+// response: true if successful
 
 type VersionArgs struct {
 	Version      int
@@ -122,12 +125,14 @@ func (node *Node) callVersion(peer *Peer, args *VersionArgs) {
 
 	var reply bool
 	err := peer.client.Call("Node.Version", &args, &reply)
-	node.handleRpcReply(peer, err, &reply)
+	node.handleRpcReply(peer, err)
 }
 
 ////////////////////////////////
 // ADDR
-// send list of known peers
+// Share list of known peers
+// request: peer list
+// response: true if successful
 
 type AddrArgs struct {
 	Ips  []string
@@ -179,12 +184,14 @@ func (node *Node) callAddr(peer *Peer, args *AddrArgs) {
 
 	var reply bool
 	err := peer.client.Call("Node.Addr", args, &reply)
-	node.handleRpcReply(peer, err, &reply)
+	node.handleRpcReply(peer, err)
 }
 
-////////////////////////////////
+//////////////////////////////////////////
 // INV
-// send all blockhashes to peer
+// Share blockhashes with peer
+// request: all blockhashes for all chains
+// response: true if successful
 
 type InvArgs struct {
 	Blockhashes [][][]byte
@@ -201,6 +208,8 @@ func (node *Node) Inv(args *InvArgs, reply *bool) error {
 		*reply = false
 		return nil
 	}
+
+	// TODO: handle blockhashes
 
 	*reply = true
 	return nil
@@ -232,17 +241,116 @@ func (node *Node) callInv(peer *Peer, args *InvArgs) {
 
 	var reply bool
 	err := peer.client.Call("Node.Inv", args, &reply)
-	node.handleRpcReply(peer, err, &reply)
+	node.handleRpcReply(peer, err)
 }
 
 func (node *Node) invLoop() {
-	interval := 5 * time.Second
+	interval := 10 * time.Second
 	ticker := time.NewTicker(interval)
 
 	for {
 		<-ticker.C
 		node.BroadcastInv()
 	}
+}
+
+/////////////////////////////////////////
+// GETBLOCK
+// Get a block on a chain
+// request: blockhash of requested block
+// response: the requested block
+
+type GetBlockArgs struct {
+	Blockhash []byte
+	ChainIdx  int
+	From      string
+}
+
+type GetBlockReply struct {
+	Success bool
+	Block   Block
+}
+
+func (node *Node) GetBlock(args *GetBlockArgs, reply *GetBlockReply) error {
+	log.Printf("Received GETBLOCK from %s", args.From)
+	defer log.Printf("Done handling GETBLOCK from %s", args.From)
+
+	peerState := node.getPeerState(args.From)
+	if peerState != ACTIVE && peerState != FOUND {
+		log.Printf("Received GETBLOCK from inactive or unknown peer %s", args.From)
+		*reply = GetBlockReply{false, Block{}}
+	}
+
+	block, err := node.bcs.GetBlock(args.ChainIdx, args.Blockhash)
+	if err != nil {
+		*reply = GetBlockReply{false, Block{}}
+	} else {
+		*reply = GetBlockReply{true, *block}
+	}
+
+	return nil
+}
+
+func (node *Node) SendGetBlock(peer *Peer, blockhash []byte, chainIdx int) (*Block, error) {
+	args := &GetBlockArgs{blockhash, chainIdx, node.myIp}
+	reply, err := node.callGetBlock(peer, args)
+	node.handleRpcReply(peer, err)
+
+	if err != nil {
+		return nil, err
+	} else if !reply.Success {
+		return nil, errors.New("GETBLOCK unsuccessful")
+	}
+
+	return &reply.Block, nil
+}
+
+func (node *Node) callGetBlock(peer *Peer, args *GetBlockArgs) (*GetBlockReply, error) {
+	log.Printf("Sending GETBLOCK to %s", peer.ip)
+	defer log.Printf("Done sending GETBLOCK to %s", peer.ip)
+
+	reply := &GetBlockReply{}
+	err := peer.client.Call("Node.GetBlock", args, reply)
+	return reply, err
+}
+
+//////////////////////////////////////////
+// TX
+// Share transaction with peers
+// request: transaction data
+// response: true if successful
+
+type TxArgs struct {
+	Tx   GenericTransaction
+	From string
+}
+
+func (node *Node) Tx(args *TxArgs, reply *bool) error {
+	log.Printf("Received TX from %s", args.From)
+	defer log.Printf("Done handling TX from %s", args.From)
+
+	// TODO: add tx to mempool if it isn't there
+	// TODO: gossip tx to peers if new
+
+	*reply = true
+	return nil
+}
+
+func (node *Node) BroadcastTx(tx *GenericTransaction) {
+	args := &TxArgs{*tx, node.myIp}
+
+	for _, peer := range node.getActivePeers() {
+		go node.callTx(peer, args)
+	}
+}
+
+func (node *Node) callTx(peer *Peer, args *TxArgs) {
+	log.Printf("Sending TX to %s", peer.ip)
+	defer log.Printf("Done sending TX to %s", peer.ip)
+
+	var reply bool
+	err := peer.client.Call("Node.Tx", args, &reply)
+	node.handleRpcReply(peer, err)
 }
 
 ////////////////////////////////
@@ -290,7 +398,7 @@ func (node *Node) connectPeerIfNew(peerIp string) (isNew bool, peer *Peer, err e
 ////////////////////////////////
 // Utils: RPC Management
 
-func (node *Node) handleRpcReply(peer *Peer, err error, reply *bool) {
+func (node *Node) handleRpcReply(peer *Peer, err error) {
 	if err != nil {
 		log.Print(err)
 		node.setPeerState(peer.ip, INVALID)
