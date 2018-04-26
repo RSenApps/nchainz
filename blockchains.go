@@ -1,8 +1,8 @@
 package main
 
 type Blockchains struct {
-	matchChain *Blockchain
-	tokenChains []*Blockchain
+	matchChain     *Blockchain
+	tokenChains    []*Blockchain
 	consensusState ConsensusState
 }
 
@@ -102,9 +102,11 @@ func (blockchains *Blockchains) GetBalance(token int, address string) uint64 {
 	return blockchains.consensusState.tokenStates[token].balances[address]
 }
 
-func (blockchains *Blockchains) CreateNew() {
+func CreateNewBlockchains(dbName string) *Blockchains {
 	//instantiates state and blockchains
-	blockchains.matchChain = NewBlockchain("matchchain.db")
+	blockchains := &Blockchains{}
+	blockchains.matchChain = NewBlockchain(dbName)
+	return blockchains
 }
 
 func (blockchains *Blockchains) GetHeightMatching() uint64 {
@@ -113,6 +115,28 @@ func (blockchains *Blockchains) GetHeightMatching() uint64 {
 
 func (blockchains *Blockchains) GetHeightToken(token int) uint64 {
 	return blockchains.tokenChains[token].GetStartHeight()
+}
+
+func (blockchains *Blockchains) GetHeights() []uint64 {
+	heights := make([]uint64, 1)
+	heights[0] = blockchains.GetHeightMatching()
+
+	for _, tokenChain := range blockchains.tokenChains {
+		heights = append(heights, tokenChain.GetStartHeight())
+	}
+
+	return heights
+}
+
+func (blockchains *Blockchains) GetBlockhashes() [][][]byte {
+	blockhashes := make([][][]byte, 1)
+	blockhashes[0] = blockchains.matchChain.GetBlockhashes()
+
+	for _, tokenChain := range blockchains.tokenChains {
+		blockhashes = append(blockhashes, tokenChain.GetBlockhashes())
+	}
+
+	return blockhashes
 }
 
 // for use in applying updates to other nodes
@@ -128,6 +152,6 @@ func (blockchains *Blockchains) ApplyUpdatesMatching(startIndex uint64, updates 
 
 }
 
-func (blockchains *Blockchains) ApplyUpdatesToken(token int, startIndex uint64, updates []byte){
+func (blockchains *Blockchains) ApplyUpdatesToken(token int, startIndex uint64, updates []byte) {
 
 }

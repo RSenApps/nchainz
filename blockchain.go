@@ -156,3 +156,16 @@ func (bc *Blockchain) GetStartHeight() uint64 {
 
 	return height
 }
+
+func (bc *Blockchain) GetBlockhashes() [][]byte {
+	blockhashes := make([][]byte, 0)
+	bci := bc.Iterator()
+
+	block, err := bci.Next()
+	for err != nil {
+		blockhashes = append(blockhashes, block.Hash)
+		_, err = bci.Next()
+	}
+
+	return blockhashes
+}

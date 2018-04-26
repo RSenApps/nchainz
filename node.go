@@ -2,9 +2,11 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/rpc"
+	"os"
 	"sync"
 	"time"
 )
@@ -13,7 +15,7 @@ type Node struct {
 	mu    sync.RWMutex
 	myIp  string
 	peers map[string]*Peer
-	bc    *Blockchain
+	bcs   *Blockchains
 }
 
 type Peer struct {
@@ -61,11 +63,15 @@ func StartNode(port uint, seedIp string) {
 
 	mu := sync.RWMutex{}
 	peers := make(map[string]*Peer)
-	bc := NewBlockchain(dbName)
-	node := Node{mu, myIp, peers, bc}
+	bcs := CreateNewBlockchains(dbName)
+	node := Node{mu, myIp, peers, bcs}
 
+	log.SetOutput(ioutil.Discard)
 	rpc.Register(&node)
+	log.SetOutput(os.Stdout)
+
 	go node.connectPeerIfNew(seedIp)
+	go node.invLoop()
 
 	log.Printf("Listening on %s", myIp)
 	rpc.Accept(inbound)
@@ -73,11 +79,12 @@ func StartNode(port uint, seedIp string) {
 
 ////////////////////////////////
 // VERSION
+// sends handshake to new peer
 
 type VersionArgs struct {
-	Version     int
-	StartHeight uint64
-	From        string
+	Version      int
+	StartHeights []uint64
+	From         string
 }
 
 func (node *Node) Version(args *VersionArgs, reply *bool) error {
@@ -94,19 +101,17 @@ func (node *Node) Version(args *VersionArgs, reply *bool) error {
 		return err
 	}
 
-	myStartHeight := node.getStartHeight()
-	if myStartHeight < args.StartHeight {
-		// go sendGetBlocks
-	}
+	// myStartHeights := node.bcs.GetHeights()
+	// if short go sendGetBlocks
 
 	*reply = true
 	return nil
 }
 
-func (node *Node) sendVersion(peer *Peer) {
+func (node *Node) SendVersion(peer *Peer) {
 	version := 0
-	startHeight := node.getStartHeight()
-	args := VersionArgs{version, startHeight, node.myIp}
+	startHeights := node.bcs.GetHeights()
+	args := VersionArgs{version, startHeights, node.myIp}
 
 	node.callVersion(peer, &args)
 }
@@ -122,6 +127,7 @@ func (node *Node) callVersion(peer *Peer, args *VersionArgs) {
 
 ////////////////////////////////
 // ADDR
+// send list of known peers
 
 type AddrArgs struct {
 	Ips  []string
@@ -134,7 +140,7 @@ func (node *Node) Addr(args *AddrArgs, reply *bool) error {
 
 	peerState := node.getPeerState(args.From)
 	if peerState != ACTIVE && peerState != FOUND {
-		log.Printf("Received addr from inactive or unknown peer %s", args.From)
+		log.Printf("Received INV from inactive or unknown peer %s", args.From)
 		*reply = false
 		return nil
 	}
@@ -147,12 +153,12 @@ func (node *Node) Addr(args *AddrArgs, reply *bool) error {
 	return nil
 }
 
-func (node *Node) sendAddr(peer *Peer) {
+func (node *Node) SendAddr(peer *Peer) {
 	args := node.getAddrArgs()
 	node.callAddr(peer, args)
 }
 
-func (node *Node) broadcastAddr() {
+func (node *Node) BroadcastAddr() {
 	args := node.getAddrArgs()
 
 	for _, peer := range node.getActivePeers() {
@@ -174,6 +180,69 @@ func (node *Node) callAddr(peer *Peer, args *AddrArgs) {
 	var reply bool
 	err := peer.client.Call("Node.Addr", args, &reply)
 	node.handleRpcReply(peer, err, &reply)
+}
+
+////////////////////////////////
+// INV
+// send all blockhashes to peer
+
+type InvArgs struct {
+	Blockhashes [][][]byte
+	From        string
+}
+
+func (node *Node) Inv(args *InvArgs, reply *bool) error {
+	log.Printf("Received INV from %s", args.From)
+	defer log.Printf("Done handling INV from %s", args.From)
+
+	peerState := node.getPeerState(args.From)
+	if peerState != ACTIVE && peerState != FOUND {
+		log.Printf("Received INV from inactive or unknown peer %s", args.From)
+		*reply = false
+		return nil
+	}
+
+	*reply = true
+	return nil
+}
+
+func (node *Node) SendInv(peer *Peer) {
+	args := node.getInvArgs()
+	node.callInv(peer, args)
+}
+
+func (node *Node) BroadcastInv() {
+	args := node.getInvArgs()
+
+	for _, peer := range node.getActivePeers() {
+		go node.callInv(peer, args)
+	}
+}
+
+func (node *Node) getInvArgs() *InvArgs {
+	blockhashes := node.bcs.GetBlockhashes()
+	args := InvArgs{blockhashes, node.myIp}
+
+	return &args
+}
+
+func (node *Node) callInv(peer *Peer, args *InvArgs) {
+	log.Printf("Sending INV to %s", peer.ip)
+	defer log.Printf("Done sending INV to %s", peer.ip)
+
+	var reply bool
+	err := peer.client.Call("Node.Inv", args, &reply)
+	node.handleRpcReply(peer, err, &reply)
+}
+
+func (node *Node) invLoop() {
+	interval := 5 * time.Second
+	ticker := time.NewTicker(interval)
+
+	for {
+		<-ticker.C
+		node.BroadcastInv()
+	}
 }
 
 ////////////////////////////////
@@ -207,10 +276,10 @@ func (node *Node) connectPeerIfNew(peerIp string) (isNew bool, peer *Peer, err e
 	peer.client = client
 	node.mu.Unlock()
 
-	node.sendVersion(peer)
+	node.SendVersion(peer)
 	node.setPeerState(peerIp, ACTIVE)
 
-	node.broadcastAddr()
+	node.BroadcastAddr()
 
 	ips := node.getPeerIps()
 	log.Printf("Connected peer %s, known peers: %v", peerIp, ips)
@@ -278,11 +347,4 @@ func (node *Node) setPeerState(peerIp string, state PeerState) {
 	defer node.mu.Unlock()
 
 	node.peers[peerIp].state = state
-}
-
-func (node *Node) getStartHeight() uint64 {
-	node.mu.Lock()
-	defer node.mu.Unlock()
-
-	return node.bc.GetStartHeight()
 }
