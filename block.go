@@ -121,13 +121,6 @@ func NewGenesisBlock(data BlockData) *Block {
 
 func NewBlock(data BlockData, blockType BlockType, prevBlockHash []byte) *Block {
 	block := &Block{time.Now().Unix(), blockType, data, prevBlockHash, []byte{}, 0}
-
-	// Add block
-	pow := NewProofOfWork(block)
-	nonce, hash := pow.Run()
-	block.Hash = hash[:]
-	block.Nonce = nonce
-
 	return block
 }
 
