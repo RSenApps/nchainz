@@ -11,11 +11,33 @@ type Blockchains struct {
 	consensusState ConsensusState
 }
 
+type UncommittedTransactions struct {
+	transactions []GenericTransaction
+}
+
+func (uncommitted *UncommittedTransactions) addTransaction(transaction GenericTransaction) {
+	uncommitted.transactions = append(uncommitted.transactions, transaction)
+}
+
+func (uncommitted *UncommittedTransactions) undoTransactions(symbol string, state *ConsensusState) {
+	for i := len(uncommitted.transactions) - 1; i >= 0; i-- {
+		transaction := uncommitted.transactions[i].transaction
+		switch uncommitted.transactions[i].transactionType {
+		case ORDER: state.RollbackOrder(symbol, transaction.(Order))
+		case CANCEL_ORDER: state.RollbackCancelOrder(symbol, transaction.(CancelOrder))
+		case TRANSACTION_CONFIRMED: state.RollbackTransactionConfirmed(symbol, transaction.(TransactionConfirmed))
+		case TRANSFER: state.RollbackTransfer(symbol, transaction.(Transfer))
+		case MATCH: state.RollbackMatch(transaction.(Match))
+		case CANCEL_MATCH: state.RollbackCancelMatch(transaction.(CancelMatch))
+		case CREATE_TOKEN: state.RollbackCreateToken(transaction.(CreateToken))
+		}
+	}
+}
+
 func (blockchains *Blockchains) rollbackTokenToHeight(symbol string, height uint64) {
 	if height <= blockchains.chains[symbol].GetStartHeight() {
 		return
 	}
-
 	blocksToRemove := blockchains.chains[symbol].GetStartHeight() - height
 	for i := uint64(0); i < blocksToRemove; i++ {
 		removedData := blockchains.chains[symbol].RemoveLastBlock().(TokenData)
@@ -67,45 +89,113 @@ func (blockchains *Blockchains) RollbackToHeight(symbol string, height uint64) {
 	}
 }
 
-func (blockchains *Blockchains) addTokenData(symbol string, tokenData TokenData) {
+func (blockchains *Blockchains) addTokenData(symbol string, tokenData TokenData, uncommitted *UncommittedTransactions) bool {
 	for _, order := range tokenData.Orders {
-		blockchains.consensusState.AddOrder(symbol, order)
+		if !blockchains.consensusState.AddOrder(symbol, order) {
+			return false
+		}
+		uncommitted.addTransaction(GenericTransaction{
+			transaction:     order,
+			transactionType: ORDER,
+		})
 	}
 
 	for _, cancelOrder := range tokenData.CancelOrders {
-		blockchains.consensusState.AddCancelOrder(symbol, cancelOrder)
+		if !blockchains.consensusState.AddCancelOrder(symbol, cancelOrder) {
+			return false
+		}
+		uncommitted.addTransaction(GenericTransaction{
+			transaction:     cancelOrder,
+			transactionType: CANCEL_ORDER,
+		})
 	}
 
 	for _, transactionConfirmed := range tokenData.TransactionConfirmed {
-		blockchains.consensusState.AddTransactionConfirmed(symbol, transactionConfirmed)
+		if !blockchains.consensusState.AddTransactionConfirmed(symbol, transactionConfirmed) {
+			return false
+		}
+		uncommitted.addTransaction(GenericTransaction{
+			transaction:     transactionConfirmed,
+			transactionType: TRANSACTION_CONFIRMED,
+		})
 	}
 
 	for _, transfer := range tokenData.Transfers {
-		blockchains.consensusState.AddTransfer(symbol, transfer)
+		if !blockchains.consensusState.AddTransfer(symbol, transfer) {
+			return false
+		}
+		uncommitted.addTransaction(GenericTransaction{
+			transaction:     transfer,
+			transactionType: TRANSFER,
+		})
 	}
+	return true
 }
 
-func (blockchains *Blockchains) addMatchData(matchData MatchData) {
+func (blockchains *Blockchains) addMatchData(matchData MatchData, uncommitted *UncommittedTransactions) bool {
 	for _, match := range matchData.Matches {
-		blockchains.consensusState.AddMatch(match)
+		if !blockchains.consensusState.AddMatch(match) {
+			return false
+		}
+		uncommitted.addTransaction(GenericTransaction{
+			transaction:     match,
+			transactionType: MATCH,
+		})
 	}
 
 	for _, cancelMatch := range matchData.CancelMatches {
-		blockchains.consensusState.AddCancelMatch(cancelMatch)
+		if !blockchains.consensusState.AddCancelMatch(cancelMatch) {
+			return false
+		}
+		uncommitted.addTransaction(GenericTransaction{
+			transaction:     cancelMatch,
+			transactionType: MATCH,
+		})
 	}
 
 	for _, createToken := range matchData.CreateTokens {
-		blockchains.consensusState.AddCreateToken(createToken)
+		if !blockchains.consensusState.AddCreateToken(createToken) {
+			return false
+		}
+		uncommitted.addTransaction(GenericTransaction{
+			transaction:     createToken,
+			transactionType: CREATE_TOKEN,
+		})
 	}
+	return true
 }
 
 func (blockchains *Blockchains) AddBlock(symbol string, block Block) {
-	if symbol == MATCH_CHAIN {
-		blockchains.addMatchData(block.Data.(MatchData))
-	} else {
-		blockchains.addTokenData(symbol, block.Data.(TokenData))
+	blockchains.AddBlocks(symbol, []Block{block})
+}
+
+func (blockchains *Blockchains) AddBlocks(symbol string, blocks []Block) bool {
+	blocksAdded := 0
+	var uncommitted UncommittedTransactions
+	failed := false
+	for _, block := range blocks {
+		if symbol == MATCH_CHAIN {
+			if !blockchains.addMatchData(block.Data.(MatchData), &uncommitted) {
+				failed = true
+				break
+			}
+		} else {
+			if !blockchains.addTokenData(symbol, block.Data.(TokenData), &uncommitted) {
+				failed = true
+				break
+			}
+		}
+		blockchains.chains[symbol].AddBlock(block)
+		blocksAdded++
 	}
-	blockchains.chains[symbol].AddBlock(block)
+	if failed {
+		uncommitted.undoTransactions(symbol, &blockchains.consensusState)
+		for i := 0; i < blocksAdded; i++ {
+			blockchains.chains[symbol].RemoveLastBlock()
+		}
+		return false
+	}
+	return true
 }
 
 func (blockchains *Blockchains) GetOpenOrders(symbol string) []Order {
