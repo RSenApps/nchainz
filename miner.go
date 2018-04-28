@@ -52,6 +52,5 @@ func (miner *Miner) mineLoop() Block {
 func NewMiner() *Miner {
 	transactionCh := make(chan TransactionMsg)
 	miner := &Miner{transactionCh}
-	miner.mineLoop()
 	return miner
 }
