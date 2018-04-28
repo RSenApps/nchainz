@@ -1,56 +1,49 @@
 package main
 
-type ActionType uint8
+type NewBlockMsg struct {
+	BlockType   BlockType          // type of block we are adding transactions to
+	LastHash    []byte             // hash of previous block
+}
 
-const (
-	START ActionType = iota + 1
-	STOP
-)
-
-type TransactionMsg struct {
-	transaction GenericTransaction // transaction to add
-	action      ActionType         // START or STOP mining
-	blockType   BlockType          // type of block we are adding transactions to
-	lastHash    []byte             // hash of previous block
+type MinerMsg struct {
+	Msg interface{}
+	IsNewBlock bool
 }
 
 type Miner struct {
-	transactionCh chan TransactionMsg
+	minerCh chan MinerMsg
+	finishedBlockCh chan Block
 }
 
-func (miner *Miner) mineLoop() Block {
-	block := Block{}
+func (miner *Miner) mineLoop() {
+	var block *Block
 	for {
 		select {
-		case msg := <-miner.transactionCh:
+		case msg := <-miner.minerCh:
 			// Stop mining
-			if msg.action == STOP {
-				return block
-			} else { // Continue mining
-				// These should always be the same
-				block.Type = msg.blockType
-				block.PrevBlockHash = msg.lastHash
-
-				// Initialize or modify data
-				block.AddTransaction(&msg.transaction)
-
-				// Try to mine
-				pow := NewProofOfWork(&block)
-				success, nonce, hash := pow.Try(1000)
-				if success {
-					block.Hash = hash[:]
-					block.Nonce = nonce
-					return block
-				}
+			if msg.IsNewBlock {
+				newBlock := msg.Msg.(NewBlockMsg)
+				block = NewBlock(nil, newBlock.BlockType, newBlock.LastHash)
+			} else {
+				transaction := msg.Msg.(GenericTransaction)
+				block.AddTransaction(transaction)
 			}
-		default: // Stop mining once there are no more transactions
-			return block
+		default:
+			// Try to mine
+			pow := NewProofOfWork(block)
+			success, nonce, hash := pow.Try(1000)
+			if success {
+				block.Hash = hash[:]
+				block.Nonce = nonce
+				miner.finishedBlockCh <- *block
+			}
 		}
 	}
 }
 
-func NewMiner() *Miner {
-	transactionCh := make(chan TransactionMsg)
-	miner := &Miner{transactionCh}
+func NewMiner(finishedBlockCh chan Block) *Miner {
+	minerCh := make(chan MinerMsg)
+	miner := &Miner{minerCh, finishedBlockCh}
+	go miner.mineLoop()
 	return miner
 }
