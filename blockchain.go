@@ -12,6 +12,7 @@ const blocksBucket = "blocks"
 type Blockchain struct {
 	tipHash []byte   // Tip of chain
 	db      *bolt.DB // DB connection
+	height  uint64
 }
 
 // To iterate over blocks
@@ -69,7 +70,7 @@ func NewBlockchain(dbFile string) *Blockchain {
 		log.Panic(err)
 	}
 
-	return &Blockchain{tipHash, db}
+	return &Blockchain{tipHash, db, 0}
 }
 
 func (bc *Blockchain) AddBlockData(data BlockData, blockType BlockType) {
@@ -109,6 +110,8 @@ func (bc *Blockchain) AddBlockData(data BlockData, blockType BlockType) {
 
 		return nil
 	})
+
+	bc.height += 1
 }
 
 func (bc *Blockchain) AddBlock(block Block) {
@@ -134,8 +137,9 @@ func (bc *Blockchain) AddBlock(block Block) {
 
 		return nil
 	})
-}
 
+	bc.height += 1
+}
 
 func (bc *Blockchain) RemoveLastBlock() BlockData {
 	//TODO:
@@ -173,7 +177,7 @@ func (bci *BlockchainIterator) Next() (*Block, error) {
 
 // TODO: Write this in an efficient way
 func (bc *Blockchain) GetStartHeight() uint64 {
-	bci := bc.Iterator()
+	/*bci := bc.Iterator()
 	var height uint64
 
 	_, err := bci.Next()
@@ -182,7 +186,8 @@ func (bc *Blockchain) GetStartHeight() uint64 {
 		_, err = bci.Next()
 	}
 
-	return height
+	return height*/
+	return bc.height
 }
 
 func (bc *Blockchain) GetBlockhashes() [][]byte {

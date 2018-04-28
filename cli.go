@@ -26,6 +26,9 @@ func (cli *CLI) Run() {
 	printChainCmd := flag.NewFlagSet("printchain", flag.ExitOnError)
 	printAddressesCmd := flag.NewFlagSet("printaddresses", flag.ExitOnError)
 	nodeCmd := flag.NewFlagSet("node", flag.ExitOnError)
+	createBCCmd := flag.NewFlagSet("createbc", flag.ExitOnError)
+
+	bcAddress := createBCCmd.String("address", "", "Genesis reward sent to this address.")
 
 	switch os.Args[1] {
 	case "createwallet":
@@ -45,6 +48,11 @@ func (cli *CLI) Run() {
 		}
 	case "node":
 		err := nodeCmd.Parse(os.Args[2:])
+		if err != nil {
+			log.Panic(err)
+		}
+	case "createbc":
+		err := createBCCmd.Parse(os.Args[2:])
 		if err != nil {
 			log.Panic(err)
 		}
@@ -68,6 +76,14 @@ func (cli *CLI) Run() {
 	if printAddressesCmd.Parsed() {
 		cli.printAddresses()
 	}
+
+	if createBCCmd.Parsed() {
+		if *bcAddress == "" {
+			createBCCmd.Usage()
+			os.Exit(1)
+		}
+		cli.createBC(*bcAddress)
+	}
 }
 
 func (cli *CLI) printHelp() {
@@ -90,6 +106,7 @@ func (cli *CLI) printChain() {
 
 	bci := bc.Iterator()
 
+	fmt.Println("Height:", bc.height)
 	for {
 		block, _ := bci.Next()
 
@@ -129,4 +146,9 @@ func (cli *CLI) node(args []string) {
 	seed := args[3]
 
 	StartNode(uint(port), seed)
+}
+
+func (cli *CLI) createBC(address string) {
+	// TODO
+	fmt.Println("Done!")
 }
