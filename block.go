@@ -8,9 +8,9 @@ import (
 )
 
 type TokenInfo struct {
-	Symbol string
+	Symbol      string
 	TotalSupply uint64
-	Decimals uint8
+	Decimals    uint8
 }
 
 type BlockType uint8
@@ -45,36 +45,35 @@ type Block struct {
 type BlockData interface{}
 
 type MatchData struct {
-	Matches []Match
+	Matches       []Match
 	CancelMatches []CancelMatch
-	CreateTokens []CreateToken
+	CreateTokens  []CreateToken
 }
 
 type TokenData struct {
-	Orders    []Order
-	CancelOrders   []CancelOrder
-	TransactionConfirmed   []TransactionConfirmed
-	Transfers []Transfer
+	Orders               []Order
+	CancelOrders         []CancelOrder
+	TransactionConfirmed []TransactionConfirmed
+	Transfers            []Transfer
 }
 
 type GenericTransaction struct {
-	transaction interface{}
+	transaction     interface{}
 	transactionType TransactionType
 }
 
-
 type CreateToken struct {
-	TokenInfo TokenInfo
+	TokenInfo      TokenInfo
 	CreatorAddress string //TODO: []byte
-	Signature []byte
+	Signature      []byte
 }
 
 //surplus goes to miner
 type Match struct {
-	MatchID uint64
+	MatchID     uint64
 	SellOrderID uint64
-	BuyOrderID uint64
-	AmountSold uint64
+	BuyOrderID  uint64
+	AmountSold  uint64
 }
 
 type Order struct {
@@ -82,7 +81,7 @@ type Order struct {
 	AmountToSell  uint64
 	AmountToBuy   uint64
 	SellerAddress string //TODO: []byte
-	Signature []byte
+	Signature     []byte
 }
 
 type Transfer struct {
@@ -94,8 +93,8 @@ type Transfer struct {
 
 type CancelMatch struct {
 	CancelMatchID uint64
-	OrderID uint64
-	Signature   []byte
+	OrderID       uint64
+	Signature     []byte
 }
 
 type CancelOrder struct {
@@ -120,7 +119,6 @@ func NewGenesisBlock(data BlockData) *Block {
 	return NewBlock(data, STRING, []byte{})
 }
 
-
 func NewBlock(data BlockData, blockType BlockType, prevBlockHash []byte) *Block {
 	block := &Block{time.Now().Unix(), blockType, data, prevBlockHash, []byte{}, 0}
 
@@ -131,6 +129,36 @@ func NewBlock(data BlockData, blockType BlockType, prevBlockHash []byte) *Block 
 	block.Nonce = nonce
 
 	return block
+}
+
+func (b *Block) AddTransaction(tx *GenericTransaction) {
+	temp := b.Data
+	switch tx.transactionType {
+	case MATCH:
+		temp := b.Data.(MatchData)
+		temp.Matches = append(temp.Matches, tx.transaction.(Match))
+	case ORDER:
+		temp := b.Data.(TokenData)
+		temp.Orders = append(temp.Orders, tx.transaction.(Order))
+	case TRANSFER:
+		temp := b.Data.(TokenData)
+		temp.Transfers = append(temp.Transfers, tx.transaction.(Transfer))
+	case CANCEL_MATCH:
+		temp := b.Data.(MatchData)
+		temp.CancelMatches = append(temp.CancelMatches, tx.transaction.(CancelMatch))
+	case CANCEL_ORDER:
+		temp := b.Data.(TokenData)
+		temp.CancelOrders = append(temp.CancelOrders, tx.transaction.(CancelOrder))
+	case TRANSACTION_CONFIRMED:
+		temp := b.Data.(TokenData)
+		temp.TransactionConfirmed = append(temp.TransactionConfirmed, tx.transaction.(TransactionConfirmed))
+	case CREATE_TOKEN:
+		temp := b.Data.(MatchData)
+		temp.CreateTokens = append(temp.CreateTokens, tx.transaction.(CreateToken))
+	default:
+		log.Panic("ERROR: unknown transaction type")
+	}
+	b.Data = temp
 }
 
 //

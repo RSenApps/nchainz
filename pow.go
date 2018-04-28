@@ -8,6 +8,8 @@ import (
 	"log"
 	"math"
 	"math/big"
+	"math/rand"
+	"time"
 )
 
 // Controls difficulty of mining
@@ -60,9 +62,45 @@ func (pow *ProofOfWork) prepareData(nonce int) []byte {
 	return data
 }
 
+func random(max int) int {
+	rand.Seed(time.Now().Unix())
+	return rand.Intn(max)
+}
+
 //
-// Proof of Work method: returns nonce and hash
+// Generates random nonce for "iterations" number of times
+// Returns nonce and hash
 //
+func (pow *ProofOfWork) Try(iterations int) (bool, int, []byte) {
+	for i := 0; i < iterations; i++ {
+		rand := random(maxNonce)
+		success, nonce, hash := pow.Calculate(rand)
+		if success {
+			return success, nonce, hash
+		}
+	}
+
+	return false, 0, nil
+}
+
+//
+// Returns nonce and hash
+//
+func (pow *ProofOfWork) Calculate(nonce int) (bool, int, []byte) {
+	var hashInt big.Int // int representation of hash
+	var hash [32]byte
+
+	data := pow.prepareData(nonce) // prepare data
+	hash = sha256.Sum256(data)     // hash with SHA-256
+	hashInt.SetBytes(hash[:])      // convert hash to a big integer
+
+	if hashInt.Cmp(pow.target) == -1 { // compare integer with target
+		return true, nonce, hash[:] // if hash < target, valid proof!
+	}
+
+	return false, nonce, hash[:]
+}
+
 func (pow *ProofOfWork) Run() (int, []byte) {
 	var hashInt big.Int // int representation of hash
 	var hash [32]byte
