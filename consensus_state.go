@@ -1,14 +1,18 @@
 package main
 
+import "sync"
+
 type ConsensusStateToken struct {
 	openOrders []Order
-	balances map[string]uint64
+	balances sync.Map
 }
 
 type ConsensusState struct {
-	tokenStates map[string]ConsensusStateToken
+	tokenStates sync.Map
 	unconfirmedMatchIDs map[uint64]bool
+	unconfirmedMatchIDsLock sync.RWMutex
 	createdTokens []TokenInfo
+	createdTokensLock sync.RWMutex
 }
 
 func (state *ConsensusState) AddOrder(symbol string, order Order) bool {
