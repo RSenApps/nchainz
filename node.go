@@ -1,7 +1,7 @@
 package main
 
 import (
-	"bytes"
+	//"bytes"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -87,7 +87,7 @@ func StartNode(port uint, seedIp string) {
 
 type VersionArgs struct {
 	Version      int
-	StartHeights []uint64
+	StartHeights map[string]uint64
 	From         string
 }
 
@@ -195,8 +195,8 @@ func (node *Node) callAddr(peer *Peer, args *AddrArgs) {
 // response: true if successful
 
 type InvArgs struct {
-	Blockhashes  [][][]byte
-	StartHeights []uint64
+	Blockhashes  map[string][][]byte
+	StartHeights map[string]uint64
 	From         string
 }
 
@@ -214,10 +214,6 @@ func (node *Node) Inv(args *InvArgs, reply *bool) error {
 	myHeights := node.bcs.GetHeights()
 
 	for chainIdx, startHeight := range args.StartHeights {
-		if chainIdx >= len(myHeights) {
-			break
-		}
-
 		if myHeights[chainIdx] < startHeight {
 			node.reconcileChain(args.From, chainIdx, args.Blockhashes[chainIdx], startHeight)
 		}
@@ -275,7 +271,7 @@ func (node *Node) invLoop() {
 
 type GetBlockArgs struct {
 	Blockhash []byte
-	ChainIdx  int
+	ChainIdx  string
 	From      string
 }
 
@@ -304,7 +300,7 @@ func (node *Node) GetBlock(args *GetBlockArgs, reply *GetBlockReply) error {
 	return nil
 }
 
-func (node *Node) SendGetBlock(peer *Peer, blockhash []byte, chainIdx int) (*Block, error) {
+func (node *Node) SendGetBlock(peer *Peer, blockhash []byte, chainIdx string) (*Block, error) {
 	args := &GetBlockArgs{blockhash, chainIdx, node.myIp}
 	reply, err := node.callGetBlock(peer, args)
 	node.handleRpcReply(peer, err)
@@ -411,8 +407,8 @@ func (node *Node) connectPeerIfNew(peerIp string) (isNew bool, peer *Peer, err e
 ////////////////////////////////
 // Utils: Chain Management
 
-func (node *Node) reconcileChain(peerIp string, chainIdx int, blockhashes [][]byte, theirHeight uint64) {
-	peer := node.peers[peerIp]
+func (node *Node) reconcileChain(peerIp string, chainIdx string, blockhashes [][]byte, theirHeight uint64) {
+	/*peer := node.peers[peerIp]
 	bc, _ := node.bcs.GetChain(chainIdx)
 
 	firstMissing := theirHeight
@@ -439,7 +435,7 @@ func (node *Node) reconcileChain(peerIp string, chainIdx int, blockhashes [][]by
 		}
 
 		bc.AddBlock(block.Data, block.Type)
-	}
+	}*/
 }
 
 ////////////////////////////////
