@@ -8,7 +8,7 @@ import (
 const MATCH_CHAIN = "MATCH"
 
 type Blockchains struct {
-	chains sync.Map
+	chains sync.Map //map[string]*Blockchain
 	consensusState ConsensusState
 	locks map[string]*sync.Mutex
 }

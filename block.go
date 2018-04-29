@@ -71,13 +71,16 @@ type CreateToken struct {
 //surplus goes to miner
 type Match struct {
 	MatchID     uint64
+	SellSymbol  string
 	SellOrderID uint64
+	BuySymbol   string
 	BuyOrderID  uint64
 	AmountSold  uint64
 }
 
 type Order struct {
-	BuyTokenType  string
+	ID uint64
+	BuySymbol  string
 	AmountToSell  uint64
 	AmountToBuy   uint64
 	SellerAddress string //TODO: []byte
@@ -92,13 +95,12 @@ type Transfer struct {
 }
 
 type CancelMatch struct {
-	CancelMatchID uint64
 	OrderID       uint64
 	Signature     []byte
 }
 
 type CancelOrder struct {
-	CancelMatchID uint64
+	OrderID uint64
 }
 
 type TransactionConfirmed struct {
