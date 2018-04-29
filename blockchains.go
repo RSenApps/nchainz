@@ -243,23 +243,6 @@ func (blockchains *Blockchains) GetHeight(symbol string) uint64 {
 	return blockchains.GetChain(symbol).GetStartHeight()
 }
 
-// for use in applying updates to other nodes
-func (blockchains *Blockchains) SerializeUpdatesMatching(startIndex uint64) []byte {
-	return []byte{}
-}
-
-func (blockchains *Blockchains) SerializeUpdatesToken(token int, startIndex uint64) []byte {
-	return []byte{}
-}
-
-func (blockchains *Blockchains) ApplyUpdatesMatching(startIndex uint64, updates []byte) {
-
-}
-
-func (blockchains *Blockchains) ApplyUpdatesToken(token int, startIndex uint64, updates []byte) {
-
-}
-
 func (blockchains *Blockchains) GetBlock(symbol string, blockhash []byte) (*Block, error) {
 	bc, ok := blockchains.chains.Load(symbol)
 	if !ok {

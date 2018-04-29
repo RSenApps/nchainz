@@ -36,7 +36,7 @@ func NewBlockchain(dbFile string) *Blockchain {
 
 		if b == nil { // Bucket exists
 			// Create genesis block
-			genesisBlock := NewGenesisBlock("Genesis Block")
+			genesisBlock := NewGenesisBlock()
 
 			// Create bucket
 			b, err := tx.CreateBucket([]byte(blocksBucket))

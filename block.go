@@ -115,8 +115,22 @@ func GetBytes(key interface{}) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func NewGenesisBlock(data BlockData) *Block {
-	return NewBlock(data, STRING, []byte{})
+func NewGenesisBlock() *Block {
+	createToken := CreateToken{
+		TokenInfo:      TokenInfo{
+			Symbol:      MATCH_CHAIN,
+			TotalSupply: 100*1000*1000,
+			Decimals:    18,
+		},
+		CreatorAddress: "Satoshi",
+		Signature:      nil,
+	}
+	matchData := MatchData{
+		Matches:       nil,
+		CancelMatches: nil,
+		CreateTokens:  []CreateToken{createToken},
+	}
+	return NewBlock(matchData, MATCH_BLOCK, []byte{})
 }
 
 func NewBlock(data BlockData, blockType BlockType, prevBlockHash []byte) *Block {
