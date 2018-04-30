@@ -1,19 +1,22 @@
 package main
 
-import "sync"
+import (
+	"sync"
+	"math"
+)
 
 type ConsensusStateToken struct {
 	openOrders sync.Map //map[uint64]Order
 	unconfirmedOrderIDs map[uint64]bool //Matched but no transaction confirmed
 	balances map[string]uint64
+	unconfirmedBuyMatches sync.Map //map[uint64-matchid]BuyMatchInfo
+	unconfirmedSellMatches sync.Map //map[uint64-matchid]SellMatchInfo
+	unconfirmedRefunds sync.Map //map[uint64-matchid]Refund
 }
 
 type ConsensusState struct {
 	tokenStates sync.Map //map[string]*ConsensusStateToken
-	unconfirmedBuyMatches sync.Map //map[uint64]BuyMatchInfo
-	unconfirmedSellMatches sync.Map //map[uint64]SellMatchInfo
 	createdTokens sync.Map //map[string]TokenInfo
-	unconfirmedCancelMatches sync.Map //map[uint64]bool
 }
 
 type MatchInfo struct{
@@ -22,17 +25,20 @@ type MatchInfo struct{
 }
 
 type BuyMatchInfo struct {
-	BuySymbol string
 	BuyOrderID uint64
 	SellerAddress string
-	AmountBought uint64
+	AmountReceived uint64 //in seller currency
 }
 
 type SellMatchInfo struct {
-	SellSymbol string
 	SellOrderID uint64
 	BuyerAddress string
-	AmountSold uint64
+	AmountReceived uint64
+}
+
+type Refund struct {
+	BuyerAddress string
+	Refund uint64
 }
 
 func (state *ConsensusState) GetTokenState(symbol string) *ConsensusStateToken {
@@ -59,6 +65,10 @@ func (state *ConsensusState) RollbackOrder(symbol string, order Order) {
 	tokenState.balances[order.SellerAddress] += order.AmountToSell
 }
 
+//TODO:
+//Refunds an order that has already been cancelled on the match chain
+//Check if the order has been cancelled on match chain
+//Refund order
 //If we delete order here can't rollback so send back transaction for recovery
 func (state *ConsensusState) AddCancelOrder(symbol string, cancelOrder CancelOrder) (bool, Order) {
 	_, ok := state.unconfirmedCancelMatches.Load(cancelOrder.OrderID)
@@ -82,64 +92,57 @@ func (state *ConsensusState) RollbackCancelOrder(symbol string, cancelOrder Canc
 }
 
 func (state *ConsensusState) addTransactionConfirmedBuy(symbol string, transactionConfirmed TransactionConfirmed) (bool, MatchInfo) {
-	matchGen, ok := state.unconfirmedBuyMatches.Load(transactionConfirmed.MatchID)
+	tokenState := state.GetTokenState(symbol)
+	matchGen, ok := tokenState.unconfirmedBuyMatches.Load(transactionConfirmed.MatchID)
 	if !ok {
 		return false, MatchInfo{}
 	}
 
 	match := matchGen.(BuyMatchInfo)
-	tokenState := state.GetTokenState(symbol)
-	if symbol == match.BuySymbol {
-		// credit the seller address with AmountBought
-		_, ok := tokenState.unconfirmedOrderIDs[match.BuyOrderID]
-		if !ok {
-			return false, MatchInfo{}
-		}
-		delete(tokenState.unconfirmedOrderIDs, match.BuyOrderID)
-		state.unconfirmedBuyMatches.Delete(transactionConfirmed.MatchID)
-		tokenState.balances[match.SellerAddress] += match.AmountBought
-	} else {
+	// credit the seller address with AmountBought
+	_, ok = tokenState.unconfirmedOrderIDs[match.BuyOrderID]
+	if !ok {
 		return false, MatchInfo{}
 	}
+	delete(tokenState.unconfirmedOrderIDs, match.BuyOrderID)
+	tokenState.unconfirmedBuyMatches.Delete(transactionConfirmed.MatchID)
+	tokenState.balances[match.SellerAddress] += match.AmountBought
 
 	return true, MatchInfo{match, false}
 }
 
 func (state *ConsensusState) AddTransactionConfirmed(symbol string, transactionConfirmed TransactionConfirmed) (bool, MatchInfo) {
 	//Assume sell order
-	matchGen, ok := state.unconfirmedSellMatches.Load(transactionConfirmed.MatchID)
+	tokenState := state.GetTokenState(symbol)
+	matchGen, ok := tokenState.unconfirmedSellMatches.Load(transactionConfirmed.MatchID)
 	if !ok {
 		return state.addTransactionConfirmedBuy(symbol, transactionConfirmed)
 	}
 
 	match := matchGen.(SellMatchInfo)
-	tokenState := state.GetTokenState(symbol)
-	if symbol == match.SellSymbol {
-		// credit the buyer address with AmountSold
-		_, ok := tokenState.unconfirmedOrderIDs[match.SellOrderID]
-		if !ok {
-			return false, MatchInfo{}
-		}
-		delete(tokenState.unconfirmedOrderIDs, match.SellOrderID)
-		state.unconfirmedSellMatches.Delete(transactionConfirmed.MatchID)
-		tokenState.balances[match.BuyerAddress] += match.AmountSold
-	} else {
-		return state.addTransactionConfirmedBuy(symbol, transactionConfirmed)
+	// credit the buyer address with AmountSold
+	_, ok = tokenState.unconfirmedOrderIDs[match.SellOrderID]
+	if !ok {
+		return false, MatchInfo{}
 	}
+	delete(tokenState.unconfirmedOrderIDs, match.SellOrderID)
+	tokenState.unconfirmedSellMatches.Delete(transactionConfirmed.MatchID)
+	tokenState.balances[match.BuyerAddress] += match.AmountSold
 
 	return true, MatchInfo{match, true}
 }
 
 func (state *ConsensusState) RollbackTransactionConfirmed(symbol string, transactionConfirmed TransactionConfirmed, matchInfo MatchInfo) {
+	tokenState := state.GetTokenState(symbol)
 	if matchInfo.IsSell {
 		sellInfo := matchInfo.Info.(SellMatchInfo)
-		state.unconfirmedSellMatches.Store(transactionConfirmed.MatchID, true)
+		tokenState.unconfirmedSellMatches.Store(transactionConfirmed.MatchID, true)
 		tokenState := state.GetTokenState(symbol)
 		tokenState.balances[sellInfo.BuyerAddress] -= sellInfo.AmountSold
 		tokenState.unconfirmedOrderIDs[sellInfo.SellOrderID] = true
 	} else {
 		buyInfo := matchInfo.Info.(BuyMatchInfo)
-		state.unconfirmedBuyMatches.Store(transactionConfirmed.MatchID, true)
+		tokenState.unconfirmedBuyMatches.Store(transactionConfirmed.MatchID, true)
 		tokenState := state.GetTokenState(symbol)
 		tokenState.balances[buyInfo.SellerAddress] -= buyInfo.AmountBought
 		tokenState.unconfirmedOrderIDs[buyInfo.BuyOrderID] = true
@@ -147,14 +150,70 @@ func (state *ConsensusState) RollbackTransactionConfirmed(symbol string, transac
 }
 
 func (state *ConsensusState) AddTransfer(symbol string, transfer Transfer) bool {
-	return false
+	tokenState := state.GetTokenState(symbol)
+	if tokenState.balances[transfer.FromAddress] < transfer.Amount {
+		return false
+	}
+	tokenState.balances[transfer.FromAddress] -= transfer.Amount
+	tokenState.balances[transfer.ToAddress] += transfer.Amount
+	return true
 }
 
 func (state *ConsensusState) RollbackTransfer(symbol string, transfer Transfer) {
-
+	tokenState := state.GetTokenState(symbol)
+	tokenState.balances[transfer.FromAddress] += transfer.Amount
+	tokenState.balances[transfer.ToAddress] -= transfer.Amount
 }
 
 func (state *ConsensusState) AddMatch(match Match) bool {
+	//Check if both buy and sell orders are satisfied by match and that orders are open
+	//add to unconfirmedSell and Buy Matches
+	//remove orders from openOrders
+	buyTokenState := state.GetTokenState(match.BuySymbol)
+	sellTokenState := state.GetTokenState(match.SellSymbol)
+	buyOrderGen, ok := buyTokenState.openOrders.Load(match.BuyOrderID)
+	if !ok {
+		return false
+	}
+	sellOrderGen, ok := sellTokenState.openOrders.Load(match.SellOrderID)
+	if !ok {
+		return false
+	}
+	buyOrder := buyOrderGen.(Order)
+	sellOrder := sellOrderGen.(Order)
+
+	if sellOrder.AmountToSell < match.AmountSold {
+		return false
+	}
+
+	//price = amountBuyCurrency / amountSellCurrency
+	buyPrice := float64(buyOrder.AmountToBuy) / float64(buyOrder.AmountToSell)
+	buyerMaxAmountPaid := uint64(math.Ceil(buyPrice * float64(match.AmountSold)))
+	sellPrice := float64(sellOrder.AmountToSell) / float64(sellOrder.AmountToBuy)
+	sellerMinAmountPaid := uint64(math.Floor(sellPrice * float64(match.AmountSold)))
+	if buyerMaxAmountPaid < sellerMinAmountPaid {
+		return false
+	}
+
+	//Trade is between match.AmountSold and buyerMaxAmountPaid
+	//TODO: minerReward := buyerMaxAmountPaid - sellerMinAmountPaid
+	buyMatch := BuyMatchInfo {
+		BuyOrderID:    match.BuyOrderID,
+		SellerAddress: sellOrder.SellerAddress,
+		AmountReceived:  match.AmountSold,
+	}
+	sellMatch := SellMatchInfo{
+		SellOrderID:  match.SellOrderID,
+		BuyerAddress: buyOrder.SellerAddress,
+		AmountReceived:   match.AmountSold,
+	}
+	buyTokenState.unconfirmedBuyMatches.Store(match.MatchID, buyMatch)
+	sellTokenState.unconfirmedSellMatches.Store(match.MatchID, sellMatch)
+
+	sellOrder.AmountToSell -= match.AmountSold
+	sellOrder.AmountToBuy -= sellerMaxAmountBought
+	buyOrder.AmountToBuy -= match.AmountSold
+	buyOrder.AmountToSell -= buyerMinAmountBought
 	return false
 }
 
