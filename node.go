@@ -105,9 +105,6 @@ func (node *Node) Version(args *VersionArgs, reply *bool) error {
 		return err
 	}
 
-	// myStartHeights := node.bcs.GetHeights()
-	// if short go sendGetBlocks
-
 	*reply = true
 	return nil
 }
