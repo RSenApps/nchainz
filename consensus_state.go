@@ -43,11 +43,23 @@ func (state *ConsensusState) RollbackOrder(symbol string, order Order) {
 }
 
 func (state *ConsensusState) AddClaimFunds(symbol string, funds ClaimFunds) bool {
-	return false
+	tokenState := state.GetTokenState(symbol)
+	tokenState.unclaimedFundsLock.Lock()
+	defer tokenState.unclaimedFundsLock.Unlock()
+	if tokenState.unclaimedFunds[funds.Address] < funds.Amount {
+		return false
+	}
+	tokenState.unclaimedFunds[funds.Address] -= funds.Amount
+	tokenState.balances[funds.Address] += funds.Amount
+	return true
 }
 
 func (state *ConsensusState) RollbackClaimFunds(symbol string, funds ClaimFunds) {
-
+	tokenState := state.GetTokenState(symbol)
+	tokenState.unclaimedFundsLock.Lock()
+	defer tokenState.unclaimedFundsLock.Unlock()
+	tokenState.unclaimedFunds[funds.Address] += funds.Amount
+	tokenState.balances[funds.Address] -= funds.Amount
 }
 
 func (state *ConsensusState) AddTransfer(symbol string, transfer Transfer) bool {
