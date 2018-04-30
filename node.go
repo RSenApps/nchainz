@@ -143,7 +143,7 @@ func (node *Node) Addr(args *AddrArgs, reply *bool) error {
 
 	peerState := node.getPeerState(args.From)
 	if peerState != ACTIVE && peerState != FOUND {
-		log.Printf("Received INV from inactive or unknown peer %s", args.From)
+		log.Printf("Received ADDR from inactive or unknown peer %s", args.From)
 		*reply = false
 		return nil
 	}
@@ -210,9 +210,9 @@ func (node *Node) Inv(args *InvArgs, reply *bool) error {
 
 	myHeights := node.bcs.GetHeights()
 
-	for chainIdx, startHeight := range args.StartHeights {
-		if myHeights[chainIdx] < startHeight {
-			node.reconcileChain(args.From, chainIdx, args.Blockhashes[chainIdx], startHeight)
+	for symbol, startHeight := range args.StartHeights {
+		if myHeights[symbol] < startHeight {
+			node.reconcileChain(args.From, symbol, args.Blockhashes[symbol], startHeight)
 		}
 	}
 
@@ -268,7 +268,7 @@ func (node *Node) invLoop() {
 
 type GetBlockArgs struct {
 	Blockhash []byte
-	ChainIdx  string
+	Symbol    string
 	From      string
 }
 
@@ -287,7 +287,7 @@ func (node *Node) GetBlock(args *GetBlockArgs, reply *GetBlockReply) error {
 		*reply = GetBlockReply{false, Block{}}
 	}
 
-	block, err := node.bcs.GetBlock(args.ChainIdx, args.Blockhash)
+	block, err := node.bcs.GetBlock(args.Symbol, args.Blockhash)
 	if err != nil {
 		*reply = GetBlockReply{false, Block{}}
 	} else {
@@ -297,8 +297,8 @@ func (node *Node) GetBlock(args *GetBlockArgs, reply *GetBlockReply) error {
 	return nil
 }
 
-func (node *Node) SendGetBlock(peer *Peer, blockhash []byte, chainIdx string) (*Block, error) {
-	args := &GetBlockArgs{blockhash, chainIdx, node.myIp}
+func (node *Node) SendGetBlock(peer *Peer, blockhash []byte, symbol string) (*Block, error) {
+	args := &GetBlockArgs{blockhash, symbol, node.myIp}
 	reply, err := node.callGetBlock(peer, args)
 	node.handleRpcReply(peer, err)
 
@@ -404,9 +404,9 @@ func (node *Node) connectPeerIfNew(peerIp string) (isNew bool, peer *Peer, err e
 ////////////////////////////////
 // Utils: Chain Management
 
-func (node *Node) reconcileChain(peerIp string, chainIdx string, blockhashes [][]byte, theirHeight uint64) {
+func (node *Node) reconcileChain(peerIp string, symbol string, blockhashes [][]byte, theirHeight uint64) {
 	/*peer := node.peers[peerIp]
-	bc, _ := node.bcs.GetChain(chainIdx)
+	bc, _ := node.bcs.GetChain(symbol)
 
 	firstMissing := theirHeight
 	found := false
@@ -425,7 +425,7 @@ func (node *Node) reconcileChain(peerIp string, chainIdx string, blockhashes [][
 	}
 
 	for i := firstMissing; i <= theirHeight; i++ {
-		block, err := node.SendGetBlock(peer, blockhashes[theirHeight-i], chainIdx)
+		block, err := node.SendGetBlock(peer, blockhashes[theirHeight-i], symbol)
 		if err != nil {
 			log.Printf(err.Error())
 			return

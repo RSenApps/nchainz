@@ -44,15 +44,15 @@ type Block struct {
 type BlockData interface{}
 
 type MatchData struct {
-	Matches       []Match
-	CancelOrders  []CancelOrder
-	CreateTokens  []CreateToken
+	Matches      []Match
+	CancelOrders []CancelOrder
+	CreateTokens []CreateToken
 }
 
 type TokenData struct {
-	Orders               []Order
+	Orders     []Order
 	ClaimFunds []ClaimFunds
-	Transfers            []Transfer
+	Transfers  []Transfer
 }
 
 type GenericTransaction struct {
@@ -77,8 +77,8 @@ type Match struct {
 }
 
 type Order struct {
-	ID uint64
-	BuySymbol  string
+	ID            uint64
+	BuySymbol     string
 	AmountToSell  uint64
 	AmountToBuy   uint64
 	SellerAddress string //TODO: []byte
@@ -93,13 +93,13 @@ type Transfer struct {
 }
 
 type CancelOrder struct { //goes on match chain
-	OrderID       uint64
-	Signature     []byte
+	OrderID   uint64
+	Signature []byte
 }
 
 type ClaimFunds struct {
 	Address string
-	Amount uint64
+	Amount  uint64
 }
 
 func GetBytes(key interface{}) ([]byte, error) {
@@ -113,28 +113,19 @@ func GetBytes(key interface{}) ([]byte, error) {
 }
 
 func NewGenesisBlock() *Block {
-	gob.Register(MatchData{})
-	gob.Register(TokenData{})
-	gob.Register(CreateToken{})
-	gob.Register(Match{})
-	gob.Register(Order{})
-	gob.Register(Transfer{})
-	gob.Register(CancelOrder{})
-	gob.Register(ClaimFunds{})
-
 	createToken := CreateToken{
-		TokenInfo:      TokenInfo{
+		TokenInfo: TokenInfo{
 			Symbol:      MATCH_CHAIN,
-			TotalSupply: 100*1000*1000,
+			TotalSupply: 100 * 1000 * 1000,
 			Decimals:    18,
 		},
 		CreatorAddress: "Satoshi",
 		Signature:      nil,
 	}
 	matchData := MatchData{
-		Matches:       nil,
+		Matches:      nil,
 		CancelOrders: nil,
-		CreateTokens:  []CreateToken{createToken},
+		CreateTokens: []CreateToken{createToken},
 	}
 	return NewBlock(matchData, MATCH_BLOCK, []byte{})
 }
