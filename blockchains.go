@@ -26,11 +26,10 @@ func (uncommitted *UncommittedTransactions) undoTransactions(symbol string, stat
 		transaction := uncommitted.transactions[i].transaction
 		switch uncommitted.transactions[i].transactionType {
 		case ORDER: state.RollbackOrder(symbol, transaction.(Order))
-		case CANCEL_ORDER: state.RollbackCancelOrder(symbol, transaction.(CancelOrder))
-		case TRANSACTION_CONFIRMED: state.RollbackTransactionConfirmed(symbol, transaction.(TransactionConfirmed))
+		case CANCEL_ORDER: state.RollbackCancelOrder(transaction.(CancelOrder))
+		case CLAIM_FUNDS: state.RollbackClaimFunds(symbol, transaction.(ClaimFunds))
 		case TRANSFER: state.RollbackTransfer(symbol, transaction.(Transfer))
 		case MATCH: state.RollbackMatch(transaction.(Match))
-		case CANCEL_MATCH: state.RollbackCancelMatch(transaction.(CancelMatch))
 		case CREATE_TOKEN: state.RollbackCreateToken(transaction.(CreateToken))
 		}
 	}
@@ -52,12 +51,8 @@ func (blockchains *Blockchains) rollbackTokenToHeight(symbol string, height uint
 			blockchains.consensusState.RollbackOrder(symbol, order)
 		}
 
-		for _, cancelOrder := range removedData.CancelOrders {
-			blockchains.consensusState.RollbackCancelOrder(symbol, cancelOrder)
-		}
-
-		for _, transactionConfirmed := range removedData.TransactionConfirmed {
-			blockchains.consensusState.RollbackTransactionConfirmed(symbol, transactionConfirmed)
+		for _, claimFunds := range removedData.ClaimFunds {
+			blockchains.consensusState.RollbackClaimFunds(symbol, claimFunds)
 		}
 
 		for _, transfer := range removedData.Transfers {
@@ -78,8 +73,8 @@ func (blockchains *Blockchains) rollbackMatchToHeight(height uint64) {
 			blockchains.consensusState.RollbackMatch(match)
 		}
 
-		for _, cancelMatch := range removedData.CancelMatches {
-			blockchains.consensusState.RollbackCancelMatch(cancelMatch)
+		for _, cancelOrder := range removedData.CancelOrders {
+			blockchains.consensusState.RollbackCancelOrder(cancelOrder)
 		}
 
 		for _, createToken := range removedData.CreateTokens {
@@ -109,23 +104,13 @@ func (blockchains *Blockchains) addTokenData(symbol string, tokenData TokenData,
 		})
 	}
 
-	for _, cancelOrder := range tokenData.CancelOrders {
-		if !blockchains.consensusState.AddCancelOrder(symbol, cancelOrder) {
+	for _, claimFunds := range tokenData.ClaimFunds {
+		if !blockchains.consensusState.AddClaimFunds(symbol, claimFunds) {
 			return false
 		}
 		uncommitted.addTransaction(GenericTransaction{
-			transaction:     cancelOrder,
-			transactionType: CANCEL_ORDER,
-		})
-	}
-
-	for _, transactionConfirmed := range tokenData.TransactionConfirmed {
-		if !blockchains.consensusState.AddTransactionConfirmed(symbol, transactionConfirmed) {
-			return false
-		}
-		uncommitted.addTransaction(GenericTransaction{
-			transaction:     transactionConfirmed,
-			transactionType: TRANSACTION_CONFIRMED,
+			transaction:     claimFunds,
+			transactionType: CLAIM_FUNDS,
 		})
 	}
 
@@ -152,13 +137,13 @@ func (blockchains *Blockchains) addMatchData(matchData MatchData, uncommitted *U
 		})
 	}
 
-	for _, cancelMatch := range matchData.CancelMatches {
-		if !blockchains.consensusState.AddCancelMatch(cancelMatch) {
+	for _, cancelOrder := range matchData.CancelOrders {
+		if !blockchains.consensusState.AddCancelOrder(cancelOrder) {
 			return false
 		}
 		uncommitted.addTransaction(GenericTransaction{
-			transaction:     cancelMatch,
-			transactionType: MATCH,
+			transaction:     cancelOrder,
+			transactionType: CANCEL_ORDER,
 		})
 	}
 
@@ -209,25 +194,19 @@ func (blockchains *Blockchains) AddBlocks(symbol string, blocks []Block) bool {
 	return true
 }
 
-func (blockchains *Blockchains) GetOpenOrders(symbol string) []Order {
+func (blockchains *Blockchains) GetOpenOrders(symbol string) sync.Map {
 	blockchains.locks[symbol].Lock()
 	defer blockchains.locks[symbol].Unlock()
 	state, _ := blockchains.consensusState.tokenStates.Load(symbol)
 	return state.(ConsensusStateToken).openOrders
 }
 
-func (blockchains *Blockchains) GetUnconfirmedMatches() map[uint64]bool {
-	blockchains.consensusState.unconfirmedMatchIDsLock.RLock()
-	defer blockchains.consensusState.unconfirmedMatchIDsLock.RUnlock()
-	return blockchains.consensusState.unconfirmedMatchIDs
-}
-
 func (blockchains *Blockchains) GetBalance(symbol string, address string) (uint64, bool) {
 	blockchains.locks[symbol].Lock()
 	defer blockchains.locks[symbol].Unlock()
 	state, _ := blockchains.consensusState.tokenStates.Load(symbol)
-	balance, ok := state.(*ConsensusStateToken).balances.Load(address)
-	return balance.(uint64), ok
+	balance, ok := state.(*ConsensusStateToken).balances[address]
+	return balance, ok
 }
 
 func CreateNewBlockchains(dbName string) *Blockchains {

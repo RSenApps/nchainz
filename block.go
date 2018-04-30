@@ -27,9 +27,8 @@ const (
 	MATCH TransactionType = iota + 1
 	ORDER
 	TRANSFER
-	CANCEL_MATCH
 	CANCEL_ORDER
-	TRANSACTION_CONFIRMED
+	CLAIM_FUNDS
 	CREATE_TOKEN
 )
 
@@ -46,14 +45,13 @@ type BlockData interface{}
 
 type MatchData struct {
 	Matches       []Match
-	CancelMatches []CancelMatch
+	CancelOrders  []CancelOrder
 	CreateTokens  []CreateToken
 }
 
 type TokenData struct {
 	Orders               []Order
-	CancelOrders         []CancelOrder
-	TransactionConfirmed []TransactionConfirmed
+	ClaimFunds []ClaimFunds
 	Transfers            []Transfer
 }
 
@@ -94,17 +92,14 @@ type Transfer struct {
 	Signature   []byte
 }
 
-type CancelMatch struct {
+type CancelOrder struct { //goes on match chain
 	OrderID       uint64
 	Signature     []byte
 }
 
-type CancelOrder struct {
-	OrderID uint64
-}
-
-type TransactionConfirmed struct {
-	MatchID uint64
+type ClaimFunds struct {
+	Address string
+	Amount uint64
 }
 
 func GetBytes(key interface{}) ([]byte, error) {
@@ -129,7 +124,7 @@ func NewGenesisBlock() *Block {
 	}
 	matchData := MatchData{
 		Matches:       nil,
-		CancelMatches: nil,
+		CancelOrders: nil,
 		CreateTokens:  []CreateToken{createToken},
 	}
 	return NewBlock(matchData, MATCH_BLOCK, []byte{})
@@ -152,15 +147,12 @@ func (b *Block) AddTransaction(tx GenericTransaction) {
 	case TRANSFER:
 		temp := b.Data.(TokenData)
 		temp.Transfers = append(temp.Transfers, tx.transaction.(Transfer))
-	case CANCEL_MATCH:
-		temp := b.Data.(MatchData)
-		temp.CancelMatches = append(temp.CancelMatches, tx.transaction.(CancelMatch))
 	case CANCEL_ORDER:
-		temp := b.Data.(TokenData)
+		temp := b.Data.(MatchData)
 		temp.CancelOrders = append(temp.CancelOrders, tx.transaction.(CancelOrder))
-	case TRANSACTION_CONFIRMED:
+	case CLAIM_FUNDS:
 		temp := b.Data.(TokenData)
-		temp.TransactionConfirmed = append(temp.TransactionConfirmed, tx.transaction.(TransactionConfirmed))
+		temp.ClaimFunds = append(temp.ClaimFunds, tx.transaction.(ClaimFunds))
 	case CREATE_TOKEN:
 		temp := b.Data.(MatchData)
 		temp.CreateTokens = append(temp.CreateTokens, tx.transaction.(CreateToken))
