@@ -3,14 +3,17 @@ package main
 import (
 	"errors"
 	"sync"
+	"bytes"
 )
 
 const MATCH_CHAIN = "MATCH"
+const NATIVE_CHAIN = "NATIVE"
 
 type Blockchains struct {
 	chains sync.Map //map[string]*Blockchain
 	consensusState ConsensusState
 	locks map[string]*sync.Mutex
+	dbFile string
 }
 
 type UncommittedTransactions struct {
@@ -170,6 +173,10 @@ func (blockchains *Blockchains) AddBlocks(symbol string, blocks []Block) bool {
 	var uncommitted UncommittedTransactions
 	failed := false
 	for _, block := range blocks {
+		if !bytes.Equal(blockchains.GetChain(symbol).tipHash, block.PrevBlockHash) {
+			failed = true
+			break
+		}
 		if symbol == MATCH_CHAIN {
 			if !blockchains.addMatchData(block.Data.(MatchData), &uncommitted) {
 				failed = true
@@ -209,10 +216,20 @@ func (blockchains *Blockchains) GetBalance(symbol string, address string) (uint6
 	return balance, ok
 }
 
+func (blockchains *Blockchains) AddTokenChain(createToken CreateToken) {
+	chain := NewTokenChain(blockchains.dbFile, createToken.TokenInfo.Symbol)
+	blockchains.chains.Store(createToken.TokenInfo.Symbol, chain)
+	blockchains.locks[createToken.TokenInfo.Symbol] = &sync.Mutex{}
+	blockchains.AddBlock(createToken.TokenInfo.Symbol, *NewTokenGenesisBlock(createToken))
+}
+
 func CreateNewBlockchains(dbName string) *Blockchains {
 	//instantiates state and blockchains
 	blockchains := &Blockchains{}
+	blockchains.dbFile = dbName
 	blockchains.chains.Store(MATCH_CHAIN, NewBlockchain(dbName))
+	blockchains.locks[MATCH_CHAIN] = &sync.Mutex{}
+	blockchains.AddBlock(MATCH_CHAIN, *NewGenesisBlock())
 	return blockchains
 }
 

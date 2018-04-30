@@ -116,7 +116,7 @@ func GetBytes(key interface{}) ([]byte, error) {
 func NewGenesisBlock() *Block {
 	createToken := CreateToken{
 		TokenInfo: TokenInfo{
-			Symbol:      MATCH_CHAIN,
+			Symbol:      NATIVE_CHAIN,
 			TotalSupply: 100 * 1000 * 1000,
 			Decimals:    18,
 		},
@@ -129,6 +129,19 @@ func NewGenesisBlock() *Block {
 		CreateTokens: []CreateToken{createToken},
 	}
 	return NewBlock(matchData, MATCH_BLOCK, []byte{})
+}
+
+func NewTokenGenesisBlock(createToken CreateToken) *Block {
+	claimFunds := ClaimFunds{
+		Address: createToken.CreatorAddress,
+		Amount:  createToken.TokenInfo.TotalSupply,
+	}
+	tokenData := TokenData{
+		Orders:     nil,
+		ClaimFunds: []ClaimFunds{claimFunds},
+		Transfers:  nil,
+	}
+	return NewBlock(tokenData, TOKEN_BLOCK, []byte{})
 }
 
 func NewBlock(data BlockData, blockType BlockType, prevBlockHash []byte) *Block {

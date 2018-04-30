@@ -7,18 +7,18 @@ import (
 	"log"
 )
 
-const blocksBucket = "blocks"
-
 type Blockchain struct {
 	tipHash []byte   // Tip of chain
 	db      *bolt.DB // DB connection
 	height  uint64
+	bucketName string
 }
 
 // To iterate over blocks
 type BlockchainIterator struct {
 	currentHash []byte   // Hash of current block
 	db          *bolt.DB // DB connection
+	bucketName string
 }
 
 func NewBlockchain(dbFile string) *Blockchain {
@@ -30,7 +30,7 @@ func NewBlockchain(dbFile string) *Blockchain {
 		log.Panic(err)
 	}
 
-	// Read-write transaction to store genesis block in DB
+	/*// Read-write transaction to store genesis block in DB
 	err = db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket)) // Get bucket storing blocks
 
@@ -64,21 +64,34 @@ func NewBlockchain(dbFile string) *Blockchain {
 		}
 
 		return nil
-	})
+	})*/
 
 	if err != nil {
 		log.Panic(err)
 	}
 
-	return &Blockchain{tipHash, db, 0}
+	return &Blockchain{tipHash, db, 0, MATCH_CHAIN}
 }
+
+func NewTokenChain(dbFile string, symbol string) *Blockchain {
+	db, err := bolt.Open(dbFile, 0600, nil)
+	if err != nil {
+		log.Panic(err)
+	}
+	if err != nil {
+		log.Panic(err)
+	}
+
+	return &Blockchain{[]byte{}, db, 0, symbol}
+}
+
 
 func (bc *Blockchain) AddBlockData(data BlockData, blockType BlockType) {
 	var lastHash []byte // Hash of last block
 
 	// Read-only transaction to get hash of last block
 	err := bc.db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(blocksBucket))
+		b := tx.Bucket([]byte(bc.bucketName))
 		lastHash = b.Get([]byte("l"))
 		return nil
 	})
@@ -93,7 +106,7 @@ func (bc *Blockchain) AddBlockData(data BlockData, blockType BlockType) {
 	// Read-write transaction to store new block in DB
 	err = bc.db.Update(func(tx *bolt.Tx) error {
 		// Store block in bucket
-		b := tx.Bucket([]byte(blocksBucket))
+		b := tx.Bucket([]byte(bc.bucketName))
 		err := b.Put(newBlock.Hash, newBlock.Serialize())
 		if err != nil {
 			log.Panic(err)
@@ -115,12 +128,10 @@ func (bc *Blockchain) AddBlockData(data BlockData, blockType BlockType) {
 }
 
 func (bc *Blockchain) AddBlock(block Block) {
-	//TODO: Verify block
-
 	// Read-write transaction to store new block in DB
 	bc.db.Update(func(tx *bolt.Tx) error {
 		// Store block in bucket
-		b := tx.Bucket([]byte(blocksBucket))
+		b := tx.Bucket([]byte(bc.bucketName))
 		err := b.Put(block.Hash, block.Serialize())
 		if err != nil {
 			log.Panic(err)
@@ -150,7 +161,7 @@ func (bc *Blockchain) RemoveLastBlock() BlockData {
 // Create iterator for a blockchain
 //
 func (bc *Blockchain) Iterator() *BlockchainIterator {
-	bci := &BlockchainIterator{bc.tipHash, bc.db}
+	bci := &BlockchainIterator{bc.tipHash, bc.db, bc.bucketName}
 	return bci
 }
 
@@ -162,7 +173,7 @@ func (bci *BlockchainIterator) Next() (*Block, error) {
 
 	// Read only transaction to get next block
 	err := bci.db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(blocksBucket))
+		b := tx.Bucket([]byte(bci.bucketName))
 		encodedBlock := b.Get(bci.currentHash)
 		block = DeserializeBlock(encodedBlock)
 

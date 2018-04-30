@@ -256,10 +256,29 @@ func (state *ConsensusState) RollbackCancelOrder(cancelOrder CancelOrder) {
 	tokenState.unclaimedFundsLock.Unlock()
 }
 
-func (state *ConsensusState) AddCreateToken(createToken CreateToken) bool {
-	return false
+func (state *ConsensusState) AddCreateToken(createToken CreateToken, blockchains *Blockchains) bool {
+	_, ok := state.createdTokens.Load(createToken.TokenInfo.Symbol)
+	if ok {
+		return false
+	}
+
+	//create a new entry in tokenStates
+	state.tokenStates.Store(createToken.TokenInfo.Symbol, ConsensusStateToken{})
+	state.createdTokens.Store(createToken.TokenInfo.Symbol, createToken.TokenInfo)
+
+	tokenState := state.GetTokenState(createToken.TokenInfo.Symbol)
+	tokenState.unclaimedFundsLock.Lock()
+	tokenState.unclaimedFunds[createToken.CreatorAddress] = createToken.TokenInfo.TotalSupply
+	tokenState.unclaimedFundsLock.Unlock()
+
+	//create a new blockchain with proper genesis block
+	blockchains.AddTokenChain(createToken)
+
+	return true
 }
 
 func (state *ConsensusState) RollbackCreateToken(createToken CreateToken) {
+	//need to take a lock before deleting chain
 
+	//TODO: go back and check right after winning token chain lock that chain still exists
 }
