@@ -101,11 +101,32 @@ func (cli *CLI) getBalance(address string) {
 }
 
 func (cli *CLI) printChain() {
-	bc := NewBlockchain("blockchain.db")
+	bcs := CreateNewBlockchains("blockchain.db")
+	bc := bcs.GetChain(MATCH_CHAIN)
 	defer bc.db.Close()
 
 	bci := bc.Iterator()
+	fmt.Println(MATCH_CHAIN)
+	fmt.Println("Height:", bc.height)
+	for {
+		block, _ := bci.Next()
 
+		fmt.Printf("Prev Hash: %x\n", block.PrevBlockHash)
+		fmt.Printf("Data: %s\n", block.Data)
+		fmt.Printf("Hash: %x\n", block.Hash)
+		pow := NewProofOfWork(block)
+		fmt.Printf("Validated Proof of Work: %s\n", strconv.FormatBool(pow.Validate()))
+		fmt.Println("-------------------------------")
+
+		if len(block.PrevBlockHash) == 0 {
+			break
+		}
+	}
+
+	bc = bcs.GetChain(NATIVE_CHAIN)
+
+	bci = bc.Iterator()
+	fmt.Println(NATIVE_CHAIN)
 	fmt.Println("Height:", bc.height)
 	for {
 		block, _ := bci.Next()

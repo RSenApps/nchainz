@@ -145,7 +145,8 @@ func NewTokenGenesisBlock(createToken CreateToken) *Block {
 }
 
 func NewBlock(data BlockData, blockType BlockType, prevBlockHash []byte) *Block {
-	block := &Block{time.Now().Unix(), blockType, data, prevBlockHash, []byte{1, 2, 3}, 0}
+	block := &Block{time.Now().Unix(), blockType, data, prevBlockHash, []byte{}, 0}
+	block.Hash = NewProofOfWork(block).GetHash()
 	return block
 }
 

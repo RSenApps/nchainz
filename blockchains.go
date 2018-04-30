@@ -4,6 +4,8 @@ import (
 	"errors"
 	"sync"
 	"bytes"
+	"github.com/boltdb/bolt"
+	"log"
 )
 
 const MATCH_CHAIN = "MATCH"
@@ -13,7 +15,7 @@ type Blockchains struct {
 	chains sync.Map //map[string]*Blockchain
 	consensusState ConsensusState
 	locks map[string]*sync.Mutex
-	dbFile string
+	db *bolt.DB
 }
 
 type UncommittedTransactions struct {
@@ -151,7 +153,7 @@ func (blockchains *Blockchains) addMatchData(matchData MatchData, uncommitted *U
 	}
 
 	for _, createToken := range matchData.CreateTokens {
-		if !blockchains.consensusState.AddCreateToken(createToken) {
+		if !blockchains.consensusState.AddCreateToken(createToken, blockchains) {
 			return false
 		}
 		uncommitted.addTransaction(GenericTransaction{
@@ -217,7 +219,7 @@ func (blockchains *Blockchains) GetBalance(symbol string, address string) (uint6
 }
 
 func (blockchains *Blockchains) AddTokenChain(createToken CreateToken) {
-	chain := NewTokenChain(blockchains.dbFile, createToken.TokenInfo.Symbol)
+	chain := NewBlockchain(blockchains.db, createToken.TokenInfo.Symbol)
 	blockchains.chains.Store(createToken.TokenInfo.Symbol, chain)
 	blockchains.locks[createToken.TokenInfo.Symbol] = &sync.Mutex{}
 	blockchains.AddBlock(createToken.TokenInfo.Symbol, *NewTokenGenesisBlock(createToken))
@@ -226,8 +228,16 @@ func (blockchains *Blockchains) AddTokenChain(createToken CreateToken) {
 func CreateNewBlockchains(dbName string) *Blockchains {
 	//instantiates state and blockchains
 	blockchains := &Blockchains{}
-	blockchains.dbFile = dbName
-	blockchains.chains.Store(MATCH_CHAIN, NewBlockchain(dbName))
+
+	// Open BoltDB file
+	db, err := bolt.Open(dbName, 0600, nil)
+	if err != nil {
+		log.Panic(err)
+	}
+	blockchains.db = db
+	blockchains.locks = make(map[string]*sync.Mutex)
+
+	blockchains.chains.Store(MATCH_CHAIN, NewBlockchain(db, MATCH_CHAIN))
 	blockchains.locks[MATCH_CHAIN] = &sync.Mutex{}
 	blockchains.AddBlock(MATCH_CHAIN, *NewGenesisBlock())
 	return blockchains

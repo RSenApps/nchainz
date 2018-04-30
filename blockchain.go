@@ -21,67 +21,23 @@ type BlockchainIterator struct {
 	bucketName string
 }
 
-func NewBlockchain(dbFile string) *Blockchain {
-	var tipHash []byte // Tip of chain
 
-	// Open BoltDB file
-	db, err := bolt.Open(dbFile, 0600, nil)
-	if err != nil {
-		log.Panic(err)
-	}
-
-	/*// Read-write transaction to store genesis block in DB
-	err = db.Update(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(blocksBucket)) // Get bucket storing blocks
-
-		if b == nil { // Bucket exists
-			// Create genesis block
-			genesisBlock := NewGenesisBlock()
-
+func NewBlockchain(db *bolt.DB, symbol string) *Blockchain {
+	err := db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(symbol)) // Get bucket storing blocks
+		if b == nil {
 			// Create bucket
-			b, err := tx.CreateBucket([]byte(blocksBucket))
+			_, err := tx.CreateBucket([]byte(symbol))
 			if err != nil {
 				log.Panic(err)
 			}
-
-			// Store block in bucket
-			err = b.Put(genesisBlock.Hash, genesisBlock.Serialize())
-			if err != nil {
-				log.Panic(err)
-			}
-
-			// Update "l" key --> hash of last block in chain
-			err = b.Put([]byte("l"), genesisBlock.Hash)
-			if err != nil {
-				log.Panic(err)
-			}
-
-			// Update tip
-			tipHash = genesisBlock.Hash
-		} else { // Bucket doesn't exist
-			// Update tip to hash of last block in chain
-			tipHash = b.Get([]byte("l"))
 		}
-
 		return nil
-	})*/
+	})
 
 	if err != nil {
 		log.Panic(err)
 	}
-
-	return &Blockchain{tipHash, db, 0, MATCH_CHAIN}
-}
-
-func NewTokenChain(dbFile string, symbol string) *Blockchain {
-	db, err := bolt.Open(dbFile, 0600, nil)
-	if err != nil {
-		log.Panic(err)
-	}
-	if err != nil {
-		log.Panic(err)
-	}
-
 	return &Blockchain{[]byte{}, db, 0, symbol}
 }
 

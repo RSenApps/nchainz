@@ -263,10 +263,14 @@ func (state *ConsensusState) AddCreateToken(createToken CreateToken, blockchains
 	}
 
 	//create a new entry in tokenStates
-	state.tokenStates.Store(createToken.TokenInfo.Symbol, ConsensusStateToken{})
+	state.tokenStates.Store(createToken.TokenInfo.Symbol, &ConsensusStateToken{})
 	state.createdTokens.Store(createToken.TokenInfo.Symbol, createToken.TokenInfo)
 
 	tokenState := state.GetTokenState(createToken.TokenInfo.Symbol)
+	tokenState.unclaimedFunds = make(map[string]uint64)
+	tokenState.deletedOrders = make(map[uint64]Order)
+	tokenState.balances = make(map[string]uint64)
+
 	tokenState.unclaimedFundsLock.Lock()
 	tokenState.unclaimedFunds[createToken.CreatorAddress] = createToken.TokenInfo.TotalSupply
 	tokenState.unclaimedFundsLock.Unlock()

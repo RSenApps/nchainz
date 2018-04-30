@@ -124,6 +124,12 @@ func (pow *ProofOfWork) Run() (int, []byte) {
 	return nonce, hash[:]
 }
 
+func (pow *ProofOfWork) GetHash() []byte {
+	data := pow.prepareData(pow.block.Nonce)
+	hash := sha256.Sum256(data)
+	return hash[:]
+}
+
 //
 // Validate proof of work
 //
