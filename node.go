@@ -1,7 +1,7 @@
 package main
 
 import (
-	//"bytes"
+	"bytes"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -211,7 +211,9 @@ func (node *Node) Inv(args *InvArgs, reply *bool) error {
 	myHeights := node.bcs.GetHeights()
 
 	for symbol, startHeight := range args.StartHeights {
-		if myHeights[symbol] < startHeight {
+		myHeight, ok := myHeights[symbol]
+
+		if ok && myHeight < startHeight {
 			node.reconcileChain(args.From, symbol, args.Blockhashes[symbol], startHeight)
 		}
 	}
@@ -404,35 +406,44 @@ func (node *Node) connectPeerIfNew(peerIp string) (isNew bool, peer *Peer, err e
 ////////////////////////////////
 // Utils: Chain Management
 
-func (node *Node) reconcileChain(peerIp string, symbol string, blockhashes [][]byte, theirHeight uint64) {
-	/*peer := node.peers[peerIp]
-	bc, _ := node.bcs.GetChain(symbol)
+func (node *Node) reconcileChain(peerIp string, symbol string, theirBlockhashes [][]byte, theirHeight uint64) error {
+	peer := node.peers[peerIp]
+	bc := node.bcs.GetChain(symbol)
+	myHeight := bc.GetStartHeight()
+	bci := bc.Iterator()
 
-	firstMissing := theirHeight
-	found := false
-	for _, blockhash := range blockhashes {
-		if bytes.Equal(blockhash, bc.tipHash) {
-			firstMissing++
-			found = true
-			break
-		}
+	height := myHeight
+	theirIdx := len(theirBlockhashes) - 1 - int(theirHeight-myHeight)
+	block, _ := bci.Next()
 
-		firstMissing--
+	for theirIdx >= 0 && !bytes.Equal(block.Hash, theirBlockhashes[theirIdx]) {
+		height--
+		theirIdx--
+		block, _ = bci.Next()
 	}
 
-	if !found {
-		// there was a fork
+	if theirIdx == 0 {
+		return errors.New("more blockhashes needed")
 	}
 
-	for i := firstMissing; i <= theirHeight; i++ {
-		block, err := node.SendGetBlock(peer, blockhashes[theirHeight-i], symbol)
+	if height != myHeight {
+		// There was a fork
+		node.bcs.RollbackToHeight(symbol, height)
+	}
+
+	for i := height + 1; i <= theirHeight; i++ {
+		theirIdx++
+
+		block, err := node.SendGetBlock(peer, theirBlockhashes[theirIdx], symbol)
 		if err != nil {
 			log.Printf(err.Error())
-			return
+			return err
 		}
 
-		bc.AddBlock(block.Data, block.Type)
-	}*/
+		bc.AddBlock(*block)
+	}
+
+	return nil
 }
 
 ////////////////////////////////
