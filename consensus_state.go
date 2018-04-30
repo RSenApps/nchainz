@@ -174,12 +174,27 @@ func (state *ConsensusState) RollbackMatch(match Match, rollbackInfo MatchRollba
 	sellTokenState.unclaimedFundsLock.Unlock()
 }
 
-func (state *ConsensusState) AddCancelOrder(cancelOrder CancelOrder) bool {
-	return false
+func (state *ConsensusState) AddCancelOrder(cancelOrder CancelOrder) (bool, Order) {
+	tokenState := state.GetTokenState(cancelOrder.OrderSymbol)
+	orderGen, ok := tokenState.openOrders.Load(cancelOrder.OrderID)
+	if !ok {
+		return false, Order{}
+	}
+	order := orderGen.(Order)
+	tokenState.unclaimedFundsLock.Lock()
+	tokenState.unclaimedFunds[order.SellerAddress] += order.AmountToSell
+	tokenState.unclaimedFundsLock.Unlock()
+	tokenState.openOrders.Delete(cancelOrder.OrderID)
+	return true, order
+
 }
 
-func (state *ConsensusState) RollbackCancelOrder(cancelOrder CancelOrder) {
-
+func (state *ConsensusState) RollbackCancelOrder(cancelOrder CancelOrder, deletedOrder Order) {
+	tokenState := state.GetTokenState(cancelOrder.OrderSymbol)
+	tokenState.openOrders.Store(cancelOrder.OrderID, deletedOrder)
+	tokenState.unclaimedFundsLock.Lock()
+	tokenState.unclaimedFunds[deletedOrder.SellerAddress] -= deletedOrder.AmountToSell
+	tokenState.unclaimedFundsLock.Unlock()
 }
 
 func (state *ConsensusState) AddCreateToken(createToken CreateToken) bool {

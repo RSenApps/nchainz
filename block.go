@@ -93,6 +93,7 @@ type Transfer struct {
 }
 
 type CancelOrder struct { //goes on match chain
+	OrderSymbol string
 	OrderID   uint64
 	Signature []byte
 }
