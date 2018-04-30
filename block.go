@@ -113,6 +113,15 @@ func GetBytes(key interface{}) ([]byte, error) {
 }
 
 func NewGenesisBlock() *Block {
+	gob.Register(MatchData{})
+	gob.Register(TokenData{})
+	gob.Register(CreateToken{})
+	gob.Register(Match{})
+	gob.Register(Order{})
+	gob.Register(Transfer{})
+	gob.Register(CancelOrder{})
+	gob.Register(ClaimFunds{})
+
 	createToken := CreateToken{
 		TokenInfo:      TokenInfo{
 			Symbol:      MATCH_CHAIN,
@@ -131,7 +140,7 @@ func NewGenesisBlock() *Block {
 }
 
 func NewBlock(data BlockData, blockType BlockType, prevBlockHash []byte) *Block {
-	block := &Block{time.Now().Unix(), blockType, data, prevBlockHash, []byte{}, 0}
+	block := &Block{time.Now().Unix(), blockType, data, prevBlockHash, []byte{1, 2, 3}, 0}
 	return block
 }
 
