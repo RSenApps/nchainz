@@ -7,7 +7,6 @@ import (
 
 type ConsensusStateToken struct {
 	openOrders sync.Map //map[uint64]Order
-	unconfirmedOrderIDs map[uint64]bool //Matched but no transaction confirmed
 	balances map[string]uint64
 	unclaimedFunds map[string]uint64
 	unclaimedFundsLock sync.Mutex
