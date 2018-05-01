@@ -147,7 +147,6 @@ func (bci *BlockchainIterator) Next() (*Block, error) {
 	return block, err
 }
 
-// TODO: Write this in an efficient way
 func (bc *Blockchain) GetStartHeight() uint64 {
 	/*bci := bc.Iterator()
 	var height uint64

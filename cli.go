@@ -102,7 +102,7 @@ func (cli *CLI) getBalance(address string) {
 
 func (cli *CLI) printChain() {
 	bcs := CreateNewBlockchains("blockchain.db")
-	bc := bcs.GetChain(MATCH_CHAIN)
+	bc := bcs.chains[MATCH_CHAIN]
 	defer bc.db.Close()
 
 	bci := bc.Iterator()
@@ -120,7 +120,7 @@ func (cli *CLI) printChain() {
 		block, err = bci.Next()
 	}
 
-	bc = bcs.GetChain(NATIVE_CHAIN)
+	bc = bcs.chains[NATIVE_CHAIN]
 
 	bci = bc.Iterator()
 	fmt.Println(NATIVE_CHAIN)
@@ -165,7 +165,7 @@ func (cli *CLI) node(args []string) {
 
 func (cli *CLI) createBC(address string) {
 	bcs := CreateNewBlockchains("blockchain.db")
-	bc := bcs.GetChain(NATIVE_CHAIN)
+	bc := bcs.chains[NATIVE_CHAIN]
 	transfer := Transfer{
 		Amount:      10,
 		FromAddress: "Satoshi",
@@ -178,5 +178,5 @@ func (cli *CLI) createBC(address string) {
 		Transfers:  []Transfer{transfer},
 	}
 	block := NewBlock(tokenData, TOKEN_BLOCK, bc.tipHash)
-	bcs.AddBlock(NATIVE_CHAIN, *block)
+	bcs.AddBlock(NATIVE_CHAIN, *block, true)
 }

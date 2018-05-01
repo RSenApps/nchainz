@@ -408,7 +408,8 @@ func (node *Node) connectPeerIfNew(peerIp string) (isNew bool, peer *Peer, err e
 
 func (node *Node) reconcileChain(peerIp string, symbol string, theirBlockhashes [][]byte, theirHeight uint64) error {
 	peer := node.peers[peerIp]
-	bc := node.bcs.GetChain(symbol)
+	node.bcs.chainsLock.RLock()
+	bc := node.bcs.chains[symbol]
 	myHeight := bc.GetStartHeight()
 	bci := bc.Iterator()
 
@@ -425,6 +426,7 @@ func (node *Node) reconcileChain(peerIp string, symbol string, theirBlockhashes 
 	if theirIdx == 0 {
 		return errors.New("more blockhashes needed")
 	}
+	node.bcs.chainsLock.RUnlock()
 
 	if height != myHeight {
 		// There was a fork

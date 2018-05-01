@@ -1,60 +1,69 @@
 package main
 
 import (
-	"sync"
 	"math"
 )
 
 type ConsensusStateToken struct {
-	openOrders sync.Map //map[uint64]Order
+	openOrders map[uint64]Order
 	balances map[string]uint64
 	unclaimedFunds map[string]uint64
-	unclaimedFundsLock sync.Mutex
+	//unclaimedFundsLock sync.Mutex
 	deletedOrders map[uint64]Order
-	deletedOrdersLock sync.Mutex
+	//deletedOrdersLock sync.Mutex
 }
 
 type ConsensusState struct {
-	tokenStates sync.Map //map[string]*ConsensusStateToken
-	createdTokens sync.Map //map[string]TokenInfo
+	tokenStates map[string]*ConsensusStateToken
+	createdTokens map[string]TokenInfo
 }
 
-func (state *ConsensusState) GetTokenState(symbol string) *ConsensusStateToken {
-	result, _ := state.tokenStates.Load(symbol)
-	return result.(*ConsensusStateToken)
+func NewConsensusStateToken() *ConsensusStateToken{
+	token := ConsensusStateToken{}
+	token.openOrders = make(map[uint64]Order)
+	token.balances = make(map[string]uint64)
+	token.unclaimedFunds = make(map[string]uint64)
+	token.deletedOrders = make(map[uint64]Order)
+	return &token
+}
+
+func NewConsensusState() ConsensusState {
+	state := ConsensusState{}
+	state.tokenStates = make(map[string]*ConsensusStateToken)
+	state.createdTokens = make(map[string]TokenInfo)
+
+	state.tokenStates[MATCH_CHAIN] = NewConsensusStateToken()
+	return state
 }
 
 func (state *ConsensusState) AddOrder(symbol string, order Order) bool {
-	tokenState := state.GetTokenState(symbol)
+	tokenState := state.tokenStates[symbol]
 	if tokenState.balances[order.SellerAddress] < order.AmountToSell {
 		return false
 	}
 
-	tokenState.deletedOrdersLock.Lock()
 	_, loaded := tokenState.deletedOrders[order.ID]
-	tokenState.deletedOrdersLock.Unlock()
 	if loaded {
 		return false
 	}
 
-	_, loaded = tokenState.openOrders.LoadOrStore(order.ID, order)
+	_, loaded = tokenState.openOrders[order.ID]
 	if loaded {
 		return false
 	}
+	tokenState.openOrders[order.ID] = order
 	tokenState.balances[order.SellerAddress] -= order.AmountToSell
 	return true
 }
 
 func (state *ConsensusState) RollbackOrder(symbol string, order Order) {
-	tokenState := state.GetTokenState(symbol)
-	tokenState.openOrders.Delete(order.ID)
+	tokenState := state.tokenStates[symbol]
+	delete(tokenState.openOrders, order.ID)
 	tokenState.balances[order.SellerAddress] += order.AmountToSell
 }
 
 func (state *ConsensusState) AddClaimFunds(symbol string, funds ClaimFunds) bool {
-	tokenState := state.GetTokenState(symbol)
-	tokenState.unclaimedFundsLock.Lock()
-	defer tokenState.unclaimedFundsLock.Unlock()
+	tokenState := state.tokenStates[symbol]
 	if tokenState.unclaimedFunds[funds.Address] < funds.Amount {
 		return false
 	}
@@ -64,15 +73,13 @@ func (state *ConsensusState) AddClaimFunds(symbol string, funds ClaimFunds) bool
 }
 
 func (state *ConsensusState) RollbackClaimFunds(symbol string, funds ClaimFunds) {
-	tokenState := state.GetTokenState(symbol)
-	tokenState.unclaimedFundsLock.Lock()
-	defer tokenState.unclaimedFundsLock.Unlock()
+	tokenState := state.tokenStates[symbol]
 	tokenState.unclaimedFunds[funds.Address] += funds.Amount
 	tokenState.balances[funds.Address] -= funds.Amount
 }
 
 func (state *ConsensusState) AddTransfer(symbol string, transfer Transfer) bool {
-	tokenState := state.GetTokenState(symbol)
+	tokenState := state.tokenStates[symbol]
 	if tokenState.balances[transfer.FromAddress] < transfer.Amount {
 		return false
 	}
@@ -82,7 +89,7 @@ func (state *ConsensusState) AddTransfer(symbol string, transfer Transfer) bool 
 }
 
 func (state *ConsensusState) RollbackTransfer(symbol string, transfer Transfer) {
-	tokenState := state.GetTokenState(symbol)
+	tokenState := state.tokenStates[symbol]
 	tokenState.balances[transfer.FromAddress] += transfer.Amount
 	tokenState.balances[transfer.ToAddress] -= transfer.Amount
 }
@@ -91,18 +98,16 @@ func (state *ConsensusState) AddMatch(match Match) bool {
 	//Check if both buy and sell orders are satisfied by match and that orders are open
 	//add to unconfirmedSell and Buy Matches
 	//remove orders from openOrders
-	buyTokenState := state.GetTokenState(match.BuySymbol)
-	sellTokenState := state.GetTokenState(match.SellSymbol)
-	buyOrderGen, ok := buyTokenState.openOrders.Load(match.BuyOrderID)
+	buyTokenState := state.tokenStates[match.BuySymbol]
+	sellTokenState :=  state.tokenStates[match.SellSymbol]
+	buyOrder, ok := buyTokenState.openOrders[match.BuyOrderID]
 	if !ok {
 		return false
 	}
-	sellOrderGen, ok := sellTokenState.openOrders.Load(match.SellOrderID)
+	sellOrder, ok := sellTokenState.openOrders[match.SellOrderID]
 	if !ok {
 		return false
 	}
-	buyOrder := buyOrderGen.(Order)
-	sellOrder := sellOrderGen.(Order)
 
 	if sellOrder.AmountToSell < match.AmountSold {
 		return false
@@ -122,13 +127,9 @@ func (state *ConsensusState) AddMatch(match Match) bool {
 
 	//Trade is between match.AmountSold and buyerMaxAmountPaid
 	//TODO: minerReward := buyerMaxAmountPaid - sellerMinAmountPaid
-	buyTokenState.unclaimedFundsLock.Lock()
 	buyTokenState.unclaimedFunds[sellOrder.SellerAddress] += sellerMinAmountReceived
-	buyTokenState.unclaimedFundsLock.Unlock()
 
-	sellTokenState.unclaimedFundsLock.Lock()
 	sellTokenState.unclaimedFunds[buyOrder.SellerAddress] += match.AmountSold
-	sellTokenState.unclaimedFundsLock.Unlock()
 
 
 	sellOrder.AmountToSell -= match.AmountSold
@@ -139,70 +140,52 @@ func (state *ConsensusState) AddMatch(match Match) bool {
 	var deletedOrders []Order
 	if sellOrder.AmountToBuy <= 0 {
 		if sellOrder.AmountToSell > 0 {
-			sellTokenState.unclaimedFundsLock.Lock()
 			sellTokenState.unclaimedFunds[sellOrder.SellerAddress] += sellOrder.AmountToSell
-			sellTokenState.unclaimedFundsLock.Unlock()
 		}
 		deletedOrders = append(deletedOrders, sellOrder)
-		sellTokenState.deletedOrdersLock.Lock()
 		sellTokenState.deletedOrders[sellOrder.ID] = sellOrder
-		sellTokenState.deletedOrdersLock.Unlock()
-		sellTokenState.openOrders.Delete(sellOrder.ID)
+		delete(sellTokenState.openOrders, sellOrder.ID)
 	} else {
-		sellTokenState.openOrders.Store(sellOrder.ID, sellOrder)
+		sellTokenState.openOrders[sellOrder.ID] = sellOrder
 	}
 
 	if buyOrder.AmountToBuy <= 0 {
 		if buyOrder.AmountToSell > 0 {
-			buyTokenState.unclaimedFundsLock.Lock()
 			buyTokenState.unclaimedFunds[buyOrder.SellerAddress] += buyOrder.AmountToSell
-			buyTokenState.unclaimedFundsLock.Unlock()
 		}
 		deletedOrders = append(deletedOrders, buyOrder)
-		buyTokenState.deletedOrdersLock.Lock()
 		buyTokenState.deletedOrders[buyOrder.ID] = buyOrder
-		buyTokenState.deletedOrdersLock.Unlock()
-		buyTokenState.openOrders.Delete(buyOrder.ID)
+		delete(buyTokenState.openOrders, buyOrder.ID)
 	} else {
-		buyTokenState.openOrders.Store(buyOrder.ID, buyOrder)
+		buyTokenState.openOrders[buyOrder.ID] = buyOrder
 	}
 	return true
 }
 
 func (state *ConsensusState) RollbackMatch(match Match) {
-	buyTokenState := state.GetTokenState(match.BuySymbol)
-	sellTokenState := state.GetTokenState(match.SellSymbol)
+	buyTokenState := state.tokenStates[match.BuySymbol]
+	sellTokenState :=  state.tokenStates[match.SellSymbol]
 
 	// were orders deleted?
-	buyTokenState.deletedOrdersLock.Lock()
 	buyOrder, ok := buyTokenState.deletedOrders[match.BuyOrderID]
 	if ok {
 		if buyOrder.AmountToSell > 0 {
-			buyTokenState.unclaimedFundsLock.Lock()
 			buyTokenState.unclaimedFunds[buyOrder.SellerAddress] -= buyOrder.AmountToSell
-			buyTokenState.unclaimedFundsLock.Unlock()
 		}
 		delete(buyTokenState.deletedOrders, match.BuyOrderID)
 	} else {
-		buyOrderGen, _ := buyTokenState.openOrders.Load(match.BuyOrderID)
-		buyOrder = buyOrderGen.(Order)
+		buyOrder, _ = buyTokenState.openOrders[match.BuyOrderID]
 	}
-	buyTokenState.deletedOrdersLock.Unlock()
 
-	sellTokenState.deletedOrdersLock.Lock()
 	sellOrder, ok := sellTokenState.deletedOrders[match.SellOrderID]
 	if ok {
 		if sellOrder.AmountToSell > 0 {
-			sellTokenState.unclaimedFundsLock.Lock()
 			sellTokenState.unclaimedFunds[sellOrder.SellerAddress] -= sellOrder.AmountToSell
-			sellTokenState.unclaimedFundsLock.Unlock()
 		}
 		delete(sellTokenState.deletedOrders, match.SellOrderID)
 	} else {
-		sellOrderGen, _ := sellTokenState.openOrders.Load(match.SellOrderID)
-		sellOrder = sellOrderGen.(Order)
+		sellOrder, _ = sellTokenState.openOrders[match.SellOrderID]
 	}
-	sellTokenState.deletedOrdersLock.Unlock()
 
 	buyPrice := float64(buyOrder.AmountToBuy) / float64(buyOrder.AmountToSell)
 	buyerMaxAmountPaid := uint64(math.Ceil(buyPrice * float64(match.AmountSold)))
@@ -210,70 +193,54 @@ func (state *ConsensusState) RollbackMatch(match Match) {
 	sellerMinAmountReceived := uint64(math.Floor(sellPrice * float64(match.AmountSold)))
 
 	//TODO: minerReward := buyerMaxAmountPaid - sellerMinAmountPaid
-	buyTokenState.unclaimedFundsLock.Lock()
 	buyTokenState.unclaimedFunds[sellOrder.SellerAddress] -= sellerMinAmountReceived
-	buyTokenState.unclaimedFundsLock.Unlock()
 
-	sellTokenState.unclaimedFundsLock.Lock()
 	sellTokenState.unclaimedFunds[buyOrder.SellerAddress] -= match.AmountSold
-	sellTokenState.unclaimedFundsLock.Unlock()
 
 	sellOrder.AmountToSell += match.AmountSold
 	sellOrder.AmountToBuy += sellerMinAmountReceived
 	buyOrder.AmountToBuy += match.AmountSold
 	buyOrder.AmountToSell += buyerMaxAmountPaid
 
-	sellTokenState.openOrders.Store(match.SellOrderID, sellOrder)
-	buyTokenState.openOrders.Store(match.BuyOrderID, buyOrder)
+	sellTokenState.openOrders[match.SellOrderID] = sellOrder
+	buyTokenState.openOrders[match.BuyOrderID] = buyOrder
 }
 
 func (state *ConsensusState) AddCancelOrder(cancelOrder CancelOrder) bool {
-	tokenState := state.GetTokenState(cancelOrder.OrderSymbol)
-	orderGen, ok := tokenState.openOrders.Load(cancelOrder.OrderID)
+	tokenState := state.tokenStates[cancelOrder.OrderSymbol]
+	order, ok := tokenState.openOrders[cancelOrder.OrderID]
 	if !ok {
 		return false
 	}
-	order := orderGen.(Order)
-	tokenState.unclaimedFundsLock.Lock()
 	tokenState.unclaimedFunds[order.SellerAddress] += order.AmountToSell
-	tokenState.unclaimedFundsLock.Unlock()
-	tokenState.openOrders.Delete(cancelOrder.OrderID)
+	delete(tokenState.openOrders, cancelOrder.OrderID)
 	return true
 
 }
 
 func (state *ConsensusState) RollbackCancelOrder(cancelOrder CancelOrder) {
-	tokenState := state.GetTokenState(cancelOrder.OrderSymbol)
+	tokenState := state.tokenStates[cancelOrder.OrderSymbol]
 
-	tokenState.deletedOrdersLock.Lock()
 	deletedOrder, _ := tokenState.deletedOrders[cancelOrder.OrderID]
 	delete(tokenState.deletedOrders, cancelOrder.OrderID)
-	tokenState.deletedOrdersLock.Unlock()
 
-	tokenState.openOrders.Store(cancelOrder.OrderID, deletedOrder)
-	tokenState.unclaimedFundsLock.Lock()
+	tokenState.openOrders[cancelOrder.OrderID] = deletedOrder
 	tokenState.unclaimedFunds[deletedOrder.SellerAddress] -= deletedOrder.AmountToSell
-	tokenState.unclaimedFundsLock.Unlock()
 }
 
 func (state *ConsensusState) AddCreateToken(createToken CreateToken, blockchains *Blockchains) bool {
-	_, ok := state.createdTokens.Load(createToken.TokenInfo.Symbol)
+	_, ok := state.createdTokens[createToken.TokenInfo.Symbol]
 	if ok {
 		return false
 	}
 
 	//create a new entry in tokenStates
-	state.tokenStates.Store(createToken.TokenInfo.Symbol, &ConsensusStateToken{})
-	state.createdTokens.Store(createToken.TokenInfo.Symbol, createToken.TokenInfo)
+	state.tokenStates[createToken.TokenInfo.Symbol] = NewConsensusStateToken()
+	state.createdTokens[createToken.TokenInfo.Symbol] = createToken.TokenInfo
 
-	tokenState := state.GetTokenState(createToken.TokenInfo.Symbol)
-	tokenState.unclaimedFunds = make(map[string]uint64)
-	tokenState.deletedOrders = make(map[uint64]Order)
-	tokenState.balances = make(map[string]uint64)
+	tokenState := state.tokenStates[createToken.TokenInfo.Symbol]
 
-	tokenState.unclaimedFundsLock.Lock()
 	tokenState.unclaimedFunds[createToken.CreatorAddress] = createToken.TokenInfo.TotalSupply
-	tokenState.unclaimedFundsLock.Unlock()
 
 	//create a new blockchain with proper genesis block
 	blockchains.AddTokenChain(createToken)

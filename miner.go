@@ -16,15 +16,14 @@ type Miner struct {
 }
 
 func (miner *Miner) mineLoop() {
-	var block *Block
-
+	/*var block *Block
 	for {
 		select {
 		case msg := <-miner.minerCh:
 			// Stop mining
 			if msg.IsNewBlock {
 				newBlock := msg.Msg.(NewBlockMsg)
-				block = NewBlock(nil, newBlock.BlockType, newBlock.LastHash)
+				block = NewBlock([]byte{}, newBlock.BlockType, newBlock.LastHash)
 			} else {
 				transaction := msg.Msg.(GenericTransaction)
 				block.AddTransaction(transaction)
@@ -39,7 +38,7 @@ func (miner *Miner) mineLoop() {
 				miner.finishedBlockCh <- *block
 			}
 		}
-	}
+	}*/
 }
 
 func NewMiner(finishedBlockCh chan Block) *Miner {

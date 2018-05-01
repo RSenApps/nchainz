@@ -12,13 +12,13 @@ const MATCH_CHAIN = "MATCH"
 const NATIVE_CHAIN = "NATIVE"
 
 type Blockchains struct {
-	chains          sync.Map //map[string]*Blockchain
+	chains          map[string]*Blockchain
 	nChainz         uint8
 	consensusState  ConsensusState
-	locks           map[string]*sync.Mutex
+	chainsLock      *sync.RWMutex
 	db              *bolt.DB
 	mempools        map[string]map[GenericTransaction]bool // map of sets
-	mempoolsLock    sync.Mutex
+	mempoolsLock    *sync.Mutex
 	finishedBlockCh chan Block
 	stopMiningCh    chan bool
 	miner           *Miner
@@ -52,18 +52,13 @@ func (uncommitted *UncommittedTransactions) undoTransactions(symbol string, stat
 	}
 }
 
-func (blockchains *Blockchains) GetChain(symbol string) *Blockchain {
-	result, _ := blockchains.chains.Load(symbol)
-	return result.(*Blockchain)
-}
-
 func (blockchains *Blockchains) rollbackTokenToHeight(symbol string, height uint64) {
-	if height <= blockchains.GetChain(symbol).GetStartHeight() {
+	if height <= blockchains.chains[symbol].GetStartHeight() {
 		return
 	}
-	blocksToRemove := blockchains.GetChain(symbol).GetStartHeight() - height
+	blocksToRemove := blockchains.chains[symbol].GetStartHeight() - height
 	for i := uint64(0); i < blocksToRemove; i++ {
-		removedData := blockchains.GetChain(symbol).RemoveLastBlock().(TokenData)
+		removedData := blockchains.chains[symbol].RemoveLastBlock().(TokenData)
 		for _, order := range removedData.Orders {
 			blockchains.consensusState.RollbackOrder(symbol, order)
 		}
@@ -79,13 +74,13 @@ func (blockchains *Blockchains) rollbackTokenToHeight(symbol string, height uint
 }
 
 func (blockchains *Blockchains) rollbackMatchToHeight(height uint64) {
-	if height <= blockchains.GetChain(MATCH_CHAIN).GetStartHeight() {
+	if height <= blockchains.chains[MATCH_CHAIN].GetStartHeight() {
 		return
 	}
 
-	blocksToRemove := blockchains.GetChain(MATCH_CHAIN).GetStartHeight() - height
+	blocksToRemove := blockchains.chains[MATCH_CHAIN].GetStartHeight() - height
 	for i := uint64(0); i < blocksToRemove; i++ {
-		removedData := blockchains.GetChain(MATCH_CHAIN).RemoveLastBlock().(MatchData)
+		removedData := blockchains.chains[MATCH_CHAIN].RemoveLastBlock().(MatchData)
 		for _, match := range removedData.Matches {
 			blockchains.consensusState.RollbackMatch(match)
 		}
@@ -101,8 +96,8 @@ func (blockchains *Blockchains) rollbackMatchToHeight(height uint64) {
 }
 
 func (blockchains *Blockchains) RollbackToHeight(symbol string, height uint64) {
-	blockchains.locks[symbol].Lock()
-	defer blockchains.locks[symbol].Unlock()
+	blockchains.chainsLock.Lock()
+	defer blockchains.chainsLock.Unlock()
 	if symbol == MATCH_CHAIN {
 		blockchains.rollbackMatchToHeight(height)
 	} else {
@@ -176,18 +171,20 @@ func (blockchains *Blockchains) addMatchData(matchData MatchData, uncommitted *U
 	return true
 }
 
-func (blockchains *Blockchains) AddBlock(symbol string, block Block) {
-	blockchains.AddBlocks(symbol, []Block{block})
+func (blockchains *Blockchains) AddBlock(symbol string, block Block, takeLock bool) {
+	blockchains.AddBlocks(symbol, []Block{block}, takeLock)
 }
 
-func (blockchains *Blockchains) AddBlocks(symbol string, blocks []Block) bool {
-	blockchains.locks[symbol].Lock()
-	defer blockchains.locks[symbol].Unlock()
+func (blockchains *Blockchains) AddBlocks(symbol string, blocks []Block, takeLock bool) bool {
+	if takeLock {
+		blockchains.chainsLock.Lock()
+		defer blockchains.chainsLock.Unlock()
+	}
 	blocksAdded := 0
 	var uncommitted UncommittedTransactions
 	failed := false
 	for _, block := range blocks {
-		if !bytes.Equal(blockchains.GetChain(symbol).tipHash, block.PrevBlockHash) {
+		if !bytes.Equal(blockchains.chains[symbol].tipHash, block.PrevBlockHash) {
 			failed = true
 			break
 		}
@@ -202,40 +199,40 @@ func (blockchains *Blockchains) AddBlocks(symbol string, blocks []Block) bool {
 				break
 			}
 		}
-		blockchains.GetChain(symbol).AddBlock(block)
+		blockchains.chains[symbol].AddBlock(block)
 		blocksAdded++
 	}
 	if failed {
 		uncommitted.undoTransactions(symbol, &blockchains.consensusState)
 		for i := 0; i < blocksAdded; i++ {
-			blockchains.GetChain(symbol).RemoveLastBlock()
+			blockchains.chains[symbol].RemoveLastBlock()
 		}
 		return false
 	}
 	return true
 }
 
-func (blockchains *Blockchains) GetOpenOrders(symbol string) sync.Map {
-	blockchains.locks[symbol].Lock()
-	defer blockchains.locks[symbol].Unlock()
-	state, _ := blockchains.consensusState.tokenStates.Load(symbol)
-	return state.(ConsensusStateToken).openOrders
+func (blockchains *Blockchains) GetOpenOrders(symbol string) map[uint64]Order {
+	blockchains.chainsLock.RLock()
+	defer blockchains.chainsLock.RUnlock()
+	state, _ := blockchains.consensusState.tokenStates[symbol]
+	return state.openOrders
 }
 
 func (blockchains *Blockchains) GetBalance(symbol string, address string) (uint64, bool) {
-	blockchains.locks[symbol].Lock()
-	defer blockchains.locks[symbol].Unlock()
-	state, _ := blockchains.consensusState.tokenStates.Load(symbol)
-	balance, ok := state.(*ConsensusStateToken).balances[address]
+	blockchains.chainsLock.RLock()
+	defer blockchains.chainsLock.RUnlock()
+	state, _ := blockchains.consensusState.tokenStates[symbol]
+	balance, ok := state.balances[address]
 	return balance, ok
 }
 
 func (blockchains *Blockchains) AddTokenChain(createToken CreateToken) {
+	//no lock needed
 	chain := NewBlockchain(blockchains.db, createToken.TokenInfo.Symbol)
-	blockchains.chains.Store(createToken.TokenInfo.Symbol, chain)
-	blockchains.locks[createToken.TokenInfo.Symbol] = &sync.Mutex{}
+	blockchains.chains[createToken.TokenInfo.Symbol] = chain
 	blockchains.nChainz++
-	blockchains.AddBlock(createToken.TokenInfo.Symbol, *NewTokenGenesisBlock(createToken))
+	blockchains.AddBlock(createToken.TokenInfo.Symbol, *NewTokenGenesisBlock(createToken), false)
 }
 
 func CreateNewBlockchains(dbName string) *Blockchains {
@@ -248,51 +245,56 @@ func CreateNewBlockchains(dbName string) *Blockchains {
 		log.Panic(err)
 	}
 	blockchains.db = db
-	blockchains.locks = make(map[string]*sync.Mutex)
 
 	blockchains.nChainz = 1
 	blockchains.finishedBlockCh = make(chan Block)
 	blockchains.miner = NewMiner(blockchains.finishedBlockCh)
+	blockchains.consensusState = NewConsensusState()
 	go blockchains.startMining()
-	blockchains.chains.Store(MATCH_CHAIN, NewBlockchain(db, MATCH_CHAIN))
-
-	blockchains.locks[MATCH_CHAIN] = &sync.Mutex{}
-	blockchains.AddBlock(MATCH_CHAIN, *NewGenesisBlock())
+	blockchains.chains = make(map[string]*Blockchain)
+	blockchains.chains[MATCH_CHAIN] = NewBlockchain(db, MATCH_CHAIN)
+	blockchains.chainsLock = &sync.RWMutex{}
+	blockchains.mempoolsLock = &sync.Mutex{}
+	blockchains.AddBlock(MATCH_CHAIN, *NewGenesisBlock(), false)
 	return blockchains
 }
 
 func (blockchains *Blockchains) GetHeight(symbol string) uint64 {
-	blockchains.locks[symbol].Lock()
-	defer blockchains.locks[symbol].Unlock()
-	return blockchains.GetChain(symbol).GetStartHeight()
+	blockchains.chainsLock.RLock()
+	defer blockchains.chainsLock.RUnlock()
+	return blockchains.chains[symbol].GetStartHeight()
 }
 
 func (blockchains *Blockchains) GetBlock(symbol string, blockhash []byte) (*Block, error) {
-	bc, ok := blockchains.chains.Load(symbol)
+	blockchains.chainsLock.RLock()
+	defer blockchains.chainsLock.RUnlock()
+
+	bc, ok := blockchains.chains[symbol]
 	if !ok {
 		return nil, errors.New("invalid chain")
 	}
 
-	block, blockErr := bc.(*Blockchain).GetBlock(blockhash)
+	block, blockErr := bc.GetBlock(blockhash)
 	return block, blockErr
 }
 
 func (blockchains *Blockchains) GetHeights() map[string]uint64 {
+	blockchains.chainsLock.RLock()
+	defer blockchains.chainsLock.RUnlock()
 	heights := make(map[string]uint64)
-	blockchains.chains.Range(func(symbol, chain interface{}) bool {
-		heights[symbol.(string)] = chain.(*Blockchain).GetStartHeight()
-		return true
-	})
+	for symbol, chain := range blockchains.chains {
+		heights[symbol] = chain.GetStartHeight()
+	}
 	return heights
 }
 
 func (blockchains *Blockchains) GetBlockhashes() map[string][][]byte {
+	blockchains.chainsLock.RLock()
+	defer blockchains.chainsLock.RUnlock()
 	blockhashes := make(map[string][][]byte)
-
-	blockchains.chains.Range(func(symbol, chain interface{}) bool {
-		blockhashes[symbol.(string)] = chain.(*Blockchain).GetBlockhashes()
-		return true
-	})
+	for symbol, chain := range blockchains.chains {
+		blockhashes[symbol] = chain.GetBlockhashes()
+	}
 	return blockhashes
 }
 
@@ -329,7 +331,7 @@ func (blockchains *Blockchains) ApplyCh(tx GenericTransaction, symbol string) {
 	for {
 		select {
 		case block := <-blockchains.finishedBlockCh:
-			blockchains.AddBlock(symbol, block)
+			blockchains.AddBlock(symbol, block, true)
 
 			// Applies new transactions to this consensus state
 			switch tx.transactionType {
