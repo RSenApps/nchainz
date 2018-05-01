@@ -22,6 +22,7 @@ type Blockchains struct {
 	finishedBlockCh chan Block
 	stopMiningCh    chan bool
 	miner           *Miner
+	recovering      bool
 }
 
 type UncommittedTransactions struct {
@@ -238,7 +239,9 @@ func (blockchains *Blockchains) AddTokenChain(createToken CreateToken) {
 	//no lock needed
 	chain := NewBlockchain(blockchains.db, createToken.TokenInfo.Symbol)
 	blockchains.chains[createToken.TokenInfo.Symbol] = chain
-	blockchains.AddBlock(createToken.TokenInfo.Symbol, *NewTokenGenesisBlock(createToken), false)
+	if !blockchains.recovering { //recovery will replay this block normally
+		blockchains.AddBlock(createToken.TokenInfo.Symbol, *NewTokenGenesisBlock(createToken), false)
+	}
 }
 
 func (blockchains *Blockchains) restoreFromDatabase() {
@@ -311,8 +314,10 @@ func CreateNewBlockchains(dbName string) *Blockchains {
 	blockchains.mempoolsLock = &sync.Mutex{}
 
 	if newDatabase {
+		blockchains.recovering = false
 		blockchains.AddBlock(MATCH_CHAIN, *NewGenesisBlock(), false)
 	} else {
+		blockchains.recovering = true
 		blockchains.restoreFromDatabase()
 	}
 	return blockchains
@@ -352,7 +357,7 @@ func (blockchains *Blockchains) GetBlockhashes() map[string][][]byte {
 	defer blockchains.chainsLock.RUnlock()
 	blockhashes := make(map[string][][]byte)
 	for symbol, chain := range blockchains.chains {
-		blockhashes[symbol] = chain.GetBlockhashes()
+		blockhashes[symbol] = chain.blockhashes
 	}
 	return blockhashes
 }

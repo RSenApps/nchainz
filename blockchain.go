@@ -47,7 +47,7 @@ func NewBlockchain(db *bolt.DB, symbol string) *Blockchain {
 	}
 	blockchain := Blockchain{[]byte{}, db, 0, symbol, [][]byte{}}
 	blockchain.tipHash = blockchain.getTipHash()
-	blockchain.blockhashes = make([][]byte, 0)
+	blockchain.blockhashes = blockchain.getBlockhashes()
 
 	return &blockchain
 }
@@ -74,7 +74,7 @@ func (bc *Blockchain) AddBlock(block Block) {
 	})
 
 	bc.height += 1
-	bc.blockhashes = append(bc.blockhashes, block.Hash)
+	bc.blockhashes = append([][]byte{block.Hash}, bc.blockhashes...)
 }
 
 func (bc *Blockchain) RemoveLastBlock() BlockData {
@@ -101,7 +101,7 @@ func (bc *Blockchain) RemoveLastBlock() BlockData {
 	})
 
 	bc.height -= 1
-	bc.blockhashes = bc.blockhashes[:len(bc.blockhashes)-1]
+	bc.blockhashes = bc.blockhashes[1:]
 
 	return nil
 }
@@ -115,7 +115,7 @@ func (bc *Blockchain) Iterator() *BlockchainIterator {
 }
 
 func (bc *Blockchain) ForwardIterator() *BlockchainForwardIterator {
-	hashes := bc.GetBlockhashes()
+	hashes := bc.blockhashes
 	return &BlockchainForwardIterator{hashes, len(hashes)-1, bc.db, bc.bucketName}
 }
 
@@ -177,7 +177,7 @@ func (bc *Blockchain) GetStartHeight() uint64 {
 	return bc.height
 }
 
-func (bc *Blockchain) GetBlockhashes() [][]byte {
+func (bc *Blockchain) getBlockhashes() [][]byte {
 	blockhashes := make([][]byte, 0)
 	bci := bc.Iterator()
 
