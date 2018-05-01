@@ -13,11 +13,12 @@ const NATIVE_CHAIN = "NATIVE"
 
 type Blockchains struct {
 	chains          sync.Map //map[string]*Blockchain
+	nChainz         uint8
 	consensusState  ConsensusState
 	locks           map[string]*sync.Mutex
 	db              *bolt.DB
-	mempool         map[GenericTransaction]bool // transactions not added to a block yet
-	isMining        bool
+	mempools        map[string]map[GenericTransaction]bool // map of sets
+	mempoolsLock    sync.Mutex
 	finishedBlockCh chan Block
 	stopMiningCh    chan bool
 	miner           *Miner
@@ -233,6 +234,7 @@ func (blockchains *Blockchains) AddTokenChain(createToken CreateToken) {
 	chain := NewBlockchain(blockchains.db, createToken.TokenInfo.Symbol)
 	blockchains.chains.Store(createToken.TokenInfo.Symbol, chain)
 	blockchains.locks[createToken.TokenInfo.Symbol] = &sync.Mutex{}
+	blockchains.nChainz++
 	blockchains.AddBlock(createToken.TokenInfo.Symbol, *NewTokenGenesisBlock(createToken))
 }
 
@@ -248,8 +250,10 @@ func CreateNewBlockchains(dbName string) *Blockchains {
 	blockchains.db = db
 	blockchains.locks = make(map[string]*sync.Mutex)
 
-	blockchains.isMining = false
+	blockchains.nChainz = 1
 	blockchains.finishedBlockCh = make(chan Block)
+	blockchains.miner = NewMiner(blockchains.finishedBlockCh)
+	go blockchains.startMining()
 	blockchains.chains.Store(MATCH_CHAIN, NewBlockchain(db, MATCH_CHAIN))
 
 	blockchains.locks[MATCH_CHAIN] = &sync.Mutex{}
@@ -293,23 +297,32 @@ func (blockchains *Blockchains) GetBlockhashes() map[string][][]byte {
 }
 
 func (blockchains *Blockchains) AddTransactionToMempool(transaction GenericTransaction, symbol string, LastHash []byte) {
-	blockchains.mempool[transaction] = true
-
-	// Start miner loop if mempool is nonempty, and miner loop is unstarted
-	if !blockchains.isMining {
-		blockchains.isMining = true
-		blockchains.miner = NewMiner(blockchains.finishedBlockCh)
-		switch transaction.transactionType {
-		case MATCH, CANCEL_ORDER, CREATE_TOKEN:
-			blockchains.miner.minerCh <- MinerMsg{NewBlockMsg{MATCH_BLOCK, LastHash}, true}
-		default:
-			blockchains.miner.minerCh <- MinerMsg{NewBlockMsg{TOKEN_BLOCK, LastHash}, true}
-		}
+	blockchains.mempoolsLock.Lock()
+	defer blockchains.mempoolsLock.Unlock()
+	if _, ok := blockchains.mempools[symbol][transaction]; ok {
+		return
 	}
 
-	// Send transaction to miner
-	blockchains.miner.minerCh <- MinerMsg{transaction, false}
+	blockchains.mempools[symbol][transaction] = true
+
+
 }
+
+func (blockchains *Blockchains) startMining() {
+	//pick random token to start mining (use nchainz)
+	//send new blockmsg
+	//whenever a new transaction is added to the mempool: validate transaction and then send to minerch
+	// Send transaction to miner
+	//blockchains.miner.minerCh <- MinerMsg{transaction, false}
+	/*
+	switch transaction.transactionType {
+	case MATCH, CANCEL_ORDER, CREATE_TOKEN:
+		blockchains.miner.minerCh <- MinerMsg{NewBlockMsg{MATCH_BLOCK, LastHash}, true}
+	default:
+		blockchains.miner.minerCh <- MinerMsg{NewBlockMsg{TOKEN_BLOCK, LastHash}, true}
+	}*/
+}
+
 
 func (blockchains *Blockchains) ApplyCh(tx GenericTransaction, symbol string) {
 	// When miner finishes, try to add a block

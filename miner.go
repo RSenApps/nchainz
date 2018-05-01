@@ -17,6 +17,7 @@ type Miner struct {
 
 func (miner *Miner) mineLoop() {
 	var block *Block
+
 	for {
 		select {
 		case msg := <-miner.minerCh:
