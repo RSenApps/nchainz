@@ -1,21 +1,26 @@
 package main
 
 import (
+	"bytes"
 	"errors"
-	"sync"
-	//"bytes"
 	"github.com/boltdb/bolt"
 	"log"
+	"sync"
 )
 
 const MATCH_CHAIN = "MATCH"
 const NATIVE_CHAIN = "NATIVE"
 
 type Blockchains struct {
-	chains sync.Map //map[string]*Blockchain
-	consensusState ConsensusState
-	locks map[string]*sync.Mutex
-	db *bolt.DB
+	chains          sync.Map //map[string]*Blockchain
+	consensusState  ConsensusState
+	locks           map[string]*sync.Mutex
+	db              *bolt.DB
+	mempool         map[GenericTransaction]bool // transactions not added to a block yet
+	isMining        bool
+	finishedBlockCh chan Block
+	stopMiningCh    chan bool
+	miner           *Miner
 }
 
 type UncommittedTransactions struct {
@@ -30,12 +35,18 @@ func (uncommitted *UncommittedTransactions) undoTransactions(symbol string, stat
 	for i := len(uncommitted.transactions) - 1; i >= 0; i-- {
 		transaction := uncommitted.transactions[i].transaction
 		switch uncommitted.transactions[i].transactionType {
-		case ORDER: state.RollbackOrder(symbol, transaction.(Order))
-		case CANCEL_ORDER: state.RollbackCancelOrder(transaction.(CancelOrder))
-		case CLAIM_FUNDS: state.RollbackClaimFunds(symbol, transaction.(ClaimFunds))
-		case TRANSFER: state.RollbackTransfer(symbol, transaction.(Transfer))
-		case MATCH: state.RollbackMatch(transaction.(Match))
-		case CREATE_TOKEN: state.RollbackCreateToken(transaction.(CreateToken))
+		case ORDER:
+			state.RollbackOrder(symbol, transaction.(Order))
+		case CANCEL_ORDER:
+			state.RollbackCancelOrder(transaction.(CancelOrder))
+		case CLAIM_FUNDS:
+			state.RollbackClaimFunds(symbol, transaction.(ClaimFunds))
+		case TRANSFER:
+			state.RollbackTransfer(symbol, transaction.(Transfer))
+		case MATCH:
+			state.RollbackMatch(transaction.(Match))
+		case CREATE_TOKEN:
+			state.RollbackCreateToken(transaction.(CreateToken))
 		}
 	}
 }
@@ -175,10 +186,10 @@ func (blockchains *Blockchains) AddBlocks(symbol string, blocks []Block) bool {
 	var uncommitted UncommittedTransactions
 	failed := false
 	for _, block := range blocks {
-		/*DEBUGif !bytes.Equal(blockchains.GetChain(symbol).tipHash, block.PrevBlockHash) {
+		if !bytes.Equal(blockchains.GetChain(symbol).tipHash, block.PrevBlockHash) {
 			failed = true
 			break
-		}*/
+		}
 		if symbol == MATCH_CHAIN {
 			if !blockchains.addMatchData(block.Data.(MatchData), &uncommitted) {
 				failed = true
@@ -237,6 +248,8 @@ func CreateNewBlockchains(dbName string) *Blockchains {
 	blockchains.db = db
 	blockchains.locks = make(map[string]*sync.Mutex)
 
+	blockchains.isMining = false
+	blockchains.finishedBlockCh = make(chan Block)
 	blockchains.chains.Store(MATCH_CHAIN, NewBlockchain(db, MATCH_CHAIN))
 
 	blockchains.locks[MATCH_CHAIN] = &sync.Mutex{}
@@ -277,4 +290,54 @@ func (blockchains *Blockchains) GetBlockhashes() map[string][][]byte {
 		return true
 	})
 	return blockhashes
+}
+
+func (blockchains *Blockchains) AddTransactionToMempool(transaction GenericTransaction, symbol string, LastHash []byte) {
+	blockchains.mempool[transaction] = true
+
+	// Start miner loop if mempool is nonempty, and miner loop is unstarted
+	if !blockchains.isMining {
+		blockchains.isMining = true
+		blockchains.miner = NewMiner(blockchains.finishedBlockCh)
+		switch transaction.transactionType {
+		case MATCH, CANCEL_ORDER, CREATE_TOKEN:
+			blockchains.miner.minerCh <- MinerMsg{NewBlockMsg{MATCH_BLOCK, LastHash}, true}
+		default:
+			blockchains.miner.minerCh <- MinerMsg{NewBlockMsg{TOKEN_BLOCK, LastHash}, true}
+		}
+	}
+
+	// Send transaction to miner
+	blockchains.miner.minerCh <- MinerMsg{transaction, false}
+}
+
+func (blockchains *Blockchains) ApplyCh(tx GenericTransaction, symbol string) {
+	// When miner finishes, try to add a block
+	for {
+		select {
+		case block := <-blockchains.finishedBlockCh:
+			blockchains.AddBlock(symbol, block)
+
+			// Applies new transactions to this consensus state
+			switch tx.transactionType {
+			case MATCH:
+				blockchains.consensusState.AddMatch(tx.transaction.(Match))
+			case ORDER:
+				blockchains.consensusState.AddOrder(symbol, tx.transaction.(Order))
+			case TRANSFER:
+				blockchains.consensusState.AddTransfer(symbol, tx.transaction.(Transfer))
+			case CANCEL_ORDER:
+				blockchains.consensusState.AddCancelOrder(tx.transaction.(CancelOrder))
+			case CLAIM_FUNDS:
+				blockchains.consensusState.AddClaimFunds(symbol, tx.transaction.(ClaimFunds))
+			case CREATE_TOKEN:
+				blockchains.consensusState.AddCreateToken(tx.transaction.(CreateToken), blockchains)
+			}
+
+		case <-blockchains.stopMiningCh:
+			// TODO
+			// Stop mining if a new block is added
+			// At this point blockchains.go must reevaluate transactions in the mempool and then start a new miner
+		}
+	}
 }
