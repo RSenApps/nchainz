@@ -164,7 +164,7 @@ func (bc *Blockchain) GetBlockhashes() [][]byte {
 	block, err := bci.Next()
 	for err != nil {
 		blockhashes = append(blockhashes, block.Hash)
-		_, err = bci.Next()
+		block, err = bci.Next()
 	}
 
 	return blockhashes
@@ -178,18 +178,20 @@ func (bc *Blockchain) GetBlock(blockhash []byte) (*Block, error) {
 		if bytes.Equal(block.Hash, blockhash) {
 			return block, nil
 		}
-		_, err = bci.Next()
+		block, err = bci.Next()
 	}
 
 	return nil, errors.New("block not found")
 }
 
 func (bc *Blockchain) GetTipHash() []byte {
+	if bc.height == 0 {
+		return []byte{}
+	}
 	bci := bc.Iterator()
-
 	block, err := bci.Next()
 	for err != nil {
-		_, err = bci.Next()
+		block, err = bci.Next()
 	}
 	return block.Hash
 }

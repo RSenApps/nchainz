@@ -175,7 +175,7 @@ func (blockchains *Blockchains) AddBlocks(symbol string, blocks []Block) bool {
 	var uncommitted UncommittedTransactions
 	failed := false
 	for _, block := range blocks {
-		if !bytes.Equal(blockchains.GetChain(symbol).tipHash, block.PrevBlockHash) {
+		if !bytes.Equal(blockchains.GetChain(symbol).GetTipHash(), block.PrevBlockHash) {
 			failed = true
 			break
 		}
