@@ -175,7 +175,7 @@ func (blockchains *Blockchains) AddBlocks(symbol string, blocks []Block) bool {
 	var uncommitted UncommittedTransactions
 	failed := false
 	for _, block := range blocks {
-		if !bytes.Equal(blockchains.GetChain(symbol).GetTipHash(), block.PrevBlockHash) {
+		if !bytes.Equal(blockchains.GetChain(symbol).tipHash, block.PrevBlockHash) {
 			failed = true
 			break
 		}
@@ -238,6 +238,7 @@ func CreateNewBlockchains(dbName string) *Blockchains {
 	blockchains.locks = make(map[string]*sync.Mutex)
 
 	blockchains.chains.Store(MATCH_CHAIN, NewBlockchain(db, MATCH_CHAIN))
+	
 	blockchains.locks[MATCH_CHAIN] = &sync.Mutex{}
 	blockchains.AddBlock(MATCH_CHAIN, *NewGenesisBlock())
 	return blockchains

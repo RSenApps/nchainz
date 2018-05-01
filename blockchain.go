@@ -38,10 +38,12 @@ func NewBlockchain(db *bolt.DB, symbol string) *Blockchain {
 	if err != nil {
 		log.Panic(err)
 	}
-	return &Blockchain{[]byte{}, db, 0, symbol}
+	blockchain := Blockchain{[]byte{}, db, 0, symbol}
+	blockchain.tipHash = blockchain.getTipHash()
+	return &blockchain
 }
 
-
+/*
 func (bc *Blockchain) AddBlockData(data BlockData, blockType BlockType) {
 	var lastHash []byte // Hash of last block
 
@@ -82,7 +84,7 @@ func (bc *Blockchain) AddBlockData(data BlockData, blockType BlockType) {
 
 	bc.height += 1
 }
-
+*/
 func (bc *Blockchain) AddBlock(block Block) {
 	// Read-write transaction to store new block in DB
 	bc.db.Update(func(tx *bolt.Tx) error {
@@ -131,13 +133,17 @@ func (bci *BlockchainIterator) Next() (*Block, error) {
 	err := bci.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(bci.bucketName))
 		encodedBlock := b.Get(bci.currentHash)
+		if encodedBlock == nil {
+			return errors.New("out of blocks")
+		}
 		block = DeserializeBlock(encodedBlock)
 
 		return nil
 	})
-
-	// Blocks are obtained newest to oldest
-	bci.currentHash = block.PrevBlockHash
+	if err == nil {
+		// Blocks are obtained newest to oldest
+		bci.currentHash = block.PrevBlockHash
+	}
 
 	return block, err
 }
@@ -184,14 +190,19 @@ func (bc *Blockchain) GetBlock(blockhash []byte) (*Block, error) {
 	return nil, errors.New("block not found")
 }
 
-func (bc *Blockchain) GetTipHash() []byte {
-	if bc.height == 0 {
+func (bc *Blockchain) getTipHash() []byte {
+	var lastHash []byte // Hash of last block
+
+	// Read-only transaction to get hash of last block
+	err := bc.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(bc.bucketName))
+		lastHash = b.Get([]byte("l"))
+		return nil
+	})
+
+	if err != nil {
 		return []byte{}
+	} else {
+		return lastHash
 	}
-	bci := bc.Iterator()
-	block, err := bci.Next()
-	for err == nil {
-		block, err = bci.Next()
-	}
-	return block.Hash
 }

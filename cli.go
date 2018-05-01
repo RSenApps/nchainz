@@ -177,6 +177,6 @@ func (cli *CLI) createBC(address string) {
 		ClaimFunds: nil,
 		Transfers:  []Transfer{transfer},
 	}
-	block := NewBlock(tokenData, TOKEN_BLOCK, bc.GetTipHash())
+	block := NewBlock(tokenData, TOKEN_BLOCK, bc.tipHash)
 	bcs.AddBlock(NATIVE_CHAIN, *block)
 }
