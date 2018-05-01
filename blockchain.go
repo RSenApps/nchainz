@@ -8,9 +8,9 @@ import (
 )
 
 type Blockchain struct {
-	tipHash []byte   // Tip of chain
-	db      *bolt.DB // DB connection
-	height  uint64
+	tipHash    []byte   // Tip of chain
+	db         *bolt.DB // DB connection
+	height     uint64
 	bucketName string
 }
 
@@ -18,9 +18,8 @@ type Blockchain struct {
 type BlockchainIterator struct {
 	currentHash []byte   // Hash of current block
 	db          *bolt.DB // DB connection
-	bucketName string
+	bucketName  string
 }
-
 
 func NewBlockchain(db *bolt.DB, symbol string) *Blockchain {
 	err := db.Update(func(tx *bolt.Tx) error {
@@ -110,7 +109,30 @@ func (bc *Blockchain) AddBlock(block Block) {
 }
 
 func (bc *Blockchain) RemoveLastBlock() BlockData {
-	//TODO:
+	bc.db.Update(func(tx *bolt.Tx) error {
+		// Get bucket
+		b := tx.Bucket([]byte(bc.bucketName))
+
+		// Get second to last block
+		bci := bc.Iterator()
+		prevBlock, _ := bci.Next()
+
+		// Delete last bock
+		b.Delete(bc.getTipHash())
+
+		// Update "l" key to second to last block
+		err := b.Put([]byte("l"), prevBlock.Hash)
+		if err != nil {
+			log.Panic(err)
+		}
+
+		// Update tip to second to last block
+		bc.tipHash = prevBlock.Hash
+		return nil
+	})
+
+	bc.height -= 1
+
 	return nil
 }
 
