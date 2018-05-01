@@ -251,6 +251,7 @@ func CreateNewBlockchains(dbName string) *Blockchains {
 	blockchains.isMining = false
 	blockchains.finishedBlockCh = make(chan Block)
 	blockchains.chains.Store(MATCH_CHAIN, NewBlockchain(db, MATCH_CHAIN))
+	
 	blockchains.locks[MATCH_CHAIN] = &sync.Mutex{}
 	blockchains.AddBlock(MATCH_CHAIN, *NewGenesisBlock())
 	return blockchains

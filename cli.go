@@ -108,8 +108,8 @@ func (cli *CLI) printChain() {
 	bci := bc.Iterator()
 	fmt.Println(MATCH_CHAIN)
 	fmt.Println("Height:", bc.height)
-	for {
-		block, _ := bci.Next()
+	block, err := bci.Next()
+	for err == nil{
 
 		fmt.Printf("Prev Hash: %x\n", block.PrevBlockHash)
 		fmt.Printf("Data: %s\n", block.Data)
@@ -117,10 +117,7 @@ func (cli *CLI) printChain() {
 		pow := NewProofOfWork(block)
 		fmt.Printf("Validated Proof of Work: %s\n", strconv.FormatBool(pow.Validate()))
 		fmt.Println("-------------------------------")
-
-		if len(block.PrevBlockHash) == 0 {
-			break
-		}
+		block, err = bci.Next()
 	}
 
 	bc = bcs.GetChain(NATIVE_CHAIN)
@@ -128,8 +125,8 @@ func (cli *CLI) printChain() {
 	bci = bc.Iterator()
 	fmt.Println(NATIVE_CHAIN)
 	fmt.Println("Height:", bc.height)
-	for {
-		block, _ := bci.Next()
+	block, err = bci.Next()
+	for err == nil {
 
 		fmt.Printf("Prev Hash: %x\n", block.PrevBlockHash)
 		fmt.Printf("Data: %s\n", block.Data)
@@ -137,10 +134,7 @@ func (cli *CLI) printChain() {
 		pow := NewProofOfWork(block)
 		fmt.Printf("Validated Proof of Work: %s\n", strconv.FormatBool(pow.Validate()))
 		fmt.Println("-------------------------------")
-
-		if len(block.PrevBlockHash) == 0 {
-			break
-		}
+		block, err = bci.Next()
 	}
 }
 
@@ -170,6 +164,19 @@ func (cli *CLI) node(args []string) {
 }
 
 func (cli *CLI) createBC(address string) {
-	// TODO
-	fmt.Println("Done!")
+	bcs := CreateNewBlockchains("blockchain.db")
+	bc := bcs.GetChain(NATIVE_CHAIN)
+	transfer := Transfer{
+		Amount:      10,
+		FromAddress: "Satoshi",
+		ToAddress:   "Negansoft",
+		Signature:   nil,
+	}
+	tokenData := TokenData{
+		Orders:     nil,
+		ClaimFunds: nil,
+		Transfers:  []Transfer{transfer},
+	}
+	block := NewBlock(tokenData, TOKEN_BLOCK, bc.tipHash)
+	bcs.AddBlock(NATIVE_CHAIN, *block)
 }
