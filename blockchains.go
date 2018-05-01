@@ -253,6 +253,7 @@ func (blockchains *Blockchains) restoreFromDatabase() {
 			iterator, ok := iterators[symbol]
 			if !ok {
 				iterator = chain.ForwardIterator()
+				chain.height = uint64(len(iterator.hashes))
 				iterators[symbol] = iterator
 			}
 			block, err := iterator.Next()
