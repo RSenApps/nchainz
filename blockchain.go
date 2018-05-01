@@ -21,6 +21,13 @@ type BlockchainIterator struct {
 	bucketName string
 }
 
+type BlockchainForwardIterator struct {
+	hashes [][]byte   // Hash of current block
+	currentIndex int
+	db          *bolt.DB // DB connection
+	bucketName string
+}
+
 
 func NewBlockchain(db *bolt.DB, symbol string) *Blockchain {
 	err := db.Update(func(tx *bolt.Tx) error {
@@ -97,6 +104,7 @@ func (bc *Blockchain) AddBlock(block Block) {
 
 		// Update "l" key
 		err = b.Put([]byte("l"), block.Hash)
+
 		if err != nil {
 			log.Panic(err)
 		}
@@ -122,10 +130,15 @@ func (bc *Blockchain) Iterator() *BlockchainIterator {
 	return bci
 }
 
+func (bc *Blockchain) ForwardIterator() *BlockchainForwardIterator {
+	hashes := bc.GetBlockhashes()
+	return &BlockchainForwardIterator{hashes, len(hashes)-1, bc.db, bc.bucketName}
+}
+
 //
 // Next returns next block starting from the tip
 //
-func (bci *BlockchainIterator) Next() (*Block, error) {
+func (bci *BlockchainIterator) Prev() (*Block, error) {
 	var block *Block
 
 	// Read only transaction to get next block
@@ -147,6 +160,35 @@ func (bci *BlockchainIterator) Next() (*Block, error) {
 	return block, err
 }
 
+func (bci *BlockchainForwardIterator) Next() (*Block, error) {
+	var block *Block
+	if bci.currentIndex < 0 {
+		return nil, errors.New("out of blocks")
+	}
+
+	// Read only transaction to get next block
+	err := bci.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(bci.bucketName))
+		encodedBlock := b.Get(bci.hashes[bci.currentIndex])
+		if encodedBlock == nil {
+			return errors.New("out of blocks")
+		}
+		block = DeserializeBlock(encodedBlock)
+
+		return nil
+	})
+	if err == nil {
+		// Blocks are obtained newest to oldest
+		bci.currentIndex--
+	}
+
+	return block, err
+}
+
+func (bci *BlockchainForwardIterator) Undo() {
+	bci.currentIndex++
+}
+
 func (bc *Blockchain) GetStartHeight() uint64 {
 	/*bci := bc.Iterator()
 	var height uint64
@@ -165,10 +207,10 @@ func (bc *Blockchain) GetBlockhashes() [][]byte {
 	blockhashes := make([][]byte, 0)
 	bci := bc.Iterator()
 
-	block, err := bci.Next()
+	block, err := bci.Prev()
 	for err == nil {
 		blockhashes = append(blockhashes, block.Hash)
-		block, err = bci.Next()
+		block, err = bci.Prev()
 	}
 
 	return blockhashes
@@ -177,12 +219,12 @@ func (bc *Blockchain) GetBlockhashes() [][]byte {
 func (bc *Blockchain) GetBlock(blockhash []byte) (*Block, error) {
 	bci := bc.Iterator()
 
-	block, err := bci.Next()
+	block, err := bci.Prev()
 	for err == nil {
 		if bytes.Equal(block.Hash, blockhash) {
 			return block, nil
 		}
-		block, err = bci.Next()
+		block, err = bci.Prev()
 	}
 
 	return nil, errors.New("block not found")

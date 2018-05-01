@@ -108,7 +108,7 @@ func (cli *CLI) printChain() {
 	bci := bc.Iterator()
 	fmt.Println(MATCH_CHAIN)
 	fmt.Printf("Height: %d tiphash: %x\n", bc.height, bc.tipHash)
-	block, err := bci.Next()
+	block, err := bci.Prev()
 	for err == nil{
 
 		fmt.Printf("Prev Hash: %x\n", block.PrevBlockHash)
@@ -117,7 +117,7 @@ func (cli *CLI) printChain() {
 		pow := NewProofOfWork(block)
 		fmt.Printf("Validated Proof of Work: %s\n", strconv.FormatBool(pow.Validate()))
 		fmt.Println("-------------------------------")
-		block, err = bci.Next()
+		block, err = bci.Prev()
 	}
 
 	bc = bcs.chains[NATIVE_CHAIN]
@@ -125,7 +125,7 @@ func (cli *CLI) printChain() {
 	bci = bc.Iterator()
 	fmt.Println(NATIVE_CHAIN)
 	fmt.Printf("Height: %d tiphash: %x\n", bc.height, bc.tipHash)
-	block, err = bci.Next()
+	block, err = bci.Prev()
 	for err == nil {
 
 		fmt.Printf("Prev Hash: %x\n", block.PrevBlockHash)
@@ -134,7 +134,7 @@ func (cli *CLI) printChain() {
 		pow := NewProofOfWork(block)
 		fmt.Printf("Validated Proof of Work: %s\n", strconv.FormatBool(pow.Validate()))
 		fmt.Println("-------------------------------")
-		block, err = bci.Next()
+		block, err = bci.Prev()
 	}
 }
 

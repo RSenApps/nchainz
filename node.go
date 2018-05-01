@@ -415,12 +415,12 @@ func (node *Node) reconcileChain(peerIp string, symbol string, theirBlockhashes 
 
 	height := myHeight
 	theirIdx := len(theirBlockhashes) - 1 - int(theirHeight-myHeight)
-	block, _ := bci.Next()
+	block, _ := bci.Prev()
 
 	for theirIdx >= 0 && !bytes.Equal(block.Hash, theirBlockhashes[theirIdx]) {
 		height--
 		theirIdx--
-		block, _ = bci.Next()
+		block, _ = bci.Prev()
 	}
 
 	if theirIdx == 0 {

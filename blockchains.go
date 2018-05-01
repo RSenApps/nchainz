@@ -6,6 +6,7 @@ import (
 	"github.com/boltdb/bolt"
 	"log"
 	"sync"
+	"os"
 )
 
 const MATCH_CHAIN = "MATCH"
@@ -13,7 +14,6 @@ const NATIVE_CHAIN = "NATIVE"
 
 type Blockchains struct {
 	chains          map[string]*Blockchain
-	nChainz         uint8
 	consensusState  ConsensusState
 	chainsLock      *sync.RWMutex
 	db              *bolt.DB
@@ -171,8 +171,8 @@ func (blockchains *Blockchains) addMatchData(matchData MatchData, uncommitted *U
 	return true
 }
 
-func (blockchains *Blockchains) AddBlock(symbol string, block Block, takeLock bool) {
-	blockchains.AddBlocks(symbol, []Block{block}, takeLock)
+func (blockchains *Blockchains) AddBlock(symbol string, block Block, takeLock bool) bool {
+	return blockchains.AddBlocks(symbol, []Block{block}, takeLock)
 }
 
 func (blockchains *Blockchains) AddBlocks(symbol string, blocks []Block, takeLock bool) bool {
@@ -231,14 +231,61 @@ func (blockchains *Blockchains) AddTokenChain(createToken CreateToken) {
 	//no lock needed
 	chain := NewBlockchain(blockchains.db, createToken.TokenInfo.Symbol)
 	blockchains.chains[createToken.TokenInfo.Symbol] = chain
-	blockchains.nChainz++
 	blockchains.AddBlock(createToken.TokenInfo.Symbol, *NewTokenGenesisBlock(createToken), false)
+}
+
+func (blockchains *Blockchains) restoreFromDatabase() {
+	iterators := make(map[string]*BlockchainForwardIterator)
+	chainsDone := make(map[string]bool)
+	done := false
+	for !done {
+		for symbol, chain := range blockchains.chains {
+			if chainsDone[symbol] {
+				continue
+			}
+			iterator, ok := iterators[symbol]
+			if !ok {
+				iterator = chain.ForwardIterator()
+				iterators[symbol] = iterator
+			}
+			block, err := iterator.Next()
+			for err == nil {
+				var uncommitted UncommittedTransactions
+				if symbol == MATCH_CHAIN {
+					if !blockchains.addMatchData(block.Data.(MatchData), &uncommitted) {
+						iterator.Undo()
+						break
+					}
+				} else {
+					if !blockchains.addTokenData(symbol, block.Data.(TokenData), &uncommitted) {
+						iterator.Undo()
+						break
+					}
+				}
+				block, err = iterator.Next()
+			}
+			if err != nil {
+				chainsDone[symbol] = true
+			}
+		}
+		done = true
+		for symbol, _ := range blockchains.chains {
+			if !chainsDone[symbol] {
+				done = false
+				break
+			}
+		}
+	}
 }
 
 func CreateNewBlockchains(dbName string) *Blockchains {
 	//instantiates state and blockchains
 	blockchains := &Blockchains{}
-
+	newDatabase := true
+	if _, err := os.Stat(dbName); err == nil {
+		// path/to/whatever exists
+		newDatabase = false
+	}
 	// Open BoltDB file
 	db, err := bolt.Open(dbName, 0600, nil)
 	if err != nil {
@@ -246,7 +293,6 @@ func CreateNewBlockchains(dbName string) *Blockchains {
 	}
 	blockchains.db = db
 
-	blockchains.nChainz = 1
 	blockchains.finishedBlockCh = make(chan Block)
 	blockchains.miner = NewMiner(blockchains.finishedBlockCh)
 	blockchains.consensusState = NewConsensusState()
@@ -255,7 +301,12 @@ func CreateNewBlockchains(dbName string) *Blockchains {
 	blockchains.chains[MATCH_CHAIN] = NewBlockchain(db, MATCH_CHAIN)
 	blockchains.chainsLock = &sync.RWMutex{}
 	blockchains.mempoolsLock = &sync.Mutex{}
-	blockchains.AddBlock(MATCH_CHAIN, *NewGenesisBlock(), false)
+
+	if newDatabase {
+		blockchains.AddBlock(MATCH_CHAIN, *NewGenesisBlock(), false)
+	} else {
+		blockchains.restoreFromDatabase()
+	}
 	return blockchains
 }
 
