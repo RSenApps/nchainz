@@ -1,21 +1,22 @@
 package main
 
 import (
-	"sync"
+	"log"
 	"math"
+	"sync"
 )
 
 type ConsensusStateToken struct {
-	openOrders sync.Map //map[uint64]Order
-	balances map[string]uint64
-	unclaimedFunds map[string]uint64
+	openOrders         sync.Map //map[uint64]Order
+	balances           map[string]uint64
+	unclaimedFunds     map[string]uint64
 	unclaimedFundsLock sync.Mutex
-	deletedOrders map[uint64]Order
-	deletedOrdersLock sync.Mutex
+	deletedOrders      map[uint64]Order
+	deletedOrdersLock  sync.Mutex
 }
 
 type ConsensusState struct {
-	tokenStates sync.Map //map[string]*ConsensusStateToken
+	tokenStates   sync.Map //map[string]*ConsensusStateToken
 	createdTokens sync.Map //map[string]TokenInfo
 }
 
@@ -78,6 +79,10 @@ func (state *ConsensusState) AddTransfer(symbol string, transfer Transfer) bool 
 	}
 	tokenState.balances[transfer.FromAddress] -= transfer.Amount
 	tokenState.balances[transfer.ToAddress] += transfer.Amount
+	log.Printf(symbol)
+	log.Printf("hello Ryan")
+	log.Printf("%v", transfer.Amount)
+
 	return true
 }
 
@@ -129,7 +134,6 @@ func (state *ConsensusState) AddMatch(match Match) bool {
 	sellTokenState.unclaimedFundsLock.Lock()
 	sellTokenState.unclaimedFunds[buyOrder.SellerAddress] += match.AmountSold
 	sellTokenState.unclaimedFundsLock.Unlock()
-
 
 	sellOrder.AmountToSell -= match.AmountSold
 	sellOrder.AmountToBuy -= sellerMinAmountReceived

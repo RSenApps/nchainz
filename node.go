@@ -49,9 +49,9 @@ const (
 	UNKNOWN
 )
 
-func StartNode(port uint, seedIp string) {
+func StartNode(port uint, seedIp string, bcs *Blockchains) {
 	myIp := fmt.Sprintf("127.0.0.1:%v", port)
-	dbName := fmt.Sprintf("db/%v.db", port)
+	//dbName := fmt.Sprintf("db/%v.db", port)
 
 	addr, err := net.ResolveTCPAddr("tcp", myIp)
 	if err != nil {
@@ -65,7 +65,7 @@ func StartNode(port uint, seedIp string) {
 
 	mu := sync.RWMutex{}
 	peers := make(map[string]*Peer)
-	bcs := CreateNewBlockchains(dbName)
+	//bcs := CreateNewBlockchains(dbName)
 	node := Node{mu, myIp, peers, bcs}
 
 	log.SetOutput(ioutil.Discard)
@@ -309,6 +309,7 @@ func (node *Node) SendGetBlock(peer *Peer, blockhash []byte, symbol string) (*Bl
 	} else if !reply.Success {
 		return nil, errors.New("GETBLOCK unsuccessful")
 	}
+	log.Printf("I got a block")
 
 	return &reply.Block, nil
 }
@@ -440,7 +441,8 @@ func (node *Node) reconcileChain(peerIp string, symbol string, theirBlockhashes 
 			return err
 		}
 
-		bc.AddBlock(*block)
+		log.Printf("welllllllll")
+		node.bcs.AddBlock(symbol, *block)
 	}
 
 	return nil

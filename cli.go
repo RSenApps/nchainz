@@ -109,7 +109,7 @@ func (cli *CLI) printChain() {
 	fmt.Println(MATCH_CHAIN)
 	fmt.Printf("Height: %d tiphash: %x\n", bc.height, bc.tipHash)
 	block, err := bci.Next()
-	for err == nil{
+	for err == nil {
 
 		fmt.Printf("Prev Hash: %x\n", block.PrevBlockHash)
 		fmt.Printf("Data: %s\n", block.Data)
@@ -160,14 +160,15 @@ func (cli *CLI) node(args []string) {
 	port, _ := strconv.Atoi(args[2])
 	seed := args[3]
 
-	StartNode(uint(port), seed)
+	bcs := CreateNewBlockchains("db/" + args[2] + ".db")
+	StartNode(uint(port), seed, bcs)
 }
 
 func (cli *CLI) createBC(address string) {
-	bcs := CreateNewBlockchains("blockchain.db")
+	bcs := CreateNewBlockchains("db/5000.db")
 	bc := bcs.GetChain(NATIVE_CHAIN)
 	transfer := Transfer{
-		Amount:      10,
+		Amount:      0,
 		FromAddress: "Satoshi",
 		ToAddress:   "Negansoft",
 		Signature:   nil,
@@ -179,4 +180,6 @@ func (cli *CLI) createBC(address string) {
 	}
 	block := NewBlock(tokenData, TOKEN_BLOCK, bc.tipHash)
 	bcs.AddBlock(NATIVE_CHAIN, *block)
+
+	StartNode(5000, "none", bcs)
 }

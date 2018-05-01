@@ -1,7 +1,7 @@
 package main
 
 import (
-	"bytes"
+	//"bytes"
 	"errors"
 	"github.com/boltdb/bolt"
 	"log"
@@ -12,15 +12,10 @@ const MATCH_CHAIN = "MATCH"
 const NATIVE_CHAIN = "NATIVE"
 
 type Blockchains struct {
-	chains          sync.Map //map[string]*Blockchain
-	consensusState  ConsensusState
-	locks           map[string]*sync.Mutex
-	db              *bolt.DB
-	mempool         map[GenericTransaction]bool // transactions not added to a block yet
-	isMining        bool
-	finishedBlockCh chan Block
-	stopMiningCh    chan bool
-	miner           *Miner
+	chains         sync.Map //map[string]*Blockchain
+	consensusState ConsensusState
+	locks          map[string]*sync.Mutex
+	db             *bolt.DB
 }
 
 type UncommittedTransactions struct {
@@ -186,10 +181,12 @@ func (blockchains *Blockchains) AddBlocks(symbol string, blocks []Block) bool {
 	var uncommitted UncommittedTransactions
 	failed := false
 	for _, block := range blocks {
-		if !bytes.Equal(blockchains.GetChain(symbol).tipHash, block.PrevBlockHash) {
-			failed = true
-			break
-		}
+		/*
+			if !bytes.Equal(blockchains.GetChain(symbol).GetTipHash(), block.PrevBlockHash) {
+				failed = true
+				break
+			}
+		*/
 		if symbol == MATCH_CHAIN {
 			if !blockchains.addMatchData(block.Data.(MatchData), &uncommitted) {
 				failed = true
@@ -248,10 +245,7 @@ func CreateNewBlockchains(dbName string) *Blockchains {
 	blockchains.db = db
 	blockchains.locks = make(map[string]*sync.Mutex)
 
-	blockchains.isMining = false
-	blockchains.finishedBlockCh = make(chan Block)
 	blockchains.chains.Store(MATCH_CHAIN, NewBlockchain(db, MATCH_CHAIN))
-
 	blockchains.locks[MATCH_CHAIN] = &sync.Mutex{}
 	blockchains.AddBlock(MATCH_CHAIN, *NewGenesisBlock())
 	return blockchains
@@ -290,54 +284,4 @@ func (blockchains *Blockchains) GetBlockhashes() map[string][][]byte {
 		return true
 	})
 	return blockhashes
-}
-
-func (blockchains *Blockchains) AddTransactionToMempool(transaction GenericTransaction, symbol string, LastHash []byte) {
-	blockchains.mempool[transaction] = true
-
-	// Start miner loop if mempool is nonempty, and miner loop is unstarted
-	if !blockchains.isMining {
-		blockchains.isMining = true
-		blockchains.miner = NewMiner(blockchains.finishedBlockCh)
-		switch transaction.transactionType {
-		case MATCH, CANCEL_ORDER, CREATE_TOKEN:
-			blockchains.miner.minerCh <- MinerMsg{NewBlockMsg{MATCH_BLOCK, LastHash}, true}
-		default:
-			blockchains.miner.minerCh <- MinerMsg{NewBlockMsg{TOKEN_BLOCK, LastHash}, true}
-		}
-	}
-
-	// Send transaction to miner
-	blockchains.miner.minerCh <- MinerMsg{transaction, false}
-}
-
-func (blockchains *Blockchains) ApplyCh(tx GenericTransaction, symbol string) {
-	// When miner finishes, try to add a block
-	for {
-		select {
-		case block := <-blockchains.finishedBlockCh:
-			blockchains.AddBlock(symbol, block)
-
-			// Applies new transactions to this consensus state
-			switch tx.transactionType {
-			case MATCH:
-				blockchains.consensusState.AddMatch(tx.transaction.(Match))
-			case ORDER:
-				blockchains.consensusState.AddOrder(symbol, tx.transaction.(Order))
-			case TRANSFER:
-				blockchains.consensusState.AddTransfer(symbol, tx.transaction.(Transfer))
-			case CANCEL_ORDER:
-				blockchains.consensusState.AddCancelOrder(tx.transaction.(CancelOrder))
-			case CLAIM_FUNDS:
-				blockchains.consensusState.AddClaimFunds(symbol, tx.transaction.(ClaimFunds))
-			case CREATE_TOKEN:
-				blockchains.consensusState.AddCreateToken(tx.transaction.(CreateToken), blockchains)
-			}
-
-		case <-blockchains.stopMiningCh:
-			// TODO
-			// Stop mining if a new block is added
-			// At this point blockchains.go must reevaluate transactions in the mempool and then start a new miner
-		}
-	}
 }
