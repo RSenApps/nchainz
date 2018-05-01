@@ -185,8 +185,15 @@ func (blockchains *Blockchains) AddBlocks(symbol string, blocks []Block, takeLoc
 	failed := false
 	for _, block := range blocks {
 		if !bytes.Equal(blockchains.chains[symbol].tipHash, block.PrevBlockHash) {
+			log.Printf("prevBlockHash does not match tipHash %v != %v \n", blockchains.chains[symbol].tipHash, block.PrevBlockHash)
 			failed = true
 			break
+		}
+		pow := NewProofOfWork(&block)
+		if !pow.Validate() {
+			log.Println("Proof of work of block is invalid")
+			/*DEBUG failed = true
+			break*/
 		}
 		if symbol == MATCH_CHAIN {
 			if !blockchains.addMatchData(block.Data.(MatchData), &uncommitted) {

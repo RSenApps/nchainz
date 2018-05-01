@@ -442,7 +442,7 @@ func (node *Node) reconcileChain(peerIp string, symbol string, theirBlockhashes 
 			return err
 		}
 
-		bc.AddBlock(*block)
+		node.bcs.AddBlock(symbol, *block, true)
 	}
 
 	return nil
