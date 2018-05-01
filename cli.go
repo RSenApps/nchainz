@@ -107,7 +107,7 @@ func (cli *CLI) printChain() {
 
 	bci := bc.Iterator()
 	fmt.Println(MATCH_CHAIN)
-	fmt.Println("Height:", bc.height)
+	fmt.Printf("Height: %d tiphash: %x\n", bc.height, bc.tipHash)
 	block, err := bci.Next()
 	for err == nil{
 
@@ -124,7 +124,7 @@ func (cli *CLI) printChain() {
 
 	bci = bc.Iterator()
 	fmt.Println(NATIVE_CHAIN)
-	fmt.Println("Height:", bc.height)
+	fmt.Printf("Height: %d tiphash: %x\n", bc.height, bc.tipHash)
 	block, err = bci.Next()
 	for err == nil {
 

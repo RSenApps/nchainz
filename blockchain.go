@@ -103,7 +103,6 @@ func (bc *Blockchain) AddBlock(block Block) {
 
 		// Update tip
 		bc.tipHash = block.Hash
-
 		return nil
 	})
 
