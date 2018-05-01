@@ -14,7 +14,7 @@ type Orderbook struct {
 }
 
 func NewOrderbook(symbol1, symbol2 string) *Orderbook {
-	baseSymbol, quoteSymbol := getBaseQuote(symbol1, symbol2)
+	baseSymbol, quoteSymbol := GetBaseQuote(symbol1, symbol2)
 	baseQueue := NewOrderQueue(BASE)
 	quoteQueue := NewOrderQueue(QUOTE)
 	mu := &sync.Mutex{}
@@ -33,15 +33,15 @@ func (ob *Orderbook) Add(order *Order, sellSymbol string) {
 	}
 }
 
-func (ob *Orderbook) Match() (found bool, match *Match) {
+func (ob *Orderbook) Match() (found bool, match *Match, spread uint64) {
 	ob.mu.Lock()
 	defer ob.mu.Unlock()
 
-	buyOrder, buyPrice, buyErr := ob.BaseQueue.Peek()
-	sellOrder, sellPrice, sellErr := ob.QuoteQueue.Peek()
+	buyOrder, buyPrice, buyErr := ob.QuoteQueue.Peek()
+	sellOrder, sellPrice, sellErr := ob.BaseQueue.Peek()
 
 	if buyErr != nil || sellErr != nil || buyPrice < sellPrice {
-		return false, nil
+		return
 	}
 
 	var transferAmt, buyerBaseLoss, sellerBaseGain uint64
@@ -58,10 +58,12 @@ func (ob *Orderbook) Match() (found bool, match *Match) {
 	}
 
 	if sellerBaseGain > buyerBaseLoss {
-		return false, nil
+		return
 	}
 
+	found = true
 	match = &Match{0, ob.BaseSymbol, sellOrder.ID, ob.QuoteSymbol, buyOrder.ID, uint64(transferAmt)}
+	spread = buyerBaseLoss - sellerBaseGain
 
 	ob.QuoteQueue.Deq()
 	if transferAmt < buyOrder.AmountToBuy && buyerBaseLoss < buyOrder.AmountToSell {
@@ -77,10 +79,10 @@ func (ob *Orderbook) Match() (found bool, match *Match) {
 		ob.BaseQueue.Enq(sellOrder)
 	}
 
-	return true, match
+	return
 }
 
-func getBaseQuote(symbol1, symbol2 string) (base, quote string) {
+func GetBaseQuote(symbol1, symbol2 string) (base, quote string) {
 	if symbol1 < symbol2 {
 		return symbol1, symbol2
 	}
