@@ -183,3 +183,13 @@ func (bc *Blockchain) GetBlock(blockhash []byte) (*Block, error) {
 
 	return nil, errors.New("block not found")
 }
+
+func (bc *Blockchain) GetTipHash() []byte {
+	bci := bc.Iterator()
+
+	block, err := bci.Next()
+	for err != nil {
+		_, err = bci.Next()
+	}
+	return block.Hash
+}

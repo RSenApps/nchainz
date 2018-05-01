@@ -170,6 +170,19 @@ func (cli *CLI) node(args []string) {
 }
 
 func (cli *CLI) createBC(address string) {
-	// TODO
-	fmt.Println("Done!")
+	bcs := CreateNewBlockchains("blockchain.db")
+	bc := bcs.GetChain(NATIVE_CHAIN)
+	transfer := Transfer{
+		Amount:      10,
+		FromAddress: "Satoshi",
+		ToAddress:   "Negansoft",
+		Signature:   nil,
+	}
+	tokenData := TokenData{
+		Orders:     nil,
+		ClaimFunds: nil,
+		Transfers:  []Transfer{transfer},
+	}
+	block := NewBlock(tokenData, TOKEN_BLOCK, bc.GetTipHash())
+	bcs.AddBlock(NATIVE_CHAIN, *block)
 }
