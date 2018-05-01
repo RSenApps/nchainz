@@ -8,17 +8,18 @@ import (
 )
 
 type Blockchain struct {
-	tipHash []byte   // Tip of chain
-	db      *bolt.DB // DB connection
-	height  uint64
-	bucketName string
+	tipHash     []byte   // Tip of chain
+	db          *bolt.DB // DB connection
+	height      uint64
+	bucketName  string
+	blockhashes [][]byte
 }
 
 // To iterate over blocks
 type BlockchainIterator struct {
 	currentHash []byte   // Hash of current block
 	db          *bolt.DB // DB connection
-	bucketName string
+	bucketName  string
 }
 
 type BlockchainForwardIterator struct {
@@ -27,7 +28,6 @@ type BlockchainForwardIterator struct {
 	db          *bolt.DB // DB connection
 	bucketName string
 }
-
 
 func NewBlockchain(db *bolt.DB, symbol string) *Blockchain {
 	err := db.Update(func(tx *bolt.Tx) error {
@@ -45,53 +45,13 @@ func NewBlockchain(db *bolt.DB, symbol string) *Blockchain {
 	if err != nil {
 		log.Panic(err)
 	}
-	blockchain := Blockchain{[]byte{}, db, 0, symbol}
+	blockchain := Blockchain{[]byte{}, db, 0, symbol, [][]byte{}}
 	blockchain.tipHash = blockchain.getTipHash()
+	blockchain.blockhashes = make([][]byte, 0)
+
 	return &blockchain
 }
 
-/*
-func (bc *Blockchain) AddBlockData(data BlockData, blockType BlockType) {
-	var lastHash []byte // Hash of last block
-
-	// Read-only transaction to get hash of last block
-	err := bc.db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(bc.bucketName))
-		lastHash = b.Get([]byte("l"))
-		return nil
-	})
-
-	if err != nil {
-		log.Panic(err)
-	}
-
-	// New block to add
-	newBlock := NewBlock(data, blockType, lastHash)
-
-	// Read-write transaction to store new block in DB
-	err = bc.db.Update(func(tx *bolt.Tx) error {
-		// Store block in bucket
-		b := tx.Bucket([]byte(bc.bucketName))
-		err := b.Put(newBlock.Hash, newBlock.Serialize())
-		if err != nil {
-			log.Panic(err)
-		}
-
-		// Update "l" key
-		err = b.Put([]byte("l"), newBlock.Hash)
-		if err != nil {
-			log.Panic(err)
-		}
-
-		// Update tip
-		bc.tipHash = newBlock.Hash
-
-		return nil
-	})
-
-	bc.height += 1
-}
-*/
 func (bc *Blockchain) AddBlock(block Block) {
 	// Read-write transaction to store new block in DB
 	bc.db.Update(func(tx *bolt.Tx) error {
@@ -104,7 +64,6 @@ func (bc *Blockchain) AddBlock(block Block) {
 
 		// Update "l" key
 		err = b.Put([]byte("l"), block.Hash)
-
 		if err != nil {
 			log.Panic(err)
 		}
@@ -115,10 +74,35 @@ func (bc *Blockchain) AddBlock(block Block) {
 	})
 
 	bc.height += 1
+	bc.blockhashes = append(bc.blockhashes, block.Hash)
 }
 
 func (bc *Blockchain) RemoveLastBlock() BlockData {
-	//TODO:
+	bc.db.Update(func(tx *bolt.Tx) error {
+		// Get bucket
+		b := tx.Bucket([]byte(bc.bucketName))
+
+		// Get second to last block
+		bci := bc.Iterator()
+		prevBlock, _ := bci.Prev()
+
+		// Delete last bock
+		b.Delete(bc.getTipHash())
+
+		// Update "l" key to second to last block
+		err := b.Put([]byte("l"), prevBlock.Hash)
+		if err != nil {
+			log.Panic(err)
+		}
+
+		// Update tip to second to last block
+		bc.tipHash = prevBlock.Hash
+		return nil
+	})
+
+	bc.height -= 1
+	bc.blockhashes = bc.blockhashes[:len(bc.blockhashes)-1]
+
 	return nil
 }
 
@@ -190,16 +174,6 @@ func (bci *BlockchainForwardIterator) Undo() {
 }
 
 func (bc *Blockchain) GetStartHeight() uint64 {
-	/*bci := bc.Iterator()
-	var height uint64
-
-	_, err := bci.Next()
-	for err != nil {
-		height++
-		_, err = bci.Next()
-	}
-
-	return height*/
 	return bc.height
 }
 
