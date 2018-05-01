@@ -27,6 +27,7 @@ func (cli *CLI) Run() {
 	printAddressesCmd := flag.NewFlagSet("printaddresses", flag.ExitOnError)
 	nodeCmd := flag.NewFlagSet("node", flag.ExitOnError)
 	createBCCmd := flag.NewFlagSet("createbc", flag.ExitOnError)
+	addTXCmd := flag.NewFlagSet("addtx", flag.ExitOnError)
 
 	bcAddress := createBCCmd.String("address", "", "Genesis reward sent to this address.")
 
@@ -53,6 +54,11 @@ func (cli *CLI) Run() {
 		}
 	case "createbc":
 		err := createBCCmd.Parse(os.Args[2:])
+		if err != nil {
+			log.Panic(err)
+		}
+	case "addtx":
+		err := addTXCmd.Parse(os.Args[2:])
 		if err != nil {
 			log.Panic(err)
 		}
@@ -84,6 +90,10 @@ func (cli *CLI) Run() {
 		}
 		cli.createBC(*bcAddress)
 	}
+
+	if addTXCmd.Parsed() {
+		cli.addTX()
+	}
 }
 
 func (cli *CLI) printHelp() {
@@ -91,8 +101,9 @@ func (cli *CLI) printHelp() {
 	fmt.Println("go run *.go createwallet                  --- Creates a wallet with a pair of keys")
 	fmt.Println("go run *.go createbc -address ADDRESS     --- Creates new blockchain. ADDRESS gets genesis reward")
 	fmt.Println("go run *.go printchain                    --- Print all the blocks in the blockchain")
-	fmt.Println("go run *.go printaddresses								 --- Lists all addresses in walletFile")
+	fmt.Println("go run *.go printaddresses                --- Lists all addresses in walletFile")
 	fmt.Println("go run *.go node                          --- start up a full node")
+	fmt.Println("go run *.go addtx                         --- Add transaction to mempool")
 }
 
 func (cli *CLI) getBalance(address string) {
@@ -109,7 +120,7 @@ func (cli *CLI) printChain() {
 	fmt.Println(MATCH_CHAIN)
 	fmt.Printf("Height: %d tiphash: %x\n", bc.height, bc.tipHash)
 	block, err := bci.Prev()
-	for err == nil{
+	for err == nil {
 
 		fmt.Printf("Prev Hash: %x\n", block.PrevBlockHash)
 		fmt.Printf("Data: %s\n", block.Data)
@@ -179,4 +190,26 @@ func (cli *CLI) createBC(address string) {
 	}
 	block := NewBlock(tokenData, TOKEN_BLOCK, bc.tipHash)
 	bcs.AddBlock(NATIVE_CHAIN, *block, true)
+}
+
+func (cli *CLI) addTX() {
+	transfer := Transfer{
+		Amount:      50,
+		FromAddress: "Satoshi",
+		ToAddress:   "Negansoft",
+		Signature:   nil,
+	}
+
+	bcs := CreateNewBlockchains("blockchains.db")
+	bcs.AddTransactionToMempool(
+		GenericTransaction{
+			transaction:     transfer,
+			transactionType: TRANSFER,
+		},
+		NATIVE_CHAIN,
+	)
+
+	for {
+
+	}
 }

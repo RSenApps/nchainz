@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/gob"
+	"fmt"
 	"log"
 )
 
@@ -93,8 +94,8 @@ type Transfer struct {
 
 type CancelOrder struct { //goes on match chain
 	OrderSymbol string
-	OrderID   uint64
-	Signature []byte
+	OrderID     uint64
+	Signature   []byte
 }
 
 type ClaimFunds struct {
@@ -151,6 +152,7 @@ func NewBlock(data BlockData, blockType BlockType, prevBlockHash []byte) *Block 
 
 func (b *Block) AddTransaction(tx GenericTransaction) {
 	temp := b.Data
+
 	switch tx.transactionType {
 	case MATCH:
 		temp := b.Data.(MatchData)
@@ -161,6 +163,7 @@ func (b *Block) AddTransaction(tx GenericTransaction) {
 	case TRANSFER:
 		temp := b.Data.(TokenData)
 		temp.Transfers = append(temp.Transfers, tx.transaction.(Transfer))
+		fmt.Println("Block data is now", temp.Transfers)
 	case CANCEL_ORDER:
 		temp := b.Data.(MatchData)
 		temp.CancelOrders = append(temp.CancelOrders, tx.transaction.(CancelOrder))

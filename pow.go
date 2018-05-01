@@ -58,7 +58,6 @@ func (pow *ProofOfWork) prepareData(nonce int) []byte {
 		},
 		[]byte{},
 	)
-
 	return data
 }
 
@@ -72,6 +71,7 @@ func random(max int) int {
 // Returns nonce and hash
 //
 func (pow *ProofOfWork) Try(iterations int) (bool, int, []byte) {
+	fmt.Println("MINING")
 	for i := 0; i < iterations; i++ {
 		rand := random(maxNonce)
 		success, nonce, hash := pow.Calculate(rand)

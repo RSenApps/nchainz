@@ -3,10 +3,12 @@ package main
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"github.com/boltdb/bolt"
 	"log"
-	"sync"
+	"math/rand"
 	"os"
+	"sync"
 )
 
 const MATCH_CHAIN = "MATCH"
@@ -17,9 +19,9 @@ type Blockchains struct {
 	consensusState  ConsensusState
 	chainsLock      *sync.RWMutex
 	db              *bolt.DB
-	mempools        map[string]map[GenericTransaction]bool // map of sets
+	mempools        map[string]map[*GenericTransaction]bool // map of sets
 	mempoolsLock    *sync.Mutex
-	finishedBlockCh chan Block
+	finishedBlockCh chan BlockMsg
 	stopMiningCh    chan bool
 	miner           *Miner
 }
@@ -176,6 +178,8 @@ func (blockchains *Blockchains) AddBlock(symbol string, block Block, takeLock bo
 }
 
 func (blockchains *Blockchains) AddBlocks(symbol string, blocks []Block, takeLock bool) bool {
+	blockchains.stopMiningCh <- true
+
 	if takeLock {
 		blockchains.chainsLock.Lock()
 		defer blockchains.chainsLock.Unlock()
@@ -232,6 +236,7 @@ func (blockchains *Blockchains) AddTokenChain(createToken CreateToken) {
 	chain := NewBlockchain(blockchains.db, createToken.TokenInfo.Symbol)
 	blockchains.chains[createToken.TokenInfo.Symbol] = chain
 	blockchains.AddBlock(createToken.TokenInfo.Symbol, *NewTokenGenesisBlock(createToken), false)
+	blockchains.mempools[createToken.TokenInfo.Symbol] = make(map[*GenericTransaction]bool)
 }
 
 func (blockchains *Blockchains) restoreFromDatabase() {
@@ -293,20 +298,25 @@ func CreateNewBlockchains(dbName string) *Blockchains {
 	}
 	blockchains.db = db
 
-	blockchains.finishedBlockCh = make(chan Block)
+	blockchains.finishedBlockCh = make(chan BlockMsg)
 	blockchains.miner = NewMiner(blockchains.finishedBlockCh)
+	blockchains.stopMiningCh = make(chan bool, 1000)
 	blockchains.consensusState = NewConsensusState()
-	go blockchains.startMining()
 	blockchains.chains = make(map[string]*Blockchain)
 	blockchains.chains[MATCH_CHAIN] = NewBlockchain(db, MATCH_CHAIN)
 	blockchains.chainsLock = &sync.RWMutex{}
 	blockchains.mempoolsLock = &sync.Mutex{}
 
+	blockchains.mempools = make(map[string]map[*GenericTransaction]bool)
+	blockchains.mempools[MATCH_CHAIN] = make(map[*GenericTransaction]bool)
 	if newDatabase {
 		blockchains.AddBlock(MATCH_CHAIN, *NewGenesisBlock(), false)
 	} else {
 		blockchains.restoreFromDatabase()
 	}
+
+	go blockchains.StartMining()
+	go blockchains.ApplyLoop()
 	return blockchains
 }
 
@@ -349,61 +359,95 @@ func (blockchains *Blockchains) GetBlockhashes() map[string][][]byte {
 	return blockhashes
 }
 
-func (blockchains *Blockchains) AddTransactionToMempool(transaction GenericTransaction, symbol string, LastHash []byte) {
+func (blockchains *Blockchains) ValidateTransaction(tx GenericTransaction, symbol string) bool {
+	validated := false
+	switch tx.transactionType {
+	case MATCH:
+		validated = blockchains.consensusState.AddMatch(tx.transaction.(Match))
+	case ORDER:
+		validated = blockchains.consensusState.AddOrder(symbol, tx.transaction.(Order))
+	case TRANSFER:
+		validated = blockchains.consensusState.AddTransfer(symbol, tx.transaction.(Transfer))
+	case CANCEL_ORDER:
+		validated = blockchains.consensusState.AddCancelOrder(tx.transaction.(CancelOrder))
+	case CLAIM_FUNDS:
+		validated = blockchains.consensusState.AddClaimFunds(symbol, tx.transaction.(ClaimFunds))
+	case CREATE_TOKEN:
+		validated = blockchains.consensusState.AddCreateToken(tx.transaction.(CreateToken), blockchains)
+	}
+	return validated
+}
+
+func (blockchains *Blockchains) AddTransactionToMempool(tx GenericTransaction, symbol string) {
 	blockchains.mempoolsLock.Lock()
-	defer blockchains.mempoolsLock.Unlock()
-	if _, ok := blockchains.mempools[symbol][transaction]; ok {
+	if _, ok := blockchains.mempools[symbol][&tx]; ok {
 		return
 	}
 
-	blockchains.mempools[symbol][transaction] = true
+	fmt.Println("Add tx")
 
+	// Validate transaction
+	if blockchains.ValidateTransaction(tx, symbol) {
+		fmt.Println("Tx validated")
 
+		// Add transaction to mempool
+		blockchains.mempools[symbol][&tx] = true
+		blockchains.mempoolsLock.Unlock()
+
+		fmt.Println("Blockchains sending to miner channel")
+		fmt.Println("\n\n")
+		// Send transaction to miner
+		blockchains.miner.minerCh <- MinerMsg{tx, false}
+	} else {
+		blockchains.mempoolsLock.Unlock()
+	}
 }
 
-func (blockchains *Blockchains) startMining() {
-	//pick random token to start mining (use nchainz)
-	//send new blockmsg
-	//whenever a new transaction is added to the mempool: validate transaction and then send to minerch
-	// Send transaction to miner
-	//blockchains.miner.minerCh <- MinerMsg{transaction, false}
-	/*
-	switch transaction.transactionType {
-	case MATCH, CANCEL_ORDER, CREATE_TOKEN:
-		blockchains.miner.minerCh <- MinerMsg{NewBlockMsg{MATCH_BLOCK, LastHash}, true}
-	default:
-		blockchains.miner.minerCh <- MinerMsg{NewBlockMsg{TOKEN_BLOCK, LastHash}, true}
-	}*/
+func (blockchains *Blockchains) StartMining() {
+	blockchains.mempoolsLock.Lock()
+	fmt.Println("Start mining")
+	// Pick a random token to start mining
+	var tokens []string
+	for token := range blockchains.mempools {
+		tokens = append(tokens, token)
+	}
+
+	if len(tokens) > 0 {
+		chosenToken := tokens[rand.Intn(len(tokens))]
+		blockchains.mempoolsLock.Unlock()
+
+		// Send new block message
+		fmt.Println("About to send new block")
+		switch chosenToken {
+		case MATCH_CHAIN:
+			blockchains.miner.minerCh <- MinerMsg{NewBlockMsg{MATCH_BLOCK, blockchains.chains[chosenToken].tipHash, chosenToken}, true}
+		default:
+			blockchains.miner.minerCh <- MinerMsg{NewBlockMsg{TOKEN_BLOCK, blockchains.chains[chosenToken].tipHash, chosenToken}, true}
+		}
+		fmt.Println("After sending new block")
+	} else {
+		blockchains.mempoolsLock.Unlock()
+	}
 }
 
-
-func (blockchains *Blockchains) ApplyCh(tx GenericTransaction, symbol string) {
-	// When miner finishes, try to add a block
+func (blockchains *Blockchains) ApplyLoop() {
 	for {
 		select {
-		case block := <-blockchains.finishedBlockCh:
-			blockchains.AddBlock(symbol, block, true)
-
-			// Applies new transactions to this consensus state
-			switch tx.transactionType {
-			case MATCH:
-				blockchains.consensusState.AddMatch(tx.transaction.(Match))
-			case ORDER:
-				blockchains.consensusState.AddOrder(symbol, tx.transaction.(Order))
-			case TRANSFER:
-				blockchains.consensusState.AddTransfer(symbol, tx.transaction.(Transfer))
-			case CANCEL_ORDER:
-				blockchains.consensusState.AddCancelOrder(tx.transaction.(CancelOrder))
-			case CLAIM_FUNDS:
-				blockchains.consensusState.AddClaimFunds(symbol, tx.transaction.(ClaimFunds))
-			case CREATE_TOKEN:
-				blockchains.consensusState.AddCreateToken(tx.transaction.(CreateToken), blockchains)
-			}
-
+		case blockMsg := <-blockchains.finishedBlockCh:
+			// When miner finishes, try to add a block
+			blockchains.AddBlock(blockMsg.Symbol, blockMsg.Block, true)
 		case <-blockchains.stopMiningCh:
-			// TODO
 			// Stop mining if a new block is added
-			// At this point blockchains.go must reevaluate transactions in the mempool and then start a new miner
+			// Reevaluate transactions in the mempool
+			for token := range blockchains.mempools {
+				for tx := range blockchains.mempools[token] {
+					if !blockchains.ValidateTransaction(*tx, token) {
+						delete(blockchains.mempools[token], tx)
+					}
+				}
+			}
+			// Start a new miner
+			// blockchains.StartMining() // TODO
 		}
 	}
 }
