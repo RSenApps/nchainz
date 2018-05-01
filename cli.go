@@ -29,8 +29,9 @@ func (cli *CLI) Run() {
 	createBCCmd := flag.NewFlagSet("createbc", flag.ExitOnError)
 	addTXCmd := flag.NewFlagSet("addtx", flag.ExitOnError)
 
+	getBalanceCmd := flag.NewFlagSet("createbc", flag.ExitOnError)
 	bcAddress := createBCCmd.String("address", "", "Genesis reward sent to this address.")
-
+	getBalanceAddress := getBalanceCmd.String("address", "", "Address to get balance of")
 	switch os.Args[1] {
 	case "createwallet":
 		err := walletCmd.Parse(os.Args[2:])
@@ -59,6 +60,11 @@ func (cli *CLI) Run() {
 		}
 	case "addtx":
 		err := addTXCmd.Parse(os.Args[2:])
+		if err != nil {
+			log.Panic(err)
+		}
+	case "getbalance":
+		err := getBalanceCmd.Parse(os.Args[2:])
 		if err != nil {
 			log.Panic(err)
 		}
@@ -94,6 +100,14 @@ func (cli *CLI) Run() {
 	if addTXCmd.Parsed() {
 		cli.addTX()
 	}
+
+	if getBalanceCmd.Parsed() {
+		if *getBalanceAddress == "" {
+			getBalanceCmd.Usage()
+			os.Exit(1)
+		}
+		cli.getBalance(*getBalanceAddress)
+	}
 }
 
 func (cli *CLI) printHelp() {
@@ -104,11 +118,16 @@ func (cli *CLI) printHelp() {
 	fmt.Println("go run *.go printaddresses                --- Lists all addresses in walletFile")
 	fmt.Println("go run *.go node                          --- start up a full node")
 	fmt.Println("go run *.go addtx                         --- Add transaction to mempool")
+	fmt.Println("go run *.go getbalance -address ADDRESS   --- gets the balance for an address")
 }
 
 func (cli *CLI) getBalance(address string) {
-	/*bc := NewBlockchain(address)
-	defer bc.db.Close()*/
+	bcs := CreateNewBlockchains("blockchain.db")
+	result, ok := bcs.GetBalance(NATIVE_CHAIN, address)
+	if !ok {
+		fmt.Println("Address not found")
+	}
+	fmt.Printf("Balance: %v\n", result)
 }
 
 func (cli *CLI) printChain() {

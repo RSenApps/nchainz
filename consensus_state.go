@@ -2,6 +2,7 @@ package main
 
 import (
 	"math"
+	"log"
 )
 
 type ConsensusStateToken struct {
@@ -81,6 +82,7 @@ func (state *ConsensusState) RollbackClaimFunds(symbol string, funds ClaimFunds)
 func (state *ConsensusState) AddTransfer(symbol string, transfer Transfer) bool {
 	tokenState := state.tokenStates[symbol]
 	if tokenState.balances[transfer.FromAddress] < transfer.Amount {
+		log.Println("Rejecting block due to insufficient funds")
 		return false
 	}
 	tokenState.balances[transfer.FromAddress] -= transfer.Amount

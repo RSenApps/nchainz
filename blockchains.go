@@ -24,6 +24,7 @@ type Blockchains struct {
 	finishedBlockCh chan BlockMsg
 	stopMiningCh    chan bool
 	miner           *Miner
+	recovering      bool
 }
 
 type UncommittedTransactions struct {
@@ -189,8 +190,15 @@ func (blockchains *Blockchains) AddBlocks(symbol string, blocks []Block, takeLoc
 	failed := false
 	for _, block := range blocks {
 		if !bytes.Equal(blockchains.chains[symbol].tipHash, block.PrevBlockHash) {
+			log.Printf("prevBlockHash does not match tipHash %v != %v \n", blockchains.chains[symbol].tipHash, block.PrevBlockHash)
 			failed = true
 			break
+		}
+		pow := NewProofOfWork(&block)
+		if !pow.Validate() {
+			log.Println("Proof of work of block is invalid")
+			/*DEBUG failed = true
+			break*/
 		}
 		if symbol == MATCH_CHAIN {
 			if !blockchains.addMatchData(block.Data.(MatchData), &uncommitted) {
@@ -235,8 +243,10 @@ func (blockchains *Blockchains) AddTokenChain(createToken CreateToken) {
 	//no lock needed
 	chain := NewBlockchain(blockchains.db, createToken.TokenInfo.Symbol)
 	blockchains.chains[createToken.TokenInfo.Symbol] = chain
-	blockchains.AddBlock(createToken.TokenInfo.Symbol, *NewTokenGenesisBlock(createToken), false)
 	blockchains.mempools[createToken.TokenInfo.Symbol] = make(map[*GenericTransaction]bool)
+	if !blockchains.recovering { //recovery will replay this block normally
+		blockchains.AddBlock(createToken.TokenInfo.Symbol, *NewTokenGenesisBlock(createToken), false)
+	}
 }
 
 func (blockchains *Blockchains) restoreFromDatabase() {
@@ -251,6 +261,7 @@ func (blockchains *Blockchains) restoreFromDatabase() {
 			iterator, ok := iterators[symbol]
 			if !ok {
 				iterator = chain.ForwardIterator()
+				chain.height = uint64(len(iterator.hashes))
 				iterators[symbol] = iterator
 			}
 			block, err := iterator.Next()
@@ -310,8 +321,10 @@ func CreateNewBlockchains(dbName string) *Blockchains {
 	blockchains.mempools = make(map[string]map[*GenericTransaction]bool)
 	blockchains.mempools[MATCH_CHAIN] = make(map[*GenericTransaction]bool)
 	if newDatabase {
+		blockchains.recovering = false
 		blockchains.AddBlock(MATCH_CHAIN, *NewGenesisBlock(), false)
 	} else {
+		blockchains.recovering = true
 		blockchains.restoreFromDatabase()
 	}
 
@@ -354,7 +367,7 @@ func (blockchains *Blockchains) GetBlockhashes() map[string][][]byte {
 	defer blockchains.chainsLock.RUnlock()
 	blockhashes := make(map[string][][]byte)
 	for symbol, chain := range blockchains.chains {
-		blockhashes[symbol] = chain.GetBlockhashes()
+		blockhashes[symbol] = chain.blockhashes
 	}
 	return blockhashes
 }
