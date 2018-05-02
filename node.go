@@ -424,35 +424,42 @@ func (node *Node) reconcileChain(peerIp string, symbol string, theirBlockhashes 
 	myHeight := bc.GetStartHeight()
 	bci := bc.Iterator()
 
+	log.Printf("Reconciling chain %s with peer %s (myHeight %v, theirHeight %v)", symbol, peerIp, myHeight, theirHeight)
+	defer log.Printf("Finished reconciling chain %s with peer %s", symbol, peerIp)
+
 	height := myHeight
-	theirIdx := len(theirBlockhashes) - 1 - int(theirHeight-myHeight)
+	theirIdx := theirHeight - myHeight
 	block, _ := bci.Prev()
 
-	for theirIdx >= 0 && !bytes.Equal(block.Hash, theirBlockhashes[theirIdx]) {
+	for int(theirIdx) < len(theirBlockhashes) && !bytes.Equal(block.Hash, theirBlockhashes[theirIdx]) {
 		height--
-		theirIdx--
+		theirIdx++
 		block, _ = bci.Prev()
 	}
 
-	if theirIdx == 0 {
+	if int(theirIdx) == len(theirBlockhashes) {
+		log.Printf("Ran out of blockhashes reconciling chain %s with peer %s", symbol, peerIp)
 		return errors.New("more blockhashes needed")
 	}
 	node.bcs.chainsLock.RUnlock()
 
 	if height != myHeight {
-		// There was a fork
+		log.Printf("Found fork at height %v while reconciling chain %s with peer %s", height, symbol, peerIp)
 		node.bcs.RollbackToHeight(symbol, height)
 	}
 
 	for i := height + 1; i <= theirHeight; i++ {
-		theirIdx++
+		theirIdx--
 
+		log.Printf("Getting block at height %v on chain %s from peer %s", i, symbol, peerIp)
 		block, err := node.SendGetBlock(peer, theirBlockhashes[theirIdx], symbol)
+
 		if err != nil {
 			log.Printf(err.Error())
 			return err
 		}
 
+		log.Printf("Received block at height %v on chain %s from peer %s (blockhash %x)", i, symbol, peerIp, block.Hash, block.PrevBlockHash)
 		node.bcs.AddBlock(symbol, *block, true)
 	}
 

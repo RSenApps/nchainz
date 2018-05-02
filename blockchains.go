@@ -58,7 +58,7 @@ func (uncommitted *UncommittedTransactions) undoTransactions(symbol string, bloc
 }
 
 func (blockchains *Blockchains) rollbackTokenToHeight(symbol string, height uint64) {
-	if height <= blockchains.chains[symbol].GetStartHeight() {
+	if height >= blockchains.chains[symbol].GetStartHeight() {
 		return
 	}
 	blocksToRemove := blockchains.chains[symbol].GetStartHeight() - height
@@ -79,7 +79,7 @@ func (blockchains *Blockchains) rollbackTokenToHeight(symbol string, height uint
 }
 
 func (blockchains *Blockchains) rollbackMatchToHeight(height uint64) {
-	if height <= blockchains.chains[MATCH_CHAIN].GetStartHeight() {
+	if height >= blockchains.chains[MATCH_CHAIN].GetStartHeight() {
 		return
 	}
 
@@ -519,7 +519,6 @@ func (blockchains *Blockchains) ApplyLoop() {
 				//WARNING taking both locks always take chain lock first
 				blockchains.chainsLock.Unlock()
 
-
 			} else {
 				blockchains.chains[blockMsg.Symbol].AddBlock(blockMsg.Block)
 				blockchains.chainsLock.Unlock()
@@ -531,7 +530,6 @@ func (blockchains *Blockchains) ApplyLoop() {
 				blockchains.mempools[blockMsg.Symbol] = make(map[*GenericTransaction]bool)
 				blockchains.mempoolsLock.Unlock()
 			}
-
 
 		case symbol := <-blockchains.stopMiningCh:
 			if symbol != blockchains.minerChosenToken {
