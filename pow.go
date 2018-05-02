@@ -104,29 +104,6 @@ func (pow *ProofOfWork) Calculate(nonce int) (bool, int, []byte) {
 	return false, nonce, hash[:]
 }
 
-func (pow *ProofOfWork) Run() (int, []byte) {
-	var hashInt big.Int // int representation of hash
-	var hash [32]byte
-	nonce := 0 // counter
-
-	fmt.Printf("Mining the block containing \"%s\"\n", pow.block.Data)
-	for nonce < maxNonce {
-		data := pow.prepareData(nonce) // prepare data
-		hash = sha256.Sum256(data)     // hash with SHA-256
-		fmt.Printf("\r%x", hash)
-		hashInt.SetBytes(hash[:]) // convert hash to a big integer
-
-		if hashInt.Cmp(pow.target) == -1 { // compare integer with target
-			break // if hash < target, valid proof!
-		} else {
-			nonce++
-		}
-	}
-	fmt.Print("\n\n")
-
-	return nonce, hash[:]
-}
-
 func (pow *ProofOfWork) GetHash() []byte {
 	data := pow.prepareData(pow.block.Nonce)
 	hash := sha256.Sum256(data)
