@@ -38,6 +38,7 @@ func (client *Client) SendTx(tx *GenericTransaction, symbol string) error {
 		return errors.New("node rejected transaction")
 	}
 
+	log.Printf("Transaction successfully sent")
 	return nil
 }
 
@@ -74,6 +75,28 @@ func (client *Client) Cancel(symbol string, orderId uint64) {
 	var empty []byte
 	cancel := CancelOrder{symbol, orderId, empty}
 	tx := &GenericTransaction{cancel, CANCEL_ORDER}
+
+	client.SendTx(tx, symbol)
+}
+
+func (client *Client) Claim(amount uint64, symbol string, address string) {
+	log.Printf("Client sending CLAIM_FUNDS")
+	defer log.Printf("Client done sending CLAIM_FUNDS")
+
+	claim := ClaimFunds{address, amount}
+	tx := &GenericTransaction{claim, CLAIM_FUNDS}
+
+	client.SendTx(tx, symbol)
+}
+
+func (client *Client) Create(symbol string, supply uint64, decimals uint8, address string) {
+	log.Printf("Client sending CREATE_TOKEN")
+	defer log.Printf("Client done sending CREATE_TOKEN")
+
+	var empty []byte
+	tokenInfo := TokenInfo{symbol, supply, decimals}
+	create := CreateToken{tokenInfo, address, empty}
+	tx := &GenericTransaction{create, CREATE_TOKEN}
 
 	client.SendTx(tx, symbol)
 }

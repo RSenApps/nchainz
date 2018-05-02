@@ -2,9 +2,9 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"strconv"
-	"time"
 )
 
 type CLI struct {
@@ -31,20 +31,16 @@ Creating transactions
 		Create a TRANSFER transaction and send it to the given node
 	cancel SYMBOL ORDER_ID NODE
 		Create a CANCEL_ORDER transaction and send it to the given node
-	claim AMT ADDRESS
+	claim AMT SYMBOL ADDRESS NODE
 		Create a CLAIM_FUNDS transaction and send it to the given node
-	create ... ADDRESS
+	create SYMBOL SUPPLY DECIMALS ADDRESS NODE
 		Create a CREATE_TOKEN transaction and send it to the given node
 
 Running a node or miner
 	node PORT SEED_IP
 		Start up a full node on the given port and connect to the given peer
-
-Utilities
 	printchain DB
 		Prints all the blocks in the blockchain
-	addtx
-		Add transaction to mempool
 `
 
 func (cli *CLI) Run() {
@@ -73,7 +69,7 @@ func (cli *CLI) Run() {
 		seller := cli.getString(4)
 		serverIp := cli.getString(5)
 
-		client, _ := NewClient(serverIp)
+		client := cli.getClient(serverIp)
 		client.Order(buyAmt, buySymbol, sellAmt, sellSymbol, seller)
 
 	case "transfer":
@@ -83,7 +79,7 @@ func (cli *CLI) Run() {
 		to := cli.getString(3)
 		serverIp := cli.getString(4)
 
-		client, _ := NewClient(serverIp)
+		client := cli.getClient(serverIp)
 		client.Transfer(amt, symbol, from, to)
 
 	case "cancel":
@@ -91,15 +87,27 @@ func (cli *CLI) Run() {
 		orderId := cli.getUint(1)
 		serverIp := cli.getString(2)
 
-		client, _ := NewClient(serverIp)
+		client := cli.getClient(serverIp)
 		client.Cancel(orderSymbol, orderId)
 
 	case "claim":
-		// TODO
+		amt := cli.getUint(0)
+		symbol := cli.getString(1)
+		address := cli.getString(2)
+		serverIp := cli.getString(3)
 
-	case "createbc":
-		address := cli.getString(0)
-		cli.createBC(address)
+		client := cli.getClient(serverIp)
+		client.Claim(amt, symbol, address)
+
+	case "create":
+		symbol := cli.getString(0)
+		supply := cli.getUint(1)
+		decimals := uint8(cli.getUint(2))
+		address := cli.getString(3)
+		serverIp := cli.getString(4)
+
+		client := cli.getClient(serverIp)
+		client.Create(symbol, supply, decimals, address)
 
 	case "node":
 		port := cli.getUint(0)
@@ -111,9 +119,6 @@ func (cli *CLI) Run() {
 		db := cli.getString(0)
 
 		cli.printChain(db)
-
-	case "addtx":
-		cli.addTX()
 
 	default:
 		cli.printHelpAndExit()
@@ -142,6 +147,17 @@ func (cli *CLI) getUint(index int) uint64 {
 func (cli *CLI) printHelpAndExit() {
 	fmt.Print(helpMessage)
 	os.Exit(1)
+}
+
+func (cli *CLI) getClient(serverIp string) *Client {
+	client, err := NewClient(serverIp)
+
+	if err != nil {
+		log.Printf(err.Error())
+		os.Exit(1)
+	}
+
+	return client
 }
 
 ///////////////////////////////////////////////////////
@@ -209,43 +225,4 @@ func (cli *CLI) createWallet() {
 	ws.Persist()
 
 	fmt.Printf("New wallet's address: %s\n", address)
-}
-
-func (cli *CLI) createBC(address string) {
-	bcs := CreateNewBlockchains("blockchain.db")
-	bc := bcs.chains[NATIVE_CHAIN]
-	transfer := Transfer{
-		ID:          2,
-		Amount:      10,
-		FromAddress: "Satoshi",
-		ToAddress:   "Negansoft",
-		Signature:   nil,
-	}
-	tokenData := TokenData{
-		Orders:     nil,
-		ClaimFunds: nil,
-		Transfers:  []Transfer{transfer},
-	}
-	block := NewBlock(tokenData, TOKEN_BLOCK, bc.tipHash)
-	bcs.AddBlock(NATIVE_CHAIN, *block, true)
-}
-
-func (cli *CLI) addTX() {
-	transfer := Transfer{
-		ID:          1,
-		Amount:      50,
-		FromAddress: "Satoshi",
-		ToAddress:   "Negansoft",
-		Signature:   nil,
-	}
-
-	bcs := CreateNewBlockchains("blockchains.db")
-	bcs.AddTransactionToMempool(
-		GenericTransaction{transfer, TRANSFER},
-		NATIVE_CHAIN,
-	)
-
-	for {
-		time.Sleep(100 * time.Millisecond)
-	}
 }
