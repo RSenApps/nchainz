@@ -319,7 +319,7 @@ func (blockchains *Blockchains) restoreFromDatabase() {
 			}
 		}
 		done = true
-		for symbol, _ := range blockchains.chains {
+		for symbol := range blockchains.chains {
 			if !chainsDone[symbol] {
 				done = false
 				break
@@ -463,7 +463,7 @@ func (blockchains *Blockchains) StartMining() {
 
 	blockchains.mempoolsLock.Lock()
 	var txInPool []GenericTransaction
-	for tx, _ := range blockchains.mempools[chosenToken] {
+	for tx := range blockchains.mempools[chosenToken] {
 		txInPool = append(txInPool, *tx)
 	}
 	blockchains.mempoolsLock.Unlock()

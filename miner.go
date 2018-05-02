@@ -87,7 +87,7 @@ func (miner *Miner) mineLoop() {
 
 func NewMiner(finishedBlockCh chan BlockMsg) *Miner {
 	minerCh := make(chan MinerMsg, 1000)
-	transactions := []GenericTransaction{}
+	var transactions []GenericTransaction
 	miner := &Miner{minerCh, finishedBlockCh, transactions}
 	go miner.mineLoop()
 	return miner
