@@ -335,8 +335,13 @@ type TxArgs struct {
 }
 
 func (node *Node) Tx(args *TxArgs, reply *bool) error {
-	log.Printf("Received TX from %s", args.From)
-	defer log.Printf("Done handling TX from %s", args.From)
+	from := args.From
+	if from == "" {
+		from = "client"
+	}
+
+	log.Printf("Received TX from %s %v", from, args.Tx)
+	defer log.Printf("Done handling TX from %s", from)
 
 	new := node.bcs.AddTransactionToMempool(args.Tx, args.Symbol)
 

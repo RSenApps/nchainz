@@ -88,6 +88,13 @@ func (cli *CLI) Run() {
 
 		client, _ := NewClient(serverIp)
 		client.Order(uint64(buyAmt), buySymbol, uint64(sellAmt), sellSymbol, seller)
+	case "cancel":
+		orderSymbol := os.Args[2]
+		orderId, _ := strconv.Atoi(os.Args[3])
+		serverIp := os.Args[4]
+
+		client, _ := NewClient(serverIp)
+		client.Cancel(orderSymbol, uint64(orderId))
 	default:
 		cli.printHelp()
 		os.Exit(1)
@@ -136,9 +143,12 @@ func (cli *CLI) printHelp() {
 	fmt.Println("go run *.go createbc -address ADDRESS     --- Creates new blockchain. ADDRESS gets genesis reward")
 	fmt.Println("go run *.go printchain                    --- Print all the blocks in the blockchain")
 	fmt.Println("go run *.go printaddresses                --- Lists all addresses in walletFile")
-	fmt.Println("go run *.go node                          --- start up a full node")
+	fmt.Println("go run *.go node PORT SEED_IP             --- start up a full node")
 	fmt.Println("go run *.go addtx                         --- Add transaction to mempool")
 	fmt.Println("go run *.go getbalance -address ADDRESS   --- gets the balance for an address")
+	fmt.Println("go run *.go order BUY_AMT BUY_SYMBOL SELL_AMT SELL_SYMBOL ADDRESS NODE")
+	fmt.Println("go run *.go transfer BUY_AMT BUY_SYMBOL SELL_AMT SELL_SYMBOL ADDRESS NODE")
+	fmt.Println("go run *.go cancel SYMBOL ORDER_ID NODE")
 }
 
 func (cli *CLI) getBalance(address string) {

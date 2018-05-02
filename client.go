@@ -22,6 +22,25 @@ func NewClient(serverIp string) (*Client, error) {
 	return client, nil
 }
 
+func (client *Client) SendTx(tx *GenericTransaction, symbol string) error {
+	args := TxArgs{*tx, symbol, ""}
+	var reply bool
+
+	err := client.rpc.Call("Node.Tx", &args, &reply)
+
+	if err != nil {
+		log.Printf("Error communicating with node")
+		log.Printf(err.Error())
+		return err
+	}
+	if !reply {
+		log.Printf("Node rejected transaction")
+		return errors.New("node rejected transaction")
+	}
+
+	return nil
+}
+
 func (client *Client) Order(buyAmt uint64, buySymbol string, sellAmt uint64, sellSymbol string, seller string) {
 	log.Printf("Client sending ORDER")
 	defer log.Printf("Client done sending ORDER")
@@ -48,21 +67,13 @@ func (client *Client) Transfer(amount uint64, symbol string, from string, to str
 	client.SendTx(tx, symbol)
 }
 
-func (client *Client) SendTx(tx *GenericTransaction, symbol string) error {
-	args := TxArgs{*tx, symbol, ""}
-	var reply bool
+func (client *Client) Cancel(symbol string, orderId uint64) {
+	log.Printf("Client sending CANCEL_ORDER")
+	defer log.Printf("Client done sending CANCEL_ORDER")
 
-	err := client.rpc.Call("Node.Tx", &args, &reply)
+	var empty []byte
+	cancel := CancelOrder{symbol, orderId, empty}
+	tx := &GenericTransaction{cancel, CANCEL_ORDER}
 
-	if err != nil {
-		log.Printf("Error communicating with node")
-		log.Printf(err.Error())
-		return err
-	}
-	if !reply {
-		log.Printf("Node rejected transaction")
-		return errors.New("node rejected transaction")
-	}
-
-	return nil
+	client.SendTx(tx, symbol)
 }
