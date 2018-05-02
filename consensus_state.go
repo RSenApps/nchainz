@@ -257,7 +257,8 @@ func (state *ConsensusState) AddCreateToken(createToken CreateToken, blockchains
 	return true
 }
 
-func (state *ConsensusState) RollbackCreateToken(createToken CreateToken) {
+func (state *ConsensusState) RollbackCreateToken(createToken CreateToken, blockchains *Blockchains) {
 	delete(state.tokenStates, createToken.TokenInfo.Symbol)
 	delete(state.createdTokens, createToken.TokenInfo.Symbol)
+	blockchains.RemoveTokenChain(createToken)
 }

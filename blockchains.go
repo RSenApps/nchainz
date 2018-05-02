@@ -37,22 +37,22 @@ func (uncommitted *UncommittedTransactions) addTransaction(transaction GenericTr
 	uncommitted.transactions = append(uncommitted.transactions, transaction)
 }
 
-func (uncommitted *UncommittedTransactions) undoTransactions(symbol string, state *ConsensusState) {
+func (uncommitted *UncommittedTransactions) undoTransactions(symbol string, blockchains *Blockchains) {
 	for i := len(uncommitted.transactions) - 1; i >= 0; i-- {
 		transaction := uncommitted.transactions[i].Transaction
 		switch uncommitted.transactions[i].TransactionType {
 		case ORDER:
-			state.RollbackOrder(symbol, transaction.(Order))
+			blockchains.consensusState.RollbackOrder(symbol, transaction.(Order))
 		case CANCEL_ORDER:
-			state.RollbackCancelOrder(transaction.(CancelOrder))
+			blockchains.consensusState.RollbackCancelOrder(transaction.(CancelOrder))
 		case CLAIM_FUNDS:
-			state.RollbackClaimFunds(symbol, transaction.(ClaimFunds))
+			blockchains.consensusState.RollbackClaimFunds(symbol, transaction.(ClaimFunds))
 		case TRANSFER:
-			state.RollbackTransfer(symbol, transaction.(Transfer))
+			blockchains.consensusState.RollbackTransfer(symbol, transaction.(Transfer))
 		case MATCH:
-			state.RollbackMatch(transaction.(Match))
+			blockchains.consensusState.RollbackMatch(transaction.(Match))
 		case CREATE_TOKEN:
-			state.RollbackCreateToken(transaction.(CreateToken))
+			blockchains.consensusState.RollbackCreateToken(transaction.(CreateToken), blockchains)
 		}
 	}
 }
@@ -95,7 +95,7 @@ func (blockchains *Blockchains) rollbackMatchToHeight(height uint64) {
 		}
 
 		for _, createToken := range removedData.CreateTokens {
-			blockchains.consensusState.RollbackCreateToken(createToken)
+			blockchains.consensusState.RollbackCreateToken(createToken, blockchains)
 		}
 	}
 }
@@ -207,7 +207,7 @@ func (blockchains *Blockchains) AddBlocks(symbol string, blocks []Block, takeLoc
 	if !blockchains.recovering && blockchains.minerChosenToken == symbol {
 		go func() { blockchains.stopMiningCh <- symbol }()
 		blockchains.mempoolsLock.Lock()
-		blockchains.mempoolUncommitted[symbol].undoTransactions(symbol, &blockchains.consensusState)
+		blockchains.mempoolUncommitted[symbol].undoTransactions(symbol, blockchains)
 		blockchains.mempoolUncommitted[symbol] = &UncommittedTransactions{}
 		blockchains.mempoolsLock.Unlock()
 	}
@@ -249,7 +249,7 @@ func (blockchains *Blockchains) AddBlocks(symbol string, blocks []Block, takeLoc
 		blocksAdded++
 	}
 	if failed {
-		uncommitted.undoTransactions(symbol, &blockchains.consensusState)
+		uncommitted.undoTransactions(symbol, blockchains)
 		for i := 0; i < blocksAdded; i++ {
 			blockchains.chains[symbol].RemoveLastBlock()
 		}
@@ -286,7 +286,9 @@ func (blockchains *Blockchains) AddTokenChain(createToken CreateToken) {
 }
 
 func (blockchains *Blockchains) RemoveTokenChain(createToken CreateToken) {
-
+	delete(blockchains.chains, createToken.TokenInfo.Symbol)
+	delete(blockchains.mempools, createToken.TokenInfo.Symbol)
+	delete(blockchains.mempoolUncommitted, createToken.TokenInfo.Symbol)
 }
 
 func (blockchains *Blockchains) restoreFromDatabase() {
@@ -512,7 +514,7 @@ func (blockchains *Blockchains) ApplyLoop() {
 				log.Printf("miner prevBlockHash does not match tipHash %v != %v \n", blockchains.chains[blockMsg.Symbol].tipHash, blockMsg.Block.PrevBlockHash)
 
 				blockchains.mempoolsLock.Lock()
-				blockchains.mempoolUncommitted[blockMsg.Symbol].undoTransactions(blockMsg.Symbol, &blockchains.consensusState)
+				blockchains.mempoolUncommitted[blockMsg.Symbol].undoTransactions(blockMsg.Symbol, blockchains)
 				blockchains.mempoolUncommitted[blockMsg.Symbol] = &UncommittedTransactions{}
 				//WARNING taking both locks always take chain lock first
 				blockchains.chainsLock.Unlock()
