@@ -86,6 +86,7 @@ type Order struct {
 }
 
 type Transfer struct {
+	ID          uint64
 	Amount      uint64
 	FromAddress string //TODO: []byte
 	ToAddress   string //TODO: []byte

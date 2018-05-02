@@ -61,7 +61,7 @@ func (client *Client) Transfer(amount uint64, symbol string, from string, to str
 	defer log.Printf("Client done sending TRANSFER")
 
 	var empty []byte
-	transfer := Transfer{amount, from, to, empty}
+	transfer := Transfer{rand.Uint64(), amount, from, to, empty}
 	tx := &GenericTransaction{transfer, TRANSFER}
 
 	client.SendTx(tx, symbol)

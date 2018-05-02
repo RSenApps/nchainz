@@ -12,6 +12,7 @@ type ConsensusStateToken struct {
 	//unclaimedFundsLock sync.Mutex
 	deletedOrders map[uint64]Order
 	//deletedOrdersLock sync.Mutex
+	usedTransferIDs map[uint64]bool
 }
 
 type ConsensusState struct {
@@ -81,6 +82,9 @@ func (state *ConsensusState) RollbackClaimFunds(symbol string, funds ClaimFunds)
 
 func (state *ConsensusState) AddTransfer(symbol string, transfer Transfer) bool {
 	tokenState := state.tokenStates[symbol]
+	if _, ok := tokenState.usedTransferIDs[transfer.ID]; ok {
+		return false
+	}
 	if transfer.Amount < 0 {
 		return false
 	}
@@ -95,6 +99,7 @@ func (state *ConsensusState) AddTransfer(symbol string, transfer Transfer) bool 
 
 func (state *ConsensusState) RollbackTransfer(symbol string, transfer Transfer) {
 	tokenState := state.tokenStates[symbol]
+	delete(tokenState.usedTransferIDs, transfer.ID)
 	tokenState.balances[transfer.FromAddress] += transfer.Amount
 	tokenState.balances[transfer.ToAddress] -= transfer.Amount
 }

@@ -227,6 +227,7 @@ func (cli *CLI) createBC(address string) {
 	bcs := CreateNewBlockchains("blockchain.db")
 	bc := bcs.chains[NATIVE_CHAIN]
 	transfer := Transfer{
+		ID: 2,
 		Amount:      10,
 		FromAddress: "Satoshi",
 		ToAddress:   "Negansoft",
@@ -250,6 +251,7 @@ func (cli *CLI) addTX() {
 	}*/
 
 	transfer := Transfer{
+		ID: 1,
 		Amount:      50,
 		FromAddress: "Satoshi",
 		ToAddress:   "Negansoft",
