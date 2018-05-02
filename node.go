@@ -216,7 +216,7 @@ func (node *Node) Inv(args *InvArgs, reply *bool) error {
 		myHeight, ok := myHeights[symbol]
 
 		if ok && myHeight < startHeight {
-			node.reconcileChain(args.From, symbol, args.Blockhashes[symbol], startHeight)
+			go node.reconcileChain(args.From, symbol, args.Blockhashes[symbol], startHeight)
 		}
 	}
 
@@ -475,8 +475,14 @@ func (node *Node) reconcileChain(peerIp string, symbol string, theirBlockhashes 
 			return err
 		}
 
-		Log("Received block at height %v on chain %s from peer %s (blockhash %x)", i, symbol, peerIp, block.Hash)
-		node.bcs.AddBlock(symbol, *block, true)
+		Log("Received block at height %v on chain %s from peer %s", i, symbol, peerIp)
+		success := node.bcs.AddBlock(symbol, *block, true)
+
+		if !success {
+			Log("Conflict found at height %v on chain %s, stopping reconciliation with %s", i, symbol, peerIp)
+
+			return errors.New("conflict found while reconciling")
+		}
 	}
 
 	return nil
