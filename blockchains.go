@@ -20,7 +20,7 @@ type Blockchains struct {
 	chainsLock         *sync.RWMutex
 	db                 *bolt.DB
 	mempools           map[string]map[*GenericTransaction]bool // map of sets
-	mempoolUncommitted UncommittedTransactions
+	mempoolUncommitted map[string]*UncommittedTransactions
 	mempoolsLock       *sync.Mutex
 	finishedBlockCh    chan BlockMsg
 	stopMiningCh       chan string
@@ -207,8 +207,8 @@ func (blockchains *Blockchains) AddBlocks(symbol string, blocks []Block, takeLoc
 	if !blockchains.recovering && blockchains.minerChosenToken == symbol {
 		go func() { blockchains.stopMiningCh <- symbol }()
 		blockchains.mempoolsLock.Lock()
-		blockchains.mempoolUncommitted.undoTransactions(symbol, &blockchains.consensusState)
-		blockchains.mempoolUncommitted = UncommittedTransactions{}
+		blockchains.mempoolUncommitted[symbol].undoTransactions(symbol, &blockchains.consensusState)
+		blockchains.mempoolUncommitted[symbol] = &UncommittedTransactions{}
 		blockchains.mempoolsLock.Unlock()
 	}
 
@@ -278,6 +278,8 @@ func (blockchains *Blockchains) AddTokenChain(createToken CreateToken) {
 	chain := NewBlockchain(blockchains.db, createToken.TokenInfo.Symbol)
 	blockchains.chains[createToken.TokenInfo.Symbol] = chain
 	blockchains.mempools[createToken.TokenInfo.Symbol] = make(map[*GenericTransaction]bool)
+	blockchains.mempoolUncommitted[createToken.TokenInfo.Symbol] = &UncommittedTransactions{}
+
 	if !blockchains.recovering { //recovery will replay this block normally
 		blockchains.AddBlock(createToken.TokenInfo.Symbol, *NewTokenGenesisBlock(createToken), false)
 	}
@@ -353,7 +355,10 @@ func CreateNewBlockchains(dbName string) *Blockchains {
 	blockchains.mempoolsLock = &sync.Mutex{}
 
 	blockchains.mempools = make(map[string]map[*GenericTransaction]bool)
+	blockchains.mempoolUncommitted = make(map[string]*UncommittedTransactions)
+
 	blockchains.mempools[MATCH_CHAIN] = make(map[*GenericTransaction]bool)
+	blockchains.mempoolUncommitted[MATCH_CHAIN] = &UncommittedTransactions{}
 	if newDatabase {
 		blockchains.recovering = false
 		blockchains.AddBlock(MATCH_CHAIN, *NewGenesisBlock(), false)
@@ -410,7 +415,7 @@ func (blockchains *Blockchains) GetBlockhashes() map[string][][]byte {
 func (blockchains *Blockchains) AddTransactionToMempool(tx GenericTransaction, symbol string) bool {
 	blockchains.chainsLock.Lock()
 	// Validate transaction
-	if !blockchains.addGenericTransaction(symbol, tx, &blockchains.mempoolUncommitted) {
+	if !blockchains.addGenericTransaction(symbol, tx, blockchains.mempoolUncommitted[symbol]) {
 		blockchains.chainsLock.Unlock()
 		return false
 	}
@@ -422,16 +427,14 @@ func (blockchains *Blockchains) AddTransactionToMempool(tx GenericTransaction, s
 		return false
 	}
 
-	fmt.Println("Add tx")
-
 	// Add transaction to mempool
 	blockchains.mempools[symbol][&tx] = true
 	blockchains.mempoolsLock.Unlock()
 
-	fmt.Println("Blockchains sending to miner channel")
-	fmt.Println("\n\n")
-	// Send transaction to miner
-	blockchains.miner.minerCh <- MinerMsg{tx, false}
+	if blockchains.minerChosenToken == symbol {
+		// Send transaction to miner
+		blockchains.miner.minerCh <- MinerMsg{tx, false}
+	}
 
 	return true
 }
@@ -447,10 +450,8 @@ func (blockchains *Blockchains) StartMining() {
 	blockchains.mempoolsLock.Unlock()
 
 	chosenToken := tokens[rand.Intn(len(tokens))]
-	fmt.Println("Tokens are", tokens)
 
 	// Send new block message
-	fmt.Println("About to send new block")
 	switch chosenToken {
 	case MATCH_CHAIN:
 		fmt.Println("Starting match block")
@@ -459,7 +460,6 @@ func (blockchains *Blockchains) StartMining() {
 		fmt.Println("Starting native block")
 		blockchains.miner.minerCh <- MinerMsg{NewBlockMsg{TOKEN_BLOCK, blockchains.chains[chosenToken].tipHash, chosenToken}, true}
 	}
-	fmt.Println("After sending new block")
 
 	blockchains.mempoolsLock.Lock()
 	var txInPool []GenericTransaction
@@ -480,7 +480,7 @@ func (blockchains *Blockchains) StartMining() {
 
 			blockchains.chainsLock.Lock()
 			// Validate transaction
-			if !blockchains.addGenericTransaction(chosenToken, tx, &blockchains.mempoolUncommitted) {
+			if !blockchains.addGenericTransaction(chosenToken, tx, blockchains.mempoolUncommitted[chosenToken]) {
 				blockchains.chainsLock.Unlock()
 				blockchains.mempoolsLock.Lock()
 				delete(blockchains.mempools[chosenToken], &tx)
@@ -508,22 +508,25 @@ func (blockchains *Blockchains) ApplyLoop() {
 				log.Printf("miner prevBlockHash does not match tipHash %v != %v \n", blockchains.chains[blockMsg.Symbol].tipHash, blockMsg.Block.PrevBlockHash)
 
 				blockchains.mempoolsLock.Lock()
-				blockchains.mempoolUncommitted.undoTransactions(blockMsg.Symbol, &blockchains.consensusState)
+				blockchains.mempoolUncommitted[blockMsg.Symbol].undoTransactions(blockMsg.Symbol, &blockchains.consensusState)
+				blockchains.mempoolUncommitted[blockMsg.Symbol] = &UncommittedTransactions{}
 				//WARNING taking both locks always take chain lock first
 				blockchains.chainsLock.Unlock()
-				blockchains.mempoolUncommitted = UncommittedTransactions{}
-				blockchains.mempoolsLock.Unlock()
+
+
 			} else {
 				blockchains.chains[blockMsg.Symbol].AddBlock(blockMsg.Block)
 				blockchains.chainsLock.Unlock()
 
 				blockchains.mempoolsLock.Lock()
-				blockchains.mempoolUncommitted = UncommittedTransactions{}
+				blockchains.mempoolUncommitted[blockMsg.Symbol] = &UncommittedTransactions{}
 
 				//assume that all transactions for token have been added to block so delete mempool
 				blockchains.mempools[blockMsg.Symbol] = make(map[*GenericTransaction]bool)
 				blockchains.mempoolsLock.Unlock()
 			}
+
+
 		case symbol := <-blockchains.stopMiningCh:
 			if symbol != blockchains.minerChosenToken {
 				continue
