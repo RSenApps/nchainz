@@ -326,26 +326,32 @@ func (node *Node) callGetBlock(peer *Peer, args *GetBlockArgs) (*GetBlockReply, 
 // TX
 // Share transaction with peers
 // request: transaction data
-// response: true if successful
+// response: true if new
 
 type TxArgs struct {
-	Tx   GenericTransaction
-	From string
+	Tx     GenericTransaction
+	Symbol string
+	From   string
 }
 
 func (node *Node) Tx(args *TxArgs, reply *bool) error {
 	log.Printf("Received TX from %s", args.From)
 	defer log.Printf("Done handling TX from %s", args.From)
 
-	// TODO: add tx to mempool if it isn't there
-	// TODO: gossip tx to peers if new
+	new := node.bcs.AddTransactionToMempool(args.Tx, args.Symbol)
 
-	*reply = true
+	if new {
+		node.BroadcastTx(&args.Tx, args.Symbol)
+		*reply = true
+	} else {
+		*reply = false
+	}
+
 	return nil
 }
 
-func (node *Node) BroadcastTx(tx *GenericTransaction) {
-	args := &TxArgs{*tx, node.myIp}
+func (node *Node) BroadcastTx(tx *GenericTransaction, symbol string) {
+	args := &TxArgs{*tx, symbol, node.myIp}
 
 	for _, peer := range node.getActivePeers() {
 		go node.callTx(peer, args)
