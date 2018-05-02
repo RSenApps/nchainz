@@ -1,155 +1,151 @@
 package main
 
 import (
-	"flag"
 	"fmt"
-	"log"
 	"os"
 	"strconv"
 	"time"
 )
 
-// For processing cmd line arguments
 type CLI struct {
 }
 
-//
-// Main method to parse and process cmds
-//
+var helpMessage = `N Chainz: a high performance, decentralized cryptocurrency exchange.
+
+Usage: nchainz COMMAND [ARGS]
+
+The commands are:
+
+Account management
+	createwallet
+		Create a wallet with a pair of keys
+	getbalance ADDRESS
+		Get the balance for an address
+	printaddresses
+		Print all adddreses in wallet file
+
+Creating transactions
+	order BUY_AMT BUY_SYMBOL SELL_AMT SELL_SYMBOL ADDRESS NODE
+		Create an ORDER transaction and send it to the given node
+	transfer AMT SYMBOL FROM TO NODE
+		Create a TRANSFER transaction and send it to the given node
+	cancel SYMBOL ORDER_ID NODE
+		Create a CANCEL_ORDER transaction and send it to the given node
+	claim AMT ADDRESS
+		Create a CLAIM_FUNDS transaction and send it to the given node
+	create ... ADDRESS
+		Create a CREATE_TOKEN transaction and send it to the given node
+
+Running a node or miner
+	node PORT SEED_IP
+		Start up a full node on the given port and connect to the given peer
+
+Utilities
+	printchain DB
+		Prints all the blocks in the blockchain
+	addtx
+		Add transaction to mempool
+`
+
 func (cli *CLI) Run() {
 	if len(os.Args) < 2 {
-		cli.printHelp()
-		os.Exit(1)
+		cli.printHelpAndExit()
 	}
 
-	// Use flag package to parse cmd line arguments
-	walletCmd := flag.NewFlagSet("createwallet", flag.ExitOnError)
-	printChainCmd := flag.NewFlagSet("printchain", flag.ExitOnError)
-	printAddressesCmd := flag.NewFlagSet("printaddresses", flag.ExitOnError)
-	nodeCmd := flag.NewFlagSet("node", flag.ExitOnError)
-	createBCCmd := flag.NewFlagSet("createbc", flag.ExitOnError)
-	addTXCmd := flag.NewFlagSet("addtx", flag.ExitOnError)
+	command := os.Args[1]
 
-	getBalanceCmd := flag.NewFlagSet("createbc", flag.ExitOnError)
-	bcAddress := createBCCmd.String("address", "", "Genesis reward sent to this address.")
-	getBalanceAddress := getBalanceCmd.String("address", "", "Address to get balance of")
-	switch os.Args[1] {
+	switch command {
 	case "createwallet":
-		err := walletCmd.Parse(os.Args[2:])
-		if err != nil {
-			log.Panic(err)
-		}
-	case "printchain":
-		err := printChainCmd.Parse(os.Args[2:])
-		if err != nil {
-			log.Panic(err)
-		}
-	case "printaddresses":
-		err := printAddressesCmd.Parse(os.Args[2:])
-		if err != nil {
-			log.Panic(err)
-		}
-	case "node":
-		err := nodeCmd.Parse(os.Args[2:])
-		if err != nil {
-			log.Panic(err)
-		}
-	case "createbc":
-		err := createBCCmd.Parse(os.Args[2:])
-		if err != nil {
-			log.Panic(err)
-		}
-	case "addtx":
-		err := addTXCmd.Parse(os.Args[2:])
-		if err != nil {
-			log.Panic(err)
-		}
-	case "getbalance":
-		err := getBalanceCmd.Parse(os.Args[2:])
-		if err != nil {
-			log.Panic(err)
-		}
-	case "transfer":
-		amt, _ := strconv.Atoi(os.Args[2])
-		symbol := os.Args[3]
-		from := os.Args[4]
-		to := os.Args[5]
-		serverIp := os.Args[6]
-
-		client, _ := NewClient(serverIp)
-		client.Transfer(uint64(amt), symbol, from, to)
-	case "order":
-		buyAmt, _ := strconv.Atoi(os.Args[2])
-		buySymbol := os.Args[3]
-		sellAmt, _ := strconv.Atoi(os.Args[4])
-		sellSymbol := os.Args[5]
-		seller := os.Args[6]
-		serverIp := os.Args[7]
-
-		client, _ := NewClient(serverIp)
-		client.Order(uint64(buyAmt), buySymbol, uint64(sellAmt), sellSymbol, seller)
-	case "cancel":
-		orderSymbol := os.Args[2]
-		orderId, _ := strconv.Atoi(os.Args[3])
-		serverIp := os.Args[4]
-
-		client, _ := NewClient(serverIp)
-		client.Cancel(orderSymbol, uint64(orderId))
-	default:
-		cli.printHelp()
-		os.Exit(1)
-	}
-
-	if walletCmd.Parsed() {
 		cli.createWallet()
-	}
 
-	if printChainCmd.Parsed() {
-		cli.printChain()
-	}
+	case "getbalance":
+		address := cli.getString(0)
+		cli.getBalance(address)
 
-	if nodeCmd.Parsed() {
-		cli.node(os.Args)
-	}
-
-	if printAddressesCmd.Parsed() {
+	case "printaddresses":
 		cli.printAddresses()
-	}
 
-	if createBCCmd.Parsed() {
-		if *bcAddress == "" {
-			createBCCmd.Usage()
-			os.Exit(1)
-		}
-		cli.createBC(*bcAddress)
-	}
+	case "order":
+		buyAmt := cli.getUint(0)
+		buySymbol := cli.getString(1)
+		sellAmt := cli.getUint(2)
+		sellSymbol := cli.getString(3)
+		seller := cli.getString(4)
+		serverIp := cli.getString(5)
 
-	if addTXCmd.Parsed() {
+		client, _ := NewClient(serverIp)
+		client.Order(buyAmt, buySymbol, sellAmt, sellSymbol, seller)
+
+	case "transfer":
+		amt := cli.getUint(0)
+		symbol := cli.getString(1)
+		from := cli.getString(2)
+		to := cli.getString(3)
+		serverIp := cli.getString(4)
+
+		client, _ := NewClient(serverIp)
+		client.Transfer(amt, symbol, from, to)
+
+	case "cancel":
+		orderSymbol := cli.getString(0)
+		orderId := cli.getUint(1)
+		serverIp := cli.getString(2)
+
+		client, _ := NewClient(serverIp)
+		client.Cancel(orderSymbol, orderId)
+
+	case "claim":
+		// TODO
+
+	case "createbc":
+		address := cli.getString(0)
+		cli.createBC(address)
+
+	case "node":
+		port := cli.getUint(0)
+		seed := cli.getString(1)
+
+		StartNode(port, seed)
+
+	case "printchain":
+		db := cli.getString(0)
+
+		cli.printChain(db)
+
+	case "addtx":
 		cli.addTX()
-	}
 
-	if getBalanceCmd.Parsed() {
-		if *getBalanceAddress == "" {
-			getBalanceCmd.Usage()
-			os.Exit(1)
-		}
-		cli.getBalance(*getBalanceAddress)
+	default:
+		cli.printHelpAndExit()
 	}
 }
 
-func (cli *CLI) printHelp() {
-	fmt.Println("===== Help menu =====")
-	fmt.Println("go run *.go createwallet                  --- Creates a wallet with a pair of keys")
-	fmt.Println("go run *.go createbc -address ADDRESS     --- Creates new blockchain. ADDRESS gets genesis reward")
-	fmt.Println("go run *.go printchain                    --- Print all the blocks in the blockchain")
-	fmt.Println("go run *.go printaddresses                --- Lists all addresses in walletFile")
-	fmt.Println("go run *.go node PORT SEED_IP             --- start up a full node")
-	fmt.Println("go run *.go addtx                         --- Add transaction to mempool")
-	fmt.Println("go run *.go getbalance -address ADDRESS   --- gets the balance for an address")
-	fmt.Println("go run *.go order BUY_AMT BUY_SYMBOL SELL_AMT SELL_SYMBOL ADDRESS NODE")
-	fmt.Println("go run *.go transfer BUY_AMT BUY_SYMBOL SELL_AMT SELL_SYMBOL ADDRESS NODE")
-	fmt.Println("go run *.go cancel SYMBOL ORDER_ID NODE")
+func (cli *CLI) getString(index int) string {
+	if len(os.Args)-3 < index {
+		cli.printHelpAndExit()
+	}
+
+	return os.Args[index+2]
 }
+
+func (cli *CLI) getUint(index int) uint64 {
+	s := cli.getString(index)
+	i, err := strconv.Atoi(s)
+
+	if err != nil {
+		cli.printHelpAndExit()
+	}
+
+	return uint64(i)
+}
+
+func (cli *CLI) printHelpAndExit() {
+	fmt.Print(helpMessage)
+	os.Exit(1)
+}
+
+///////////////////////////////////////////////////////
+// CLI commands that really should live somewhere else
 
 func (cli *CLI) getBalance(address string) {
 	bcs := CreateNewBlockchains("blockchain.db")
@@ -160,8 +156,8 @@ func (cli *CLI) getBalance(address string) {
 	fmt.Printf("Balance: %v\n", result)
 }
 
-func (cli *CLI) printChain() {
-	bcs := CreateNewBlockchains("blockchain.db")
+func (cli *CLI) printChain(db string) {
+	bcs := CreateNewBlockchains(db + ".db")
 	bc := bcs.chains[MATCH_CHAIN]
 	defer bc.db.Close()
 
@@ -215,19 +211,11 @@ func (cli *CLI) createWallet() {
 	fmt.Printf("New wallet's address: %s\n", address)
 }
 
-func (cli *CLI) node(args []string) {
-	// TODO: parse args properly
-	port, _ := strconv.Atoi(args[2])
-	seed := args[3]
-
-	StartNode(uint(port), seed)
-}
-
 func (cli *CLI) createBC(address string) {
 	bcs := CreateNewBlockchains("blockchain.db")
 	bc := bcs.chains[NATIVE_CHAIN]
 	transfer := Transfer{
-		ID: 2,
+		ID:          2,
 		Amount:      10,
 		FromAddress: "Satoshi",
 		ToAddress:   "Negansoft",
@@ -243,22 +231,15 @@ func (cli *CLI) createBC(address string) {
 }
 
 func (cli *CLI) addTX() {
-	/*block := NewGenesisBlock()
-	pow := NewProofOfWork(block)
-	ok, nonce, _ :=pow.Try(99999999999)
-	if ok {
-		fmt.Printf("Nonce: %v", nonce)
-	}*/
-
 	transfer := Transfer{
-		ID: 1,
+		ID:          1,
 		Amount:      50,
 		FromAddress: "Satoshi",
 		ToAddress:   "Negansoft",
 		Signature:   nil,
 	}
 
-	bcs := CreateNewBlockchains("blockchain.db")
+	bcs := CreateNewBlockchains("blockchains.db")
 	bcs.AddTransactionToMempool(
 		GenericTransaction{transfer, TRANSFER},
 		NATIVE_CHAIN,

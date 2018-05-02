@@ -49,7 +49,7 @@ const (
 	UNKNOWN
 )
 
-func StartNode(port uint, seedIp string) {
+func StartNode(port uint64, seedIp string) {
 	myIp := fmt.Sprintf("127.0.0.1:%v", port)
 	dbName := fmt.Sprintf("db/%v.db", port)
 
