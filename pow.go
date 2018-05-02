@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
-	"fmt"
-	"log"
 	"math"
 	"math/big"
 	"math/rand"
@@ -36,7 +34,7 @@ func IntToHex(num int64) []byte {
 	buff := new(bytes.Buffer)
 	err := binary.Write(buff, binary.BigEndian, num)
 	if err != nil {
-		log.Panic(err)
+		LogPanic(err.Error())
 	}
 
 	return buff.Bytes()
@@ -69,7 +67,7 @@ func (pow *ProofOfWork) Try(iterations int) (bool, int, []byte) {
 		rand := rand.Intn(maxNonce)
 		success, nonce, hash := pow.Calculate(rand)
 		if success {
-			fmt.Println("MINING SUCCESS")
+			Log("MINING SUCCESS")
 			return success, nonce, hash
 		}
 	}

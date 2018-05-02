@@ -55,12 +55,12 @@ func StartNode(port uint64, seedIp string) {
 
 	addr, err := net.ResolveTCPAddr("tcp", myIp)
 	if err != nil {
-		log.Fatal(err)
+		LogFatal(err.Error())
 	}
 
 	inbound, err := net.ListenTCP("tcp", addr)
 	if err != nil {
-		log.Fatal(err)
+		LogFatal(err.Error())
 	}
 
 	mu := sync.RWMutex{}
@@ -75,7 +75,7 @@ func StartNode(port uint64, seedIp string) {
 	go node.connectPeerIfNew(seedIp)
 	go node.invLoop()
 
-	log.Printf("Listening on %s", myIp)
+	Log("Listening on %s", myIp)
 	rpc.Accept(inbound)
 }
 
@@ -92,8 +92,8 @@ type VersionArgs struct {
 }
 
 func (node *Node) Version(args *VersionArgs, reply *bool) error {
-	log.Printf("Received VERSION from %s", args.From)
-	defer log.Printf("Done handling VERSION from %s", args.From)
+	Log("Received VERSION from %s", args.From)
+	defer Log("Done handling VERSION from %s", args.From)
 
 	isNew, _, err := node.connectPeerIfNew(args.From)
 	if !isNew {
@@ -118,8 +118,8 @@ func (node *Node) SendVersion(peer *Peer) {
 }
 
 func (node *Node) callVersion(peer *Peer, args *VersionArgs) {
-	log.Printf("Sending VERSION to %s", peer.ip)
-	defer log.Printf("Done sending VERSION to %s", peer.ip)
+	Log("Sending VERSION to %s", peer.ip)
+	defer Log("Done sending VERSION to %s", peer.ip)
 
 	var reply bool
 	err := peer.client.Call("Node.Version", &args, &reply)
@@ -138,12 +138,12 @@ type AddrArgs struct {
 }
 
 func (node *Node) Addr(args *AddrArgs, reply *bool) error {
-	log.Printf("Received ADDR from %s", args.From)
-	defer log.Printf("Done handling ADDR from %s", args.From)
+	Log("Received ADDR from %s", args.From)
+	defer Log("Done handling ADDR from %s", args.From)
 
 	peerState := node.getPeerState(args.From)
 	if peerState != ACTIVE && peerState != FOUND {
-		log.Printf("Received ADDR from inactive or unknown peer %s", args.From)
+		Log("Received ADDR from inactive or unknown peer %s", args.From)
 		*reply = false
 		return nil
 	}
@@ -177,8 +177,8 @@ func (node *Node) getAddrArgs() *AddrArgs {
 }
 
 func (node *Node) callAddr(peer *Peer, args *AddrArgs) {
-	log.Printf("Sending ADDR to %s", peer.ip)
-	defer log.Printf("Done sending ADDR to %s", peer.ip)
+	Log("Sending ADDR to %s", peer.ip)
+	defer Log("Done sending ADDR to %s", peer.ip)
 
 	var reply bool
 	err := peer.client.Call("Node.Addr", args, &reply)
@@ -198,12 +198,12 @@ type InvArgs struct {
 }
 
 func (node *Node) Inv(args *InvArgs, reply *bool) error {
-	log.Printf("Received INV from %s", args.From)
-	defer log.Printf("Done handling INV from %s", args.From)
+	Log("Received INV from %s", args.From)
+	defer Log("Done handling INV from %s", args.From)
 
 	peerState := node.getPeerState(args.From)
 	if peerState != ACTIVE && peerState != FOUND {
-		log.Printf("Received INV from inactive or unknown peer %s", args.From)
+		Log("Received INV from inactive or unknown peer %s", args.From)
 		*reply = false
 		return nil
 	}
@@ -244,8 +244,8 @@ func (node *Node) getInvArgs() *InvArgs {
 }
 
 func (node *Node) callInv(peer *Peer, args *InvArgs) {
-	log.Printf("Sending INV to %s", peer.ip)
-	defer log.Printf("Done sending INV to %s", peer.ip)
+	Log("Sending INV to %s", peer.ip)
+	defer Log("Done sending INV to %s", peer.ip)
 
 	var reply bool
 	err := peer.client.Call("Node.Inv", args, &reply)
@@ -280,12 +280,12 @@ type GetBlockReply struct {
 }
 
 func (node *Node) GetBlock(args *GetBlockArgs, reply *GetBlockReply) error {
-	log.Printf("Received GETBLOCK from %s", args.From)
-	defer log.Printf("Done handling GETBLOCK from %s", args.From)
+	Log("Received GETBLOCK from %s for block %x on chain %s", args.From, args.Blockhash, args.Symbol)
+	defer Log("Done handling GETBLOCK from %s for block %x on chain %s", args.From, args.Blockhash, args.Symbol)
 
 	peerState := node.getPeerState(args.From)
 	if peerState != ACTIVE && peerState != FOUND {
-		log.Printf("Received GETBLOCK from inactive or unknown peer %s", args.From)
+		Log("Received GETBLOCK from inactive or unknown peer %s for block %x on chain %s", args.From, args.Blockhash, args.Symbol)
 		*reply = GetBlockReply{false, Block{}}
 	}
 
@@ -314,8 +314,8 @@ func (node *Node) SendGetBlock(peer *Peer, blockhash []byte, symbol string) (*Bl
 }
 
 func (node *Node) callGetBlock(peer *Peer, args *GetBlockArgs) (*GetBlockReply, error) {
-	log.Printf("Sending GETBLOCK to %s", peer.ip)
-	defer log.Printf("Done sending GETBLOCK to %s", peer.ip)
+	Log("Sending GETBLOCK to %s for block %x on chain %s", peer.ip, args.Blockhash, args.Symbol)
+	defer Log("Done sending GETBLOCK to %s for block %x on chain %s", peer.ip, args.Blockhash, args.Symbol)
 
 	reply := &GetBlockReply{}
 	err := peer.client.Call("Node.GetBlock", args, reply)
@@ -340,8 +340,8 @@ func (node *Node) Tx(args *TxArgs, reply *bool) error {
 		from = "client"
 	}
 
-	log.Printf("Received TX from %s %v", from, args.Tx)
-	defer log.Printf("Done handling TX from %s", from)
+	Log("Received TX from %s %v", from, args.Tx)
+	defer Log("Done handling TX from %s", from)
 
 	new := node.bcs.AddTransactionToMempool(args.Tx, args.Symbol)
 
@@ -364,8 +364,8 @@ func (node *Node) BroadcastTx(tx *GenericTransaction, symbol string) {
 }
 
 func (node *Node) callTx(peer *Peer, args *TxArgs) {
-	log.Printf("Sending TX to %s", peer.ip)
-	defer log.Printf("Done sending TX to %s", peer.ip)
+	Log("Sending TX to %s %v", peer.ip, args.Tx)
+	defer Log("Done sending TX to %s", peer.ip)
 
 	var reply bool
 	err := peer.client.Call("Node.Tx", args, &reply)
@@ -389,11 +389,11 @@ func (node *Node) connectPeerIfNew(peerIp string) (isNew bool, peer *Peer, err e
 
 	node.mu.Unlock()
 
-	log.Printf("Attempting to connect to peer %s", peerIp)
+	Log("Attempting to connect to peer %s", peerIp)
 
 	client, err := rpc.Dial("tcp", peerIp)
 	if err != nil {
-		log.Printf("Dialing error connecting to peer %s", peerIp)
+		Log("Dialing error connecting to peer %s", peerIp)
 		node.setPeerState(peerIp, INVALID)
 
 		return true, nil, err
@@ -409,7 +409,7 @@ func (node *Node) connectPeerIfNew(peerIp string) (isNew bool, peer *Peer, err e
 	node.BroadcastAddr()
 
 	ips := node.getPeerIps()
-	log.Printf("Connected peer %s, known peers: %v", peerIp, ips)
+	Log("Connected peer %s, known peers: %v", peerIp, ips)
 
 	return true, peer, nil
 }
@@ -424,8 +424,8 @@ func (node *Node) reconcileChain(peerIp string, symbol string, theirBlockhashes 
 	myHeight := bc.GetStartHeight()
 	bci := bc.Iterator()
 
-	log.Printf("Reconciling chain %s with peer %s (myHeight %v, theirHeight %v)", symbol, peerIp, myHeight, theirHeight)
-	defer log.Printf("Finished reconciling chain %s with peer %s", symbol, peerIp)
+	Log("Reconciling chain %s with peer %s (myHeight %v, theirHeight %v)", symbol, peerIp, myHeight, theirHeight)
+	defer Log("Finished reconciling chain %s with peer %s", symbol, peerIp)
 
 	height := myHeight
 	theirIdx := theirHeight - myHeight
@@ -438,28 +438,28 @@ func (node *Node) reconcileChain(peerIp string, symbol string, theirBlockhashes 
 	}
 
 	if int(theirIdx) == len(theirBlockhashes) || block == nil {
-		log.Printf("Ran out of blockhashes reconciling chain %s with peer %s", symbol, peerIp)
+		Log("Ran out of blockhashes reconciling chain %s with peer %s", symbol, peerIp)
 		return errors.New("more blockhashes needed")
 	}
 	node.bcs.chainsLock.RUnlock()
 
 	if height != myHeight {
-		log.Printf("Found fork at height %v while reconciling chain %s with peer %s", height, symbol, peerIp)
+		Log("Found fork at height %v while reconciling chain %s with peer %s", height, symbol, peerIp)
 		node.bcs.RollbackToHeight(symbol, height)
 	}
 
 	for i := height + 1; i <= theirHeight; i++ {
 		theirIdx--
 
-		log.Printf("Getting block at height %v on chain %s from peer %s", i, symbol, peerIp)
+		Log("Getting block at height %v on chain %s from peer %s", i, symbol, peerIp)
 		block, err := node.SendGetBlock(peer, theirBlockhashes[theirIdx], symbol)
 
 		if err != nil {
-			log.Printf(err.Error())
+			Log(err.Error())
 			return err
 		}
 
-		log.Printf("Received block at height %v on chain %s from peer %s (blockhash %x)", i, symbol, peerIp, block.Hash)
+		Log("Received block at height %v on chain %s from peer %s (blockhash %x)", i, symbol, peerIp, block.Hash)
 		node.bcs.AddBlock(symbol, *block, true)
 	}
 
@@ -471,7 +471,7 @@ func (node *Node) reconcileChain(peerIp string, symbol string, theirBlockhashes 
 
 func (node *Node) handleRpcReply(peer *Peer, err error) {
 	if err != nil {
-		log.Print(err)
+		Log(err.Error())
 		node.setPeerState(peer.ip, INVALID)
 	}
 }

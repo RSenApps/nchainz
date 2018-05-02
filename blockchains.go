@@ -3,9 +3,7 @@ package main
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"github.com/boltdb/bolt"
-	"log"
 	"math/rand"
 	"os"
 	"sync"
@@ -222,7 +220,7 @@ func (blockchains *Blockchains) AddBlocks(symbol string, blocks []Block, takeLoc
 	failed := false
 	for _, block := range blocks {
 		if !bytes.Equal(blockchains.chains[symbol].tipHash, block.PrevBlockHash) {
-			log.Printf("prevBlockHash does not match tipHash %v != %v \n", blockchains.chains[symbol].tipHash, block.PrevBlockHash)
+			Log("prevBlockHash does not match tipHash %x != %x \n", blockchains.chains[symbol].tipHash, block.PrevBlockHash)
 			failed = true
 			break
 		}
@@ -230,7 +228,7 @@ func (blockchains *Blockchains) AddBlocks(symbol string, blocks []Block, takeLoc
 		//TODO:
 		pow := NewProofOfWork(&block)
 		if !pow.Validate() {
-			log.Println("Proof of work of block is invalid")
+			Log("Proof of work of block is invalid")
 			/*DEBUG failed = true
 			break*/
 		}
@@ -347,7 +345,7 @@ func CreateNewBlockchains(dbName string) *Blockchains {
 	// Open BoltDB file
 	db, err := bolt.Open(dbName, 0600, nil)
 	if err != nil {
-		log.Panic(err)
+		LogPanic(err.Error())
 	}
 	blockchains.db = db
 
@@ -447,7 +445,7 @@ func (blockchains *Blockchains) AddTransactionToMempool(tx GenericTransaction, s
 
 func (blockchains *Blockchains) StartMining() {
 	blockchains.mempoolsLock.Lock()
-	fmt.Println("Start mining")
+	Log("Start mining")
 	// Pick a random token to start mining
 	var tokens []string
 	for token := range blockchains.mempools {
@@ -460,10 +458,10 @@ func (blockchains *Blockchains) StartMining() {
 	// Send new block message
 	switch blockchains.minerChosenToken {
 	case MATCH_CHAIN:
-		fmt.Println("Starting match block")
+		Log("Starting match block")
 		blockchains.miner.minerCh <- MinerMsg{NewBlockMsg{MATCH_BLOCK, blockchains.chains[blockchains.minerChosenToken].tipHash, blockchains.minerChosenToken}, true}
 	default:
-		fmt.Println("Starting native block")
+		Log("Starting native block")
 		blockchains.miner.minerCh <- MinerMsg{NewBlockMsg{TOKEN_BLOCK, blockchains.chains[blockchains.minerChosenToken].tipHash, blockchains.minerChosenToken}, true}
 	}
 
@@ -496,7 +494,7 @@ func (blockchains *Blockchains) StartMining() {
 			blockchains.chainsLock.Unlock()
 
 			// Send transaction to miner
-			fmt.Println("Sending from re-validated mempool")
+			Log("Sending from re-validated mempool")
 			blockchains.miner.minerCh <- MinerMsg{tx, false}
 		}
 	}(blockchains.minerChosenToken, txInPool)
@@ -511,7 +509,7 @@ func (blockchains *Blockchains) ApplyLoop() {
 			//state was applied during validation so just add to chain
 			if !bytes.Equal(blockchains.chains[blockMsg.Symbol].tipHash, blockMsg.Block.PrevBlockHash) {
 				//block failed so retry
-				log.Printf("miner prevBlockHash does not match tipHash %v != %v \n", blockchains.chains[blockMsg.Symbol].tipHash, blockMsg.Block.PrevBlockHash)
+				Log("miner prevBlockHash does not match tipHash %x != %x \n", blockchains.chains[blockMsg.Symbol].tipHash, blockMsg.Block.PrevBlockHash)
 
 				blockchains.mempoolsLock.Lock()
 				blockchains.mempoolUncommitted[blockMsg.Symbol].undoTransactions(blockMsg.Symbol, blockchains)

@@ -1,7 +1,5 @@
 package main
 
-import "fmt"
-
 type NewBlockMsg struct {
 	BlockType BlockType // type of block we are adding transactions to
 	LastHash  []byte    // hash of previous block
@@ -50,7 +48,7 @@ func (miner *Miner) mineLoop() {
 						Transfers:  nil,
 					}
 					block = NewBlock(tokenData, newBlock.BlockType, newBlock.LastHash)
-					fmt.Println("Mining new block:", newBlock.Symbol, newBlock.BlockType)
+					Log("Mining new block: %s %v", newBlock.Symbol, newBlock.BlockType)
 				}
 			} else {
 				transaction := msg.Msg.(GenericTransaction)
@@ -66,9 +64,9 @@ func (miner *Miner) mineLoop() {
 				}
 				if block == nil {
 					miner.transactions = append(miner.transactions, transaction)
-					fmt.Println("Transaction added to array:", transaction)
+					Log("Transaction added to array: %v", transaction)
 				} else {
-					fmt.Println("Transaction added to block:", transaction)
+					Log("Transaction added to block: %v", transaction)
 					block.AddTransaction(transaction)
 				}
 			}
