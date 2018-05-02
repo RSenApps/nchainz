@@ -69,7 +69,7 @@ func (bc *Blockchain) AddBlock(block Block) {
 		}
 
 		// Update tip
-		bc.tipHash = block.Hash
+		copy(bc.tipHash, block.Hash)
 		return nil
 	})
 
@@ -96,7 +96,7 @@ func (bc *Blockchain) RemoveLastBlock() BlockData {
 		}
 
 		// Update tip to second to last block
-		bc.tipHash = prevBlock.Hash
+		copy(bc.tipHash, prevBlock.Hash)
 		return nil
 	})
 
@@ -210,7 +210,7 @@ func (bc *Blockchain) getTipHash() []byte {
 	// Read-only transaction to get hash of last block
 	err := bc.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(bc.bucketName))
-		lastHash = b.Get([]byte("l"))
+		copy(lastHash, b.Get([]byte("l")))
 		return nil
 	})
 
