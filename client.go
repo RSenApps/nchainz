@@ -76,7 +76,7 @@ func (client *Client) Cancel(symbol string, orderId uint64) {
 	cancel := CancelOrder{symbol, orderId, empty}
 	tx := &GenericTransaction{cancel, CANCEL_ORDER}
 
-	client.SendTx(tx, symbol)
+	client.SendTx(tx, MATCH_CHAIN)
 }
 
 func (client *Client) Claim(amount uint64, symbol string, address string) {
@@ -98,5 +98,5 @@ func (client *Client) Create(symbol string, supply uint64, decimals uint8, addre
 	create := CreateToken{tokenInfo, address, empty}
 	tx := &GenericTransaction{create, CREATE_TOKEN}
 
-	client.SendTx(tx, symbol)
+	client.SendTx(tx, MATCH_CHAIN)
 }

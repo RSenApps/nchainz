@@ -46,7 +46,7 @@ func IntToHex(num int64) []byte {
 // Merge block fields with target and nonce (counter)
 //
 func (pow *ProofOfWork) prepareData(nonce int) []byte {
-	blockBytes := []byte(fmt.Sprintf("%v", pow.block.Data))
+	blockBytes := GetBytes(pow.block.Data)
 	data := bytes.Join(
 		[][]byte{
 			pow.block.PrevBlockHash,
