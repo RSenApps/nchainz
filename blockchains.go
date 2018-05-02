@@ -15,18 +15,18 @@ const MATCH_CHAIN = "MATCH"
 const NATIVE_CHAIN = "NATIVE"
 
 type Blockchains struct {
-	chains          map[string]*Blockchain
-	consensusState  ConsensusState
-	chainsLock      *sync.RWMutex
-	db              *bolt.DB
-	mempools        map[string]map[*GenericTransaction]bool // map of sets
+	chains             map[string]*Blockchain
+	consensusState     ConsensusState
+	chainsLock         *sync.RWMutex
+	db                 *bolt.DB
+	mempools           map[string]map[*GenericTransaction]bool // map of sets
 	mempoolUncommitted UncommittedTransactions
-	mempoolsLock    *sync.Mutex
-	finishedBlockCh chan BlockMsg
-	stopMiningCh    chan string
-	miner           *Miner
-	minerChosenToken string
-	recovering      bool
+	mempoolsLock       *sync.Mutex
+	finishedBlockCh    chan BlockMsg
+	stopMiningCh       chan string
+	miner              *Miner
+	minerChosenToken   string
+	recovering         bool
 }
 
 type UncommittedTransactions struct {
@@ -39,8 +39,8 @@ func (uncommitted *UncommittedTransactions) addTransaction(transaction GenericTr
 
 func (uncommitted *UncommittedTransactions) undoTransactions(symbol string, state *ConsensusState) {
 	for i := len(uncommitted.transactions) - 1; i >= 0; i-- {
-		transaction := uncommitted.transactions[i].transaction
-		switch uncommitted.transactions[i].transactionType {
+		transaction := uncommitted.transactions[i].Transaction
+		switch uncommitted.transactions[i].TransactionType {
 		case ORDER:
 			state.RollbackOrder(symbol, transaction.(Order))
 		case CANCEL_ORDER:
@@ -112,13 +112,19 @@ func (blockchains *Blockchains) RollbackToHeight(symbol string, height uint64) {
 
 func (blockchains *Blockchains) addGenericTransaction(symbol string, transaction GenericTransaction, uncommitted *UncommittedTransactions) bool {
 	success := false
-	switch transaction.transactionType {
-	case ORDER: success = blockchains.consensusState.AddOrder(symbol, transaction.transaction.(Order))
-	case CLAIM_FUNDS: success = blockchains.consensusState.AddClaimFunds(symbol, transaction.transaction.(ClaimFunds))
-	case TRANSFER: success = blockchains.consensusState.AddTransfer(symbol, transaction.transaction.(Transfer))
-	case MATCH: success = blockchains.consensusState.AddMatch(transaction.transaction.(Match))
-	case CANCEL_ORDER: success = blockchains.consensusState.AddCancelOrder(transaction.transaction.(CancelOrder))
-	case CREATE_TOKEN: success = blockchains.consensusState.AddCreateToken(transaction.transaction.(CreateToken), blockchains)
+	switch transaction.TransactionType {
+	case ORDER:
+		success = blockchains.consensusState.AddOrder(symbol, transaction.Transaction.(Order))
+	case CLAIM_FUNDS:
+		success = blockchains.consensusState.AddClaimFunds(symbol, transaction.Transaction.(ClaimFunds))
+	case TRANSFER:
+		success = blockchains.consensusState.AddTransfer(symbol, transaction.Transaction.(Transfer))
+	case MATCH:
+		success = blockchains.consensusState.AddMatch(transaction.Transaction.(Match))
+	case CANCEL_ORDER:
+		success = blockchains.consensusState.AddCancelOrder(transaction.Transaction.(CancelOrder))
+	case CREATE_TOKEN:
+		success = blockchains.consensusState.AddCreateToken(transaction.Transaction.(CreateToken), blockchains)
 	}
 	if !success {
 		return false
@@ -129,9 +135,9 @@ func (blockchains *Blockchains) addGenericTransaction(symbol string, transaction
 
 func (blockchains *Blockchains) addTokenData(symbol string, tokenData TokenData, uncommitted *UncommittedTransactions) bool {
 	for _, order := range tokenData.Orders {
-		tx := GenericTransaction {
-			transaction:     order,
-			transactionType: ORDER,
+		tx := GenericTransaction{
+			Transaction:     order,
+			TransactionType: ORDER,
 		}
 		if !blockchains.addGenericTransaction(symbol, tx, uncommitted) {
 			return false
@@ -139,9 +145,9 @@ func (blockchains *Blockchains) addTokenData(symbol string, tokenData TokenData,
 	}
 
 	for _, claimFunds := range tokenData.ClaimFunds {
-		tx := GenericTransaction {
-			transaction:     claimFunds,
-			transactionType: CLAIM_FUNDS,
+		tx := GenericTransaction{
+			Transaction:     claimFunds,
+			TransactionType: CLAIM_FUNDS,
 		}
 		if !blockchains.addGenericTransaction(symbol, tx, uncommitted) {
 			return false
@@ -149,9 +155,9 @@ func (blockchains *Blockchains) addTokenData(symbol string, tokenData TokenData,
 	}
 
 	for _, transfer := range tokenData.Transfers {
-		tx := GenericTransaction {
-			transaction:     transfer,
-			transactionType: TRANSFER,
+		tx := GenericTransaction{
+			Transaction:     transfer,
+			TransactionType: TRANSFER,
 		}
 		if !blockchains.addGenericTransaction(symbol, tx, uncommitted) {
 			return false
@@ -162,9 +168,9 @@ func (blockchains *Blockchains) addTokenData(symbol string, tokenData TokenData,
 
 func (blockchains *Blockchains) addMatchData(matchData MatchData, uncommitted *UncommittedTransactions) bool {
 	for _, match := range matchData.Matches {
-		tx := GenericTransaction {
-			transaction:     match,
-			transactionType: MATCH,
+		tx := GenericTransaction{
+			Transaction:     match,
+			TransactionType: MATCH,
 		}
 		if !blockchains.addGenericTransaction(MATCH_CHAIN, tx, uncommitted) {
 			return false
@@ -172,9 +178,9 @@ func (blockchains *Blockchains) addMatchData(matchData MatchData, uncommitted *U
 	}
 
 	for _, cancelOrder := range matchData.CancelOrders {
-		tx := GenericTransaction {
-			transaction:     cancelOrder,
-			transactionType: CANCEL_ORDER,
+		tx := GenericTransaction{
+			Transaction:     cancelOrder,
+			TransactionType: CANCEL_ORDER,
 		}
 		if !blockchains.addGenericTransaction(MATCH_CHAIN, tx, uncommitted) {
 			return false
@@ -182,9 +188,9 @@ func (blockchains *Blockchains) addMatchData(matchData MatchData, uncommitted *U
 	}
 
 	for _, createToken := range matchData.CreateTokens {
-		tx := GenericTransaction {
-			transaction:     createToken,
-			transactionType: CREATE_TOKEN,
+		tx := GenericTransaction{
+			Transaction:     createToken,
+			TransactionType: CREATE_TOKEN,
 		}
 		if !blockchains.addGenericTransaction(MATCH_CHAIN, tx, uncommitted) {
 			return false
@@ -199,7 +205,7 @@ func (blockchains *Blockchains) AddBlock(symbol string, block Block, takeLock bo
 
 func (blockchains *Blockchains) AddBlocks(symbol string, blocks []Block, takeLock bool) bool {
 	if !blockchains.recovering && blockchains.minerChosenToken == symbol {
-		go func() {blockchains.stopMiningCh <- symbol}()
+		go func() { blockchains.stopMiningCh <- symbol }()
 		blockchains.mempoolsLock.Lock()
 		blockchains.mempoolUncommitted.undoTransactions(symbol, &blockchains.consensusState)
 		blockchains.mempoolUncommitted = UncommittedTransactions{}
@@ -462,7 +468,6 @@ func (blockchains *Blockchains) StartMining() {
 	}
 	blockchains.mempoolsLock.Unlock()
 
-
 	//Send stuff currently in mem pool (re-validate too)
 	go func(currentToken string, transactions []GenericTransaction) {
 		for _, tx := range txInPool {
@@ -526,8 +531,6 @@ func (blockchains *Blockchains) ApplyLoop() {
 		}
 
 		blockchains.StartMining()
-
-
 
 	}
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"math"
+	"math/rand"
 	"sync"
 )
 
@@ -62,7 +63,8 @@ func (ob *Orderbook) Match() (found bool, match *Match, spread uint64) {
 	}
 
 	found = true
-	match = &Match{0, ob.BaseSymbol, sellOrder.ID, ob.QuoteSymbol, buyOrder.ID, uint64(transferAmt)}
+	id := rand.Uint64()
+	match = &Match{id, ob.BaseSymbol, sellOrder.ID, ob.QuoteSymbol, buyOrder.ID, uint64(transferAmt)}
 	spread = buyerBaseLoss - sellerBaseGain
 
 	ob.QuoteQueue.Deq()
