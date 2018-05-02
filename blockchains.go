@@ -198,17 +198,17 @@ func (blockchains *Blockchains) AddBlock(symbol string, block Block, takeLock bo
 }
 
 func (blockchains *Blockchains) AddBlocks(symbol string, blocks []Block, takeLock bool) bool {
-	if takeLock {
-		blockchains.chainsLock.Lock()
-		defer blockchains.chainsLock.Unlock()
-	}
-
 	if !blockchains.recovering && blockchains.minerChosenToken == symbol {
 		go func() {blockchains.stopMiningCh <- symbol}()
 		blockchains.mempoolsLock.Lock()
 		blockchains.mempoolUncommitted.undoTransactions(symbol, &blockchains.consensusState)
 		blockchains.mempoolUncommitted = UncommittedTransactions{}
 		blockchains.mempoolsLock.Unlock()
+	}
+
+	if takeLock {
+		blockchains.chainsLock.Lock()
+		defer blockchains.chainsLock.Unlock()
 	}
 
 	blocksAdded := 0
@@ -409,6 +409,7 @@ func (blockchains *Blockchains) AddTransactionToMempool(tx GenericTransaction, s
 
 	blockchains.mempoolsLock.Lock()
 	if _, ok := blockchains.mempools[symbol][&tx]; ok {
+		blockchains.mempoolsLock.Unlock()
 		return false
 	}
 
@@ -467,6 +468,7 @@ func (blockchains *Blockchains) StartMining() {
 				blockchains.mempoolsLock.Unlock()
 				return
 			}
+			blockchains.mempoolsLock.Unlock()
 
 			blockchains.chainsLock.Lock()
 			// Validate transaction
@@ -495,19 +497,20 @@ func (blockchains *Blockchains) ApplyLoop() {
 			if !bytes.Equal(blockchains.chains[blockMsg.Symbol].tipHash, blockMsg.Block.PrevBlockHash) {
 				//block failed so retry
 				log.Printf("miner prevBlockHash does not match tipHash %v != %v \n", blockchains.chains[blockMsg.Symbol].tipHash, blockMsg.Block.PrevBlockHash)
-				blockchains.chainsLock.Unlock()
 
 				blockchains.mempoolsLock.Lock()
 				blockchains.mempoolUncommitted.undoTransactions(blockMsg.Symbol, &blockchains.consensusState)
+				//WARNING taking both locks always take chain lock first
+				blockchains.chainsLock.Unlock()
 				blockchains.mempoolUncommitted = UncommittedTransactions{}
 				blockchains.mempoolsLock.Unlock()
 			} else {
 				blockchains.chains[blockMsg.Symbol].AddBlock(blockMsg.Block)
 				blockchains.chainsLock.Unlock()
 
+				blockchains.mempoolsLock.Lock()
 				blockchains.mempoolUncommitted = UncommittedTransactions{}
 
-				blockchains.mempoolsLock.Lock()
 				//assume that all transactions for token have been added to block so delete mempool
 				blockchains.mempools[blockMsg.Symbol] = make(map[*GenericTransaction]bool)
 				blockchains.mempoolsLock.Unlock()
