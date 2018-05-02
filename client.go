@@ -20,8 +20,8 @@ func NewClient(serverIp string) (*Client, error) {
 	return client, nil
 }
 
-func (client *Client) SendTx(tx *GenericTransaction) error {
-	args := TxArgs{*tx, ""}
+func (client *Client) SendTx(tx *GenericTransaction, symbol string) error {
+	args := TxArgs{*tx, symbol, ""}
 	var reply bool
 
 	err := client.rpc.Call("Node.Tx", &args, &reply)
