@@ -12,7 +12,7 @@ import (
 )
 
 // Controls difficulty of mining
-const targetBits = 21
+const targetBits = 20
 
 // Maximum value of counter
 var maxNonce = math.MaxInt64
@@ -65,7 +65,6 @@ func (pow *ProofOfWork) prepareData(nonce int) []byte {
 // Returns nonce and hash
 //
 func (pow *ProofOfWork) Try(iterations int) (bool, int, []byte) {
-	rand.Seed(0)
 	for i := 0; i < iterations; i++ {
 		rand := rand.Intn(maxNonce)
 		success, nonce, hash := pow.Calculate(rand)

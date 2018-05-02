@@ -81,6 +81,9 @@ func (state *ConsensusState) RollbackClaimFunds(symbol string, funds ClaimFunds)
 
 func (state *ConsensusState) AddTransfer(symbol string, transfer Transfer) bool {
 	tokenState := state.tokenStates[symbol]
+	if transfer.Amount < 0 {
+		return false
+	}
 	if tokenState.balances[transfer.FromAddress] < transfer.Amount {
 		log.Println("Rejecting block due to insufficient funds")
 		return false

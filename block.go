@@ -128,6 +128,8 @@ func NewGenesisBlock() *Block {
 		CancelOrders: nil,
 		CreateTokens: []CreateToken{createToken},
 	}
+	block := &Block{2, MATCH_BLOCK, matchData, []byte{}, []byte{}, 0}
+	block.Hash = NewProofOfWork(block).GetHash()
 	return NewBlock(matchData, MATCH_BLOCK, []byte{})
 }
 

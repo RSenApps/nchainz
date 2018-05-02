@@ -213,6 +213,14 @@ func (cli *CLI) createBC(address string) {
 }
 
 func (cli *CLI) addTX() {
+	/*block := NewGenesisBlock()
+	pow := NewProofOfWork(block)
+	ok, nonce, _ :=pow.Try(99999999999)
+	if ok {
+		fmt.Printf("Nonce: %v", nonce)
+	}*/
+
+
 	transfer := Transfer{
 		Amount:      50,
 		FromAddress: "Satoshi",
@@ -220,7 +228,7 @@ func (cli *CLI) addTX() {
 		Signature:   nil,
 	}
 
-	bcs := CreateNewBlockchains("blockchains.db")
+	bcs := CreateNewBlockchains("blockchain.db")
 	bcs.AddTransactionToMempool(
 		GenericTransaction{
 			transaction:     transfer,

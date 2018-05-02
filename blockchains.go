@@ -220,6 +220,8 @@ func (blockchains *Blockchains) AddBlocks(symbol string, blocks []Block, takeLoc
 			failed = true
 			break
 		}
+
+		//TODO:
 		pow := NewProofOfWork(&block)
 		if !pow.Validate() {
 			log.Println("Proof of work of block is invalid")
@@ -352,6 +354,7 @@ func CreateNewBlockchains(dbName string) *Blockchains {
 	} else {
 		blockchains.recovering = true
 		blockchains.restoreFromDatabase()
+		blockchains.recovering = false
 	}
 
 	go blockchains.StartMining()
@@ -482,6 +485,7 @@ func (blockchains *Blockchains) StartMining() {
 			blockchains.chainsLock.Unlock()
 
 			// Send transaction to miner
+			fmt.Println("Sending from re-validated mempool")
 			blockchains.miner.minerCh <- MinerMsg{tx, false}
 		}
 	}(chosenToken, txInPool)
