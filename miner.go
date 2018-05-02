@@ -32,6 +32,7 @@ func (miner *Miner) mineLoop() {
 		case msg := <-miner.minerCh:
 			// Stop mining
 			if msg.IsNewBlock {
+				miner.transactions = []GenericTransaction{}
 				newBlock := msg.Msg.(NewBlockMsg)
 				symbol = newBlock.Symbol
 				switch symbol {
