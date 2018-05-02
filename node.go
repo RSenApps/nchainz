@@ -431,13 +431,13 @@ func (node *Node) reconcileChain(peerIp string, symbol string, theirBlockhashes 
 	theirIdx := theirHeight - myHeight
 	block, _ := bci.Prev()
 
-	for int(theirIdx) < len(theirBlockhashes) && !bytes.Equal(block.Hash, theirBlockhashes[theirIdx]) {
+	for int(theirIdx) < len(theirBlockhashes) && block != nil && !bytes.Equal(block.Hash, theirBlockhashes[theirIdx]) {
 		height--
 		theirIdx++
 		block, _ = bci.Prev()
 	}
 
-	if int(theirIdx) == len(theirBlockhashes) {
+	if int(theirIdx) == len(theirBlockhashes) || block == nil {
 		log.Printf("Ran out of blockhashes reconciling chain %s with peer %s", symbol, peerIp)
 		return errors.New("more blockhashes needed")
 	}
@@ -459,7 +459,7 @@ func (node *Node) reconcileChain(peerIp string, symbol string, theirBlockhashes 
 			return err
 		}
 
-		log.Printf("Received block at height %v on chain %s from peer %s (blockhash %x)", i, symbol, peerIp, block.Hash, block.PrevBlockHash)
+		log.Printf("Received block at height %v on chain %s from peer %s (blockhash %x)", i, symbol, peerIp, block.Hash)
 		node.bcs.AddBlock(symbol, *block, true)
 	}
 
