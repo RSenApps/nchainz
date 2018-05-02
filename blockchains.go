@@ -449,21 +449,21 @@ func (blockchains *Blockchains) StartMining() {
 	}
 	blockchains.mempoolsLock.Unlock()
 
-	chosenToken := tokens[rand.Intn(len(tokens))]
+	blockchains.minerChosenToken = tokens[rand.Intn(len(tokens))]
 
 	// Send new block message
-	switch chosenToken {
+	switch blockchains.minerChosenToken {
 	case MATCH_CHAIN:
 		fmt.Println("Starting match block")
-		blockchains.miner.minerCh <- MinerMsg{NewBlockMsg{MATCH_BLOCK, blockchains.chains[chosenToken].tipHash, chosenToken}, true}
+		blockchains.miner.minerCh <- MinerMsg{NewBlockMsg{MATCH_BLOCK, blockchains.chains[blockchains.minerChosenToken].tipHash, blockchains.minerChosenToken}, true}
 	default:
 		fmt.Println("Starting native block")
-		blockchains.miner.minerCh <- MinerMsg{NewBlockMsg{TOKEN_BLOCK, blockchains.chains[chosenToken].tipHash, chosenToken}, true}
+		blockchains.miner.minerCh <- MinerMsg{NewBlockMsg{TOKEN_BLOCK, blockchains.chains[blockchains.minerChosenToken].tipHash, blockchains.minerChosenToken}, true}
 	}
 
 	blockchains.mempoolsLock.Lock()
 	var txInPool []GenericTransaction
-	for tx := range blockchains.mempools[chosenToken] {
+	for tx := range blockchains.mempools[blockchains.minerChosenToken] {
 		txInPool = append(txInPool, *tx)
 	}
 	blockchains.mempoolsLock.Unlock()
@@ -480,10 +480,10 @@ func (blockchains *Blockchains) StartMining() {
 
 			blockchains.chainsLock.Lock()
 			// Validate transaction
-			if !blockchains.addGenericTransaction(chosenToken, tx, blockchains.mempoolUncommitted[chosenToken]) {
+			if !blockchains.addGenericTransaction(blockchains.minerChosenToken, tx, blockchains.mempoolUncommitted[blockchains.minerChosenToken]) {
 				blockchains.chainsLock.Unlock()
 				blockchains.mempoolsLock.Lock()
-				delete(blockchains.mempools[chosenToken], &tx)
+				delete(blockchains.mempools[blockchains.minerChosenToken], &tx)
 				blockchains.mempoolsLock.Unlock()
 				continue
 			}
@@ -493,7 +493,7 @@ func (blockchains *Blockchains) StartMining() {
 			fmt.Println("Sending from re-validated mempool")
 			blockchains.miner.minerCh <- MinerMsg{tx, false}
 		}
-	}(chosenToken, txInPool)
+	}(blockchains.minerChosenToken, txInPool)
 }
 
 func (blockchains *Blockchains) ApplyLoop() {

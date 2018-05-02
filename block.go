@@ -154,33 +154,39 @@ func NewBlock(data BlockData, blockType BlockType, prevBlockHash []byte) *Block 
 }
 
 func (b *Block) AddTransaction(tx GenericTransaction) {
-	temp := b.Data
-
-	fmt.Println(temp)
-
+	newData := b.Data
+	
 	switch tx.TransactionType {
 	case MATCH:
-		temp := b.Data.(MatchData)
+		temp := newData.(MatchData)
 		temp.Matches = append(temp.Matches, tx.Transaction.(Match))
+		newData = temp
 	case ORDER:
-		temp := b.Data.(TokenData)
+		temp := newData.(TokenData)
 		temp.Orders = append(temp.Orders, tx.Transaction.(Order))
+		newData = temp
 	case TRANSFER:
-		temp := b.Data.(TokenData)
+		temp := newData.(TokenData)
 		temp.Transfers = append(temp.Transfers, tx.Transaction.(Transfer))
+		newData = temp
 	case CANCEL_ORDER:
-		temp := b.Data.(MatchData)
+		temp := newData.(MatchData)
 		temp.CancelOrders = append(temp.CancelOrders, tx.Transaction.(CancelOrder))
+		newData = temp
 	case CLAIM_FUNDS:
-		temp := b.Data.(TokenData)
+		temp := newData.(TokenData)
 		temp.ClaimFunds = append(temp.ClaimFunds, tx.Transaction.(ClaimFunds))
+		newData = temp
 	case CREATE_TOKEN:
-		temp := b.Data.(MatchData)
+		temp := newData.(MatchData)
 		temp.CreateTokens = append(temp.CreateTokens, tx.Transaction.(CreateToken))
+		newData = temp
 	default:
 		log.Panic("ERROR: unknown transaction type")
 	}
-	b.Data = temp
+	b.Data = newData
+	fmt.Println(b.Data)
+
 }
 
 //
