@@ -391,10 +391,10 @@ func (blockchains *Blockchains) ValidateTransaction(tx GenericTransaction, symbo
 	return validated
 }
 
-func (blockchains *Blockchains) AddTransactionToMempool(tx GenericTransaction, symbol string) {
+func (blockchains *Blockchains) AddTransactionToMempool(tx GenericTransaction, symbol string) bool {
 	blockchains.mempoolsLock.Lock()
 	if _, ok := blockchains.mempools[symbol][&tx]; ok {
-		return
+		return false
 	}
 
 	fmt.Println("Add tx")
@@ -414,6 +414,7 @@ func (blockchains *Blockchains) AddTransactionToMempool(tx GenericTransaction, s
 	} else {
 		blockchains.mempoolsLock.Unlock()
 	}
+	return true
 }
 
 func (blockchains *Blockchains) StartMining() {
