@@ -73,9 +73,7 @@ func (miner *Miner) mineLoop() {
 				}
 
 				pow := NewProofOfWork(block)
-				fmt.Println("Before try")
 				success, nonce, hash := pow.Try(1000)
-				fmt.Println("After try")
 				if success {
 					block.Hash = hash[:]
 					block.Nonce = nonce

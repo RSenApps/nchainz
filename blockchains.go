@@ -335,7 +335,7 @@ func CreateNewBlockchains(dbName string) *Blockchains {
 	}
 	blockchains.db = db
 
-	blockchains.finishedBlockCh = make(chan BlockMsg)
+	blockchains.finishedBlockCh = make(chan BlockMsg, 1000)
 	blockchains.miner = NewMiner(blockchains.finishedBlockCh)
 	blockchains.stopMiningCh = make(chan string, 1000)
 	blockchains.consensusState = NewConsensusState()

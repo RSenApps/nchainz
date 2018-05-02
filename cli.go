@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"time"
 )
 
 // For processing cmd line arguments
@@ -229,6 +230,6 @@ func (cli *CLI) addTX() {
 	)
 
 	for {
-
+		time.Sleep(100 * time.Millisecond)
 	}
 }

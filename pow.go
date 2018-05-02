@@ -12,7 +12,7 @@ import (
 )
 
 // Controls difficulty of mining
-const targetBits = 24
+const targetBits = 21
 
 // Maximum value of counter
 var maxNonce = math.MaxInt64
@@ -46,10 +46,7 @@ func IntToHex(num int64) []byte {
 // Merge block fields with target and nonce (counter)
 //
 func (pow *ProofOfWork) prepareData(nonce int) []byte {
-	fmt.Println("Before prepare data")
 	blockBytes, _ := GetBytes(pow.block.Data)
-
-	fmt.Println("About to join", pow.block.PrevBlockHash, blockBytes, pow.block.Timestamp, targetBits, nonce)
 	data := bytes.Join(
 		[][]byte{
 			pow.block.PrevBlockHash,
@@ -60,7 +57,6 @@ func (pow *ProofOfWork) prepareData(nonce int) []byte {
 		},
 		[]byte{},
 	)
-	fmt.Println("After prepare data\n\n\n")
 	return data
 }
 
@@ -69,18 +65,17 @@ func (pow *ProofOfWork) prepareData(nonce int) []byte {
 // Returns nonce and hash
 //
 func (pow *ProofOfWork) Try(iterations int) (bool, int, []byte) {
-	fmt.Println("MINING")
 	rand.Seed(0)
 	for i := 0; i < iterations; i++ {
-		fmt.Println(i)
 		rand := rand.Intn(maxNonce)
 		success, nonce, hash := pow.Calculate(rand)
 		if success {
+			fmt.Println("MINING SUCCESS")
 			return success, nonce, hash
 		}
 	}
 
-	fmt.Println("Didn't mine successfully")
+	//fmt.Println("Didn't mine successfully")
 	return false, 0, nil
 }
 
@@ -88,8 +83,6 @@ func (pow *ProofOfWork) Try(iterations int) (bool, int, []byte) {
 // Returns nonce and hash
 //
 func (pow *ProofOfWork) Calculate(nonce int) (bool, int, []byte) {
-	fmt.Println("Calculating with nonce", nonce)
-
 	var hashInt big.Int // int representation of hash
 	var hash [32]byte
 

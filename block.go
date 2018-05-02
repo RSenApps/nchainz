@@ -106,13 +106,10 @@ type ClaimFunds struct {
 func GetBytes(key interface{}) ([]byte, error) {
 	var buf bytes.Buffer
 	enc := gob.NewEncoder(&buf)
-	fmt.Println("About to try encoding", key)
 	err := enc.Encode(key)
-	fmt.Println("Result of encoding is", err)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("Done encoding")
 	return buf.Bytes(), nil
 }
 
@@ -168,7 +165,6 @@ func (b *Block) AddTransaction(tx GenericTransaction) {
 	case TRANSFER:
 		temp := b.Data.(TokenData)
 		temp.Transfers = append(temp.Transfers, tx.transaction.(Transfer))
-		fmt.Println("Block data is now", temp.Transfers)
 	case CANCEL_ORDER:
 		temp := b.Data.(MatchData)
 		temp.CancelOrders = append(temp.CancelOrders, tx.transaction.(CancelOrder))
