@@ -80,13 +80,14 @@ func (bc *Blockchain) AddBlock(block Block) {
 }
 
 func (bc *Blockchain) RemoveLastBlock() BlockData {
+	var prevBlock *Block
 	bc.db.Update(func(tx *bolt.Tx) error {
 		// Get bucket
 		b := tx.Bucket([]byte(bc.bucketName))
 
 		// Get second to last block
 		bci := bc.Iterator()
-		prevBlock, _ := bci.Prev()
+		prevBlock, _ = bci.Prev()
 
 		// Delete last bock
 		b.Delete(bc.getTipHash())
@@ -107,7 +108,7 @@ func (bc *Blockchain) RemoveLastBlock() BlockData {
 	bc.height -= 1
 	bc.blockhashes = bc.blockhashes[1:]
 
-	return nil
+	return prevBlock.Data
 }
 
 //
