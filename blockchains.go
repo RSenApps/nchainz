@@ -20,10 +20,12 @@ type Blockchains struct {
 	chainsLock      *sync.RWMutex
 	db              *bolt.DB
 	mempools        map[string]map[*GenericTransaction]bool // map of sets
+	mempoolUncommitted UncommittedTransactions
 	mempoolsLock    *sync.Mutex
 	finishedBlockCh chan BlockMsg
-	stopMiningCh    chan bool
+	stopMiningCh    chan string
 	miner           *Miner
+	minerChosenToken string
 	recovering      bool
 }
 
@@ -108,68 +110,85 @@ func (blockchains *Blockchains) RollbackToHeight(symbol string, height uint64) {
 	}
 }
 
+func (blockchains *Blockchains) addGenericTransaction(symbol string, transaction GenericTransaction, uncommitted *UncommittedTransactions) bool {
+	success := false
+	switch transaction.transactionType {
+	case ORDER: success = blockchains.consensusState.AddOrder(symbol, transaction.transaction.(Order))
+	case CLAIM_FUNDS: success = blockchains.consensusState.AddClaimFunds(symbol, transaction.transaction.(ClaimFunds))
+	case TRANSFER: success = blockchains.consensusState.AddTransfer(symbol, transaction.transaction.(Transfer))
+	case MATCH: success = blockchains.consensusState.AddMatch(transaction.transaction.(Match))
+	case CANCEL_ORDER: success = blockchains.consensusState.AddCancelOrder(transaction.transaction.(CancelOrder))
+	case CREATE_TOKEN: success = blockchains.consensusState.AddCreateToken(transaction.transaction.(CreateToken), blockchains)
+	}
+	if !success {
+		return false
+	}
+	uncommitted.addTransaction(transaction)
+	return true
+}
+
 func (blockchains *Blockchains) addTokenData(symbol string, tokenData TokenData, uncommitted *UncommittedTransactions) bool {
 	for _, order := range tokenData.Orders {
-		if !blockchains.consensusState.AddOrder(symbol, order) {
-			return false
-		}
-		uncommitted.addTransaction(GenericTransaction{
+		tx := GenericTransaction {
 			transaction:     order,
 			transactionType: ORDER,
-		})
+		}
+		if !blockchains.addGenericTransaction(symbol, tx, uncommitted) {
+			return false
+		}
 	}
 
 	for _, claimFunds := range tokenData.ClaimFunds {
-		if !blockchains.consensusState.AddClaimFunds(symbol, claimFunds) {
-			return false
-		}
-		uncommitted.addTransaction(GenericTransaction{
+		tx := GenericTransaction {
 			transaction:     claimFunds,
 			transactionType: CLAIM_FUNDS,
-		})
+		}
+		if !blockchains.addGenericTransaction(symbol, tx, uncommitted) {
+			return false
+		}
 	}
 
 	for _, transfer := range tokenData.Transfers {
-		if !blockchains.consensusState.AddTransfer(symbol, transfer) {
-			return false
-		}
-		uncommitted.addTransaction(GenericTransaction{
+		tx := GenericTransaction {
 			transaction:     transfer,
 			transactionType: TRANSFER,
-		})
+		}
+		if !blockchains.addGenericTransaction(symbol, tx, uncommitted) {
+			return false
+		}
 	}
 	return true
 }
 
 func (blockchains *Blockchains) addMatchData(matchData MatchData, uncommitted *UncommittedTransactions) bool {
 	for _, match := range matchData.Matches {
-		if !blockchains.consensusState.AddMatch(match) {
-			return false
-		}
-		uncommitted.addTransaction(GenericTransaction{
+		tx := GenericTransaction {
 			transaction:     match,
 			transactionType: MATCH,
-		})
+		}
+		if !blockchains.addGenericTransaction(MATCH_CHAIN, tx, uncommitted) {
+			return false
+		}
 	}
 
 	for _, cancelOrder := range matchData.CancelOrders {
-		if !blockchains.consensusState.AddCancelOrder(cancelOrder) {
-			return false
-		}
-		uncommitted.addTransaction(GenericTransaction{
+		tx := GenericTransaction {
 			transaction:     cancelOrder,
 			transactionType: CANCEL_ORDER,
-		})
+		}
+		if !blockchains.addGenericTransaction(MATCH_CHAIN, tx, uncommitted) {
+			return false
+		}
 	}
 
 	for _, createToken := range matchData.CreateTokens {
-		if !blockchains.consensusState.AddCreateToken(createToken, blockchains) {
-			return false
-		}
-		uncommitted.addTransaction(GenericTransaction{
+		tx := GenericTransaction {
 			transaction:     createToken,
 			transactionType: CREATE_TOKEN,
-		})
+		}
+		if !blockchains.addGenericTransaction(MATCH_CHAIN, tx, uncommitted) {
+			return false
+		}
 	}
 	return true
 }
@@ -179,12 +198,19 @@ func (blockchains *Blockchains) AddBlock(symbol string, block Block, takeLock bo
 }
 
 func (blockchains *Blockchains) AddBlocks(symbol string, blocks []Block, takeLock bool) bool {
-	blockchains.stopMiningCh <- true
-
 	if takeLock {
 		blockchains.chainsLock.Lock()
 		defer blockchains.chainsLock.Unlock()
 	}
+
+	if !blockchains.recovering && blockchains.minerChosenToken == symbol {
+		go func() {blockchains.stopMiningCh <- symbol}()
+		blockchains.mempoolsLock.Lock()
+		blockchains.mempoolUncommitted.undoTransactions(symbol, &blockchains.consensusState)
+		blockchains.mempoolUncommitted = UncommittedTransactions{}
+		blockchains.mempoolsLock.Unlock()
+	}
+
 	blocksAdded := 0
 	var uncommitted UncommittedTransactions
 	failed := false
@@ -311,7 +337,7 @@ func CreateNewBlockchains(dbName string) *Blockchains {
 
 	blockchains.finishedBlockCh = make(chan BlockMsg)
 	blockchains.miner = NewMiner(blockchains.finishedBlockCh)
-	blockchains.stopMiningCh = make(chan bool, 1000)
+	blockchains.stopMiningCh = make(chan string, 1000)
 	blockchains.consensusState = NewConsensusState()
 	blockchains.chains = make(map[string]*Blockchain)
 	blockchains.chains[MATCH_CHAIN] = NewBlockchain(db, MATCH_CHAIN)
@@ -372,26 +398,15 @@ func (blockchains *Blockchains) GetBlockhashes() map[string][][]byte {
 	return blockhashes
 }
 
-func (blockchains *Blockchains) ValidateTransaction(tx GenericTransaction, symbol string) bool {
-	validated := false
-	switch tx.transactionType {
-	case MATCH:
-		validated = blockchains.consensusState.AddMatch(tx.transaction.(Match))
-	case ORDER:
-		validated = blockchains.consensusState.AddOrder(symbol, tx.transaction.(Order))
-	case TRANSFER:
-		validated = blockchains.consensusState.AddTransfer(symbol, tx.transaction.(Transfer))
-	case CANCEL_ORDER:
-		validated = blockchains.consensusState.AddCancelOrder(tx.transaction.(CancelOrder))
-	case CLAIM_FUNDS:
-		validated = blockchains.consensusState.AddClaimFunds(symbol, tx.transaction.(ClaimFunds))
-	case CREATE_TOKEN:
-		validated = blockchains.consensusState.AddCreateToken(tx.transaction.(CreateToken), blockchains)
-	}
-	return validated
-}
-
 func (blockchains *Blockchains) AddTransactionToMempool(tx GenericTransaction, symbol string) bool {
+	blockchains.chainsLock.Lock()
+	// Validate transaction
+	if !blockchains.addGenericTransaction(symbol, tx, &blockchains.mempoolUncommitted) {
+		blockchains.chainsLock.Unlock()
+		return false
+	}
+	blockchains.chainsLock.Unlock()
+
 	blockchains.mempoolsLock.Lock()
 	if _, ok := blockchains.mempools[symbol][&tx]; ok {
 		return false
@@ -399,21 +414,15 @@ func (blockchains *Blockchains) AddTransactionToMempool(tx GenericTransaction, s
 
 	fmt.Println("Add tx")
 
-	// Validate transaction
-	if blockchains.ValidateTransaction(tx, symbol) {
-		fmt.Println("Tx validated")
+	// Add transaction to mempool
+	blockchains.mempools[symbol][&tx] = true
+	blockchains.mempoolsLock.Unlock()
 
-		// Add transaction to mempool
-		blockchains.mempools[symbol][&tx] = true
-		blockchains.mempoolsLock.Unlock()
+	fmt.Println("Blockchains sending to miner channel")
+	fmt.Println("\n\n")
+	// Send transaction to miner
+	blockchains.miner.minerCh <- MinerMsg{tx, false}
 
-		fmt.Println("Blockchains sending to miner channel")
-		fmt.Println("\n\n")
-		// Send transaction to miner
-		blockchains.miner.minerCh <- MinerMsg{tx, false}
-	} else {
-		blockchains.mempoolsLock.Unlock()
-	}
 	return true
 }
 
@@ -425,23 +434,52 @@ func (blockchains *Blockchains) StartMining() {
 	for token := range blockchains.mempools {
 		tokens = append(tokens, token)
 	}
+	blockchains.mempoolsLock.Unlock()
 
-	if len(tokens) > 0 {
-		chosenToken := tokens[rand.Intn(len(tokens))]
-		blockchains.mempoolsLock.Unlock()
+	chosenToken := tokens[rand.Intn(len(tokens))]
 
-		// Send new block message
-		fmt.Println("About to send new block")
-		switch chosenToken {
-		case MATCH_CHAIN:
-			blockchains.miner.minerCh <- MinerMsg{NewBlockMsg{MATCH_BLOCK, blockchains.chains[chosenToken].tipHash, chosenToken}, true}
-		default:
-			blockchains.miner.minerCh <- MinerMsg{NewBlockMsg{TOKEN_BLOCK, blockchains.chains[chosenToken].tipHash, chosenToken}, true}
-		}
-		fmt.Println("After sending new block")
-	} else {
-		blockchains.mempoolsLock.Unlock()
+	// Send new block message
+	fmt.Println("About to send new block")
+	switch chosenToken {
+	case MATCH_CHAIN:
+		blockchains.miner.minerCh <- MinerMsg{NewBlockMsg{MATCH_BLOCK, blockchains.chains[chosenToken].tipHash, chosenToken}, true}
+	default:
+		blockchains.miner.minerCh <- MinerMsg{NewBlockMsg{TOKEN_BLOCK, blockchains.chains[chosenToken].tipHash, chosenToken}, true}
 	}
+	fmt.Println("After sending new block")
+
+	blockchains.mempoolsLock.Lock()
+	var txInPool []GenericTransaction
+	for tx, _ := range blockchains.mempools[chosenToken] {
+		txInPool = append(txInPool, *tx)
+	}
+	blockchains.mempoolsLock.Unlock()
+
+
+	//Send stuff currently in mem pool (re-validate too)
+	go func(currentToken string, transactions []GenericTransaction) {
+		for _, tx := range txInPool {
+			blockchains.mempoolsLock.Lock()
+			if currentToken != blockchains.minerChosenToken {
+				blockchains.mempoolsLock.Unlock()
+				return
+			}
+
+			blockchains.chainsLock.Lock()
+			// Validate transaction
+			if !blockchains.addGenericTransaction(chosenToken, tx, &blockchains.mempoolUncommitted) {
+				blockchains.chainsLock.Unlock()
+				blockchains.mempoolsLock.Lock()
+				delete(blockchains.mempools[chosenToken], &tx)
+				blockchains.mempoolsLock.Unlock()
+				continue
+			}
+			blockchains.chainsLock.Unlock()
+
+			// Send transaction to miner
+			blockchains.miner.minerCh <- MinerMsg{tx, false}
+		}
+	}(chosenToken, txInPool)
 }
 
 func (blockchains *Blockchains) ApplyLoop() {
@@ -449,19 +487,37 @@ func (blockchains *Blockchains) ApplyLoop() {
 		select {
 		case blockMsg := <-blockchains.finishedBlockCh:
 			// When miner finishes, try to add a block
-			blockchains.AddBlock(blockMsg.Symbol, blockMsg.Block, true)
-		case <-blockchains.stopMiningCh:
-			// Stop mining if a new block is added
-			// Reevaluate transactions in the mempool
-			for token := range blockchains.mempools {
-				for tx := range blockchains.mempools[token] {
-					if !blockchains.ValidateTransaction(*tx, token) {
-						delete(blockchains.mempools[token], tx)
-					}
-				}
+			blockchains.chainsLock.Lock()
+			//state was applied during validation so just add to chain
+			if !bytes.Equal(blockchains.chains[blockMsg.Symbol].tipHash, blockMsg.Block.PrevBlockHash) {
+				//block failed so retry
+				log.Printf("miner prevBlockHash does not match tipHash %v != %v \n", blockchains.chains[blockMsg.Symbol].tipHash, blockMsg.Block.PrevBlockHash)
+				blockchains.chainsLock.Unlock()
+
+				blockchains.mempoolsLock.Lock()
+				blockchains.mempoolUncommitted.undoTransactions(blockMsg.Symbol, &blockchains.consensusState)
+				blockchains.mempoolUncommitted = UncommittedTransactions{}
+				blockchains.mempoolsLock.Unlock()
+			} else {
+				blockchains.chains[blockMsg.Symbol].AddBlock(blockMsg.Block)
+				blockchains.chainsLock.Unlock()
+
+				blockchains.mempoolUncommitted = UncommittedTransactions{}
+
+				blockchains.mempoolsLock.Lock()
+				//assume that all transactions for token have been added to block so delete mempool
+				blockchains.mempools[blockMsg.Symbol] = make(map[*GenericTransaction]bool)
+				blockchains.mempoolsLock.Unlock()
 			}
-			// Start a new miner
-			// blockchains.StartMining() // TODO
+		case symbol := <-blockchains.stopMiningCh:
+			if symbol != blockchains.minerChosenToken {
+				continue
+			}
 		}
+
+		blockchains.StartMining()
+
+
+
 	}
 }
