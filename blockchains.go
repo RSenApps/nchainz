@@ -426,6 +426,7 @@ func (blockchains *Blockchains) StartMining() {
 	}
 
 	if len(tokens) > 0 {
+		fmt.Println("Tokens are", tokens)
 		chosenToken := tokens[rand.Intn(len(tokens))]
 		blockchains.mempoolsLock.Unlock()
 
@@ -433,8 +434,10 @@ func (blockchains *Blockchains) StartMining() {
 		fmt.Println("About to send new block")
 		switch chosenToken {
 		case MATCH_CHAIN:
+			fmt.Println("Starting match block")
 			blockchains.miner.minerCh <- MinerMsg{NewBlockMsg{MATCH_BLOCK, blockchains.chains[chosenToken].tipHash, chosenToken}, true}
 		default:
+			fmt.Println("Starting native block")
 			blockchains.miner.minerCh <- MinerMsg{NewBlockMsg{TOKEN_BLOCK, blockchains.chains[chosenToken].tipHash, chosenToken}, true}
 		}
 		fmt.Println("After sending new block")
