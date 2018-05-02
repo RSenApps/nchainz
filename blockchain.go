@@ -69,7 +69,9 @@ func (bc *Blockchain) AddBlock(block Block) {
 		}
 
 		// Update tip
-		copy(bc.tipHash, block.Hash)
+		temp := make([]byte, len(block.Hash))
+		copy(temp, block.Hash)
+		bc.tipHash = temp
 		return nil
 	})
 
@@ -96,7 +98,9 @@ func (bc *Blockchain) RemoveLastBlock() BlockData {
 		}
 
 		// Update tip to second to last block
-		copy(bc.tipHash, prevBlock.Hash)
+		temp := make([]byte, len(prevBlock.Hash))
+		copy(temp, prevBlock.Hash)
+		bc.tipHash = temp
 		return nil
 	})
 
@@ -132,6 +136,7 @@ func (bci *BlockchainIterator) Prev() (*Block, error) {
 		if encodedBlock == nil {
 			return errors.New("out of blocks")
 		}
+
 		block = DeserializeBlock(encodedBlock)
 
 		return nil
@@ -211,11 +216,13 @@ func (bc *Blockchain) getTipHash() []byte {
 	err := bc.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(bc.bucketName))
 		temp := b.Get([]byte("l"))
-		copy(lastHash, temp)
+		buf := make([]byte, len(temp))
+		copy(buf, temp)
+		lastHash = buf
 		return nil
 	})
 
-	if err != nil {
+	if err != nil || lastHash == nil {
 		return []byte{}
 	} else {
 		return lastHash
