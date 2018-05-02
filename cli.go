@@ -249,7 +249,6 @@ func (cli *CLI) addTX() {
 		fmt.Printf("Nonce: %v", nonce)
 	}*/
 
-
 	transfer := Transfer{
 		Amount:      50,
 		FromAddress: "Satoshi",

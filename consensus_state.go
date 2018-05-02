@@ -1,13 +1,13 @@
 package main
 
 import (
-	"math"
 	"log"
+	"math"
 )
 
 type ConsensusStateToken struct {
-	openOrders map[uint64]Order
-	balances map[string]uint64
+	openOrders     map[uint64]Order
+	balances       map[string]uint64
 	unclaimedFunds map[string]uint64
 	//unclaimedFundsLock sync.Mutex
 	deletedOrders map[uint64]Order
@@ -15,11 +15,11 @@ type ConsensusStateToken struct {
 }
 
 type ConsensusState struct {
-	tokenStates map[string]*ConsensusStateToken
+	tokenStates   map[string]*ConsensusStateToken
 	createdTokens map[string]TokenInfo
 }
 
-func NewConsensusStateToken() *ConsensusStateToken{
+func NewConsensusStateToken() *ConsensusStateToken {
 	token := ConsensusStateToken{}
 	token.openOrders = make(map[uint64]Order)
 	token.balances = make(map[string]uint64)
@@ -104,7 +104,7 @@ func (state *ConsensusState) AddMatch(match Match) bool {
 	//add to unconfirmedSell and Buy Matches
 	//remove orders from openOrders
 	buyTokenState := state.tokenStates[match.BuySymbol]
-	sellTokenState :=  state.tokenStates[match.SellSymbol]
+	sellTokenState := state.tokenStates[match.SellSymbol]
 	buyOrder, ok := buyTokenState.openOrders[match.BuyOrderID]
 	if !ok {
 		return false
@@ -135,7 +135,6 @@ func (state *ConsensusState) AddMatch(match Match) bool {
 	buyTokenState.unclaimedFunds[sellOrder.SellerAddress] += sellerMinAmountReceived
 
 	sellTokenState.unclaimedFunds[buyOrder.SellerAddress] += match.AmountSold
-
 
 	sellOrder.AmountToSell -= match.AmountSold
 	sellOrder.AmountToBuy -= sellerMinAmountReceived
@@ -169,7 +168,7 @@ func (state *ConsensusState) AddMatch(match Match) bool {
 
 func (state *ConsensusState) RollbackMatch(match Match) {
 	buyTokenState := state.tokenStates[match.BuySymbol]
-	sellTokenState :=  state.tokenStates[match.SellSymbol]
+	sellTokenState := state.tokenStates[match.SellSymbol]
 
 	// were orders deleted?
 	buyOrder, ok := buyTokenState.deletedOrders[match.BuyOrderID]

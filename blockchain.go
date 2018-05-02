@@ -23,10 +23,10 @@ type BlockchainIterator struct {
 }
 
 type BlockchainForwardIterator struct {
-	hashes [][]byte   // Hash of current block
+	hashes       [][]byte // Hash of current block
 	currentIndex int
-	db          *bolt.DB // DB connection
-	bucketName string
+	db           *bolt.DB // DB connection
+	bucketName   string
 }
 
 func NewBlockchain(db *bolt.DB, symbol string) *Blockchain {
@@ -116,7 +116,7 @@ func (bc *Blockchain) Iterator() *BlockchainIterator {
 
 func (bc *Blockchain) ForwardIterator() *BlockchainForwardIterator {
 	hashes := bc.blockhashes
-	return &BlockchainForwardIterator{hashes, len(hashes)-1, bc.db, bc.bucketName}
+	return &BlockchainForwardIterator{hashes, len(hashes) - 1, bc.db, bc.bucketName}
 }
 
 //
