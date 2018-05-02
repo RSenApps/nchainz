@@ -78,6 +78,7 @@ func (miner *Miner) mineLoop() {
 					block.Hash = hash[:]
 					block.Nonce = nonce
 					miner.finishedBlockCh <- BlockMsg{*block, symbol}
+					block = nil
 				}
 			}
 		}
