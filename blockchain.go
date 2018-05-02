@@ -210,7 +210,8 @@ func (bc *Blockchain) getTipHash() []byte {
 	// Read-only transaction to get hash of last block
 	err := bc.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(bc.bucketName))
-		copy(lastHash, b.Get([]byte("l")))
+		temp := b.Get([]byte("l"))
+		copy(lastHash, temp)
 		return nil
 	})
 
