@@ -258,7 +258,6 @@ func (state *ConsensusState) AddCreateToken(createToken CreateToken, blockchains
 }
 
 func (state *ConsensusState) RollbackCreateToken(createToken CreateToken) {
-	//need to take a lock before deleting chain
-
-	//TODO: go back and check right after winning token chain lock that chain still exists
+	delete(state.tokenStates, createToken.TokenInfo.Symbol)
+	delete(state.createdTokens, createToken.TokenInfo.Symbol)
 }

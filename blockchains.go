@@ -285,6 +285,10 @@ func (blockchains *Blockchains) AddTokenChain(createToken CreateToken) {
 	}
 }
 
+func (blockchains *Blockchains) RemoveTokenChain(createToken CreateToken) {
+
+}
+
 func (blockchains *Blockchains) restoreFromDatabase() {
 	iterators := make(map[string]*BlockchainForwardIterator)
 	chainsDone := make(map[string]bool)

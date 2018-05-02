@@ -12,7 +12,7 @@ import (
 )
 
 // Controls difficulty of mining
-const targetBits = 19
+const targetBits = 20
 
 // Maximum value of counter
 var maxNonce = math.MaxInt64
@@ -46,7 +46,7 @@ func IntToHex(num int64) []byte {
 // Merge block fields with target and nonce (counter)
 //
 func (pow *ProofOfWork) prepareData(nonce int) []byte {
-	blockBytes, _ := GetBytes(pow.block.Data)
+	blockBytes := []byte(fmt.Sprintf("%v", pow.block.Data))
 	data := bytes.Join(
 		[][]byte{
 			pow.block.PrevBlockHash,

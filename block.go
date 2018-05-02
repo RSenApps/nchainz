@@ -155,7 +155,7 @@ func NewBlock(data BlockData, blockType BlockType, prevBlockHash []byte) *Block 
 
 func (b *Block) AddTransaction(tx GenericTransaction) {
 	newData := b.Data
-	
+
 	switch tx.TransactionType {
 	case MATCH:
 		temp := newData.(MatchData)
