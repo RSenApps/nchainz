@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"log"
+	"math/rand"
 	"net/rpc"
 )
 
@@ -26,10 +27,14 @@ func (client *Client) Order(buyAmt uint64, buySymbol string, sellAmt uint64, sel
 	defer log.Printf("Client done sending ORDER")
 
 	var empty []byte
-	order := Order{0, buySymbol, sellAmt, buyAmt, seller, empty}
+	id := rand.Uint64()
+	order := Order{id, buySymbol, sellAmt, buyAmt, seller, empty}
 	tx := &GenericTransaction{order, ORDER}
 
-	client.SendTx(tx, sellSymbol)
+	err := client.SendTx(tx, sellSymbol)
+	if err == nil {
+		log.Printf("transaction id: %v", id)
+	}
 }
 
 func (client *Client) Transfer(amount uint64, symbol string, from string, to string) {
