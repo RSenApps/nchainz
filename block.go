@@ -56,8 +56,8 @@ type TokenData struct {
 }
 
 type GenericTransaction struct {
-	transaction     interface{}
-	transactionType TransactionType
+	Transaction     interface{}
+	TransactionType TransactionType
 }
 
 type CreateToken struct {
@@ -155,25 +155,25 @@ func (b *Block) AddTransaction(tx GenericTransaction) {
 
 	fmt.Println(temp)
 
-	switch tx.transactionType {
+	switch tx.TransactionType {
 	case MATCH:
 		temp := b.Data.(MatchData)
-		temp.Matches = append(temp.Matches, tx.transaction.(Match))
+		temp.Matches = append(temp.Matches, tx.Transaction.(Match))
 	case ORDER:
 		temp := b.Data.(TokenData)
-		temp.Orders = append(temp.Orders, tx.transaction.(Order))
+		temp.Orders = append(temp.Orders, tx.Transaction.(Order))
 	case TRANSFER:
 		temp := b.Data.(TokenData)
-		temp.Transfers = append(temp.Transfers, tx.transaction.(Transfer))
+		temp.Transfers = append(temp.Transfers, tx.Transaction.(Transfer))
 	case CANCEL_ORDER:
 		temp := b.Data.(MatchData)
-		temp.CancelOrders = append(temp.CancelOrders, tx.transaction.(CancelOrder))
+		temp.CancelOrders = append(temp.CancelOrders, tx.Transaction.(CancelOrder))
 	case CLAIM_FUNDS:
 		temp := b.Data.(TokenData)
-		temp.ClaimFunds = append(temp.ClaimFunds, tx.transaction.(ClaimFunds))
+		temp.ClaimFunds = append(temp.ClaimFunds, tx.Transaction.(ClaimFunds))
 	case CREATE_TOKEN:
 		temp := b.Data.(MatchData)
-		temp.CreateTokens = append(temp.CreateTokens, tx.transaction.(CreateToken))
+		temp.CreateTokens = append(temp.CreateTokens, tx.Transaction.(CreateToken))
 	default:
 		log.Panic("ERROR: unknown transaction type")
 	}

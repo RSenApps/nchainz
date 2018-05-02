@@ -69,6 +69,25 @@ func (cli *CLI) Run() {
 		if err != nil {
 			log.Panic(err)
 		}
+	case "transfer":
+		amt, _ := strconv.Atoi(os.Args[2])
+		symbol := os.Args[3]
+		from := os.Args[4]
+		to := os.Args[5]
+		serverIp := os.Args[6]
+
+		client, _ := NewClient(serverIp)
+		client.Transfer(uint64(amt), symbol, from, to)
+	case "order":
+		buyAmt, _ := strconv.Atoi(os.Args[2])
+		buySymbol := os.Args[3]
+		sellAmt, _ := strconv.Atoi(os.Args[4])
+		sellSymbol := os.Args[5]
+		seller := os.Args[6]
+		serverIp := os.Args[7]
+
+		client, _ := NewClient(serverIp)
+		client.Order(uint64(buyAmt), buySymbol, uint64(sellAmt), sellSymbol, seller)
 	default:
 		cli.printHelp()
 		os.Exit(1)
@@ -222,10 +241,7 @@ func (cli *CLI) addTX() {
 
 	bcs := CreateNewBlockchains("blockchains.db")
 	bcs.AddTransactionToMempool(
-		GenericTransaction{
-			transaction:     transfer,
-			transactionType: TRANSFER,
-		},
+		GenericTransaction{transfer, TRANSFER},
 		NATIVE_CHAIN,
 	)
 

@@ -20,4 +20,5 @@ func gobRegister() {
 	gob.Register(Transfer{})
 	gob.Register(CancelOrder{})
 	gob.Register(ClaimFunds{})
+	gob.Register(GenericTransaction{})
 }
