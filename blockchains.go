@@ -509,12 +509,13 @@ func (blockchains *Blockchains) ApplyLoop() {
 			//state was applied during validation so just add to chain
 			if !bytes.Equal(blockchains.chains[blockMsg.Symbol].tipHash, blockMsg.Block.PrevBlockHash) {
 				//block failed so retry
-				Log("miner prevBlockHash does not match tipHash %x != %x \n", blockchains.chains[blockMsg.Symbol].tipHash, blockMsg.Block.PrevBlockHash)
+				Log("miner prevBlockHash does not match tipHash %x != %x", blockchains.chains[blockMsg.Symbol].tipHash, blockMsg.Block.PrevBlockHash)
 
 				blockchains.mempoolsLock.Lock()
 				blockchains.mempoolUncommitted[blockMsg.Symbol].undoTransactions(blockMsg.Symbol, blockchains)
 				blockchains.mempoolUncommitted[blockMsg.Symbol] = &UncommittedTransactions{}
 				//WARNING taking both locks always take chain lock first
+				blockchains.mempoolsLock.Unlock()
 				blockchains.chainsLock.Unlock()
 
 			} else {

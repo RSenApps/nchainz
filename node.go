@@ -14,10 +14,11 @@ import (
 )
 
 type Node struct {
-	mu    sync.RWMutex
-	myIp  string
-	peers map[string]*Peer
-	bcs   *Blockchains
+	myIp        string
+	peers       map[string]*Peer
+	bcs         *Blockchains
+	mu          sync.RWMutex
+	reconcileMu sync.Mutex
 }
 
 type Peer struct {
@@ -63,13 +64,14 @@ func StartNode(port uint64, seedIp string) {
 		LogFatal(err.Error())
 	}
 
-	mu := sync.RWMutex{}
 	peers := make(map[string]*Peer)
 	bcs := CreateNewBlockchains(dbName)
-	node := Node{mu, myIp, peers, bcs}
+	mu := sync.RWMutex{}
+	reconcileMu := sync.Mutex{}
+	node := &Node{myIp, peers, bcs, mu, reconcileMu}
 
 	log.SetOutput(ioutil.Discard)
-	rpc.Register(&node)
+	rpc.Register(node)
 	log.SetOutput(os.Stdout)
 
 	go node.connectPeerIfNew(seedIp)
@@ -418,11 +420,15 @@ func (node *Node) connectPeerIfNew(peerIp string) (isNew bool, peer *Peer, err e
 // Utils: Chain Management
 
 func (node *Node) reconcileChain(peerIp string, symbol string, theirBlockhashes [][]byte, theirHeight uint64) error {
-	peer := node.peers[peerIp]
+	node.reconcileMu.Lock()
+	defer node.reconcileMu.Unlock()
+
 	node.bcs.chainsLock.RLock()
+
 	bc := node.bcs.chains[symbol]
 	myHeight := bc.GetStartHeight()
 	bci := bc.Iterator()
+	peer := node.peers[peerIp]
 
 	Log("Reconciling chain %s with peer %s (myHeight %v, theirHeight %v)", symbol, peerIp, myHeight, theirHeight)
 	defer Log("Finished reconciling chain %s with peer %s", symbol, peerIp)
@@ -430,6 +436,13 @@ func (node *Node) reconcileChain(peerIp string, symbol string, theirBlockhashes 
 	height := myHeight
 	theirIdx := theirHeight - myHeight
 	block, _ := bci.Prev()
+
+	if theirHeight <= myHeight {
+		Log("No reconciliation necessary for chain %s with peer %s", symbol, peerIp)
+		node.bcs.chainsLock.RUnlock()
+
+		return errors.New("no reconciliation necessary")
+	}
 
 	for int(theirIdx) < len(theirBlockhashes) && block != nil && !bytes.Equal(block.Hash, theirBlockhashes[theirIdx]) {
 		height--
@@ -439,8 +452,11 @@ func (node *Node) reconcileChain(peerIp string, symbol string, theirBlockhashes 
 
 	if int(theirIdx) == len(theirBlockhashes) || block == nil {
 		Log("Ran out of blockhashes reconciling chain %s with peer %s", symbol, peerIp)
+		node.bcs.chainsLock.RUnlock()
+
 		return errors.New("more blockhashes needed")
 	}
+
 	node.bcs.chainsLock.RUnlock()
 
 	if height != myHeight {
