@@ -57,20 +57,22 @@ func (miner *Miner) mineLoop() {
 				}
 			} else {
 				transaction := msg.Msg.(GenericTransaction)
-				switch transaction.TransactionType {
-				case MATCH, CANCEL_ORDER, CREATE_TOKEN:
-					if block.Type != MATCH_BLOCK {
-						continue
-					}
-				default:
-					if block.Type != TOKEN_BLOCK {
-						continue
-					}
-				}
+
 				if block == nil {
 					miner.transactions = append(miner.transactions, transaction)
 					Log("Transaction added to array: %v", transaction)
 				} else {
+					switch transaction.TransactionType {
+					case MATCH, CANCEL_ORDER, CREATE_TOKEN:
+						if block.Type != MATCH_BLOCK {
+							continue
+						}
+					default:
+						if block.Type != TOKEN_BLOCK {
+							continue
+						}
+					}
+
 					Log("Transaction added to block: %v", transaction)
 					block.AddTransaction(transaction)
 					txInBlock[transaction.ID()] = transaction
