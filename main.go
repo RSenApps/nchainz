@@ -2,9 +2,12 @@ package main
 
 import (
 	"encoding/gob"
+	"math/rand"
+	"time"
 )
 
 func main() {
+	rand.Seed(time.Now().UTC().UnixNano())
 	gobRegister()
 
 	cli := CLI{}
