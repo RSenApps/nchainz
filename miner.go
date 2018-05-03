@@ -91,6 +91,7 @@ func (miner *Miner) mineLoop() {
 				if success {
 					block.Hash = hash[:]
 					block.Nonce = nonce
+					Log("Sending mined block")
 					miner.finishedBlockCh <- BlockMsg{*block, txInBlock,symbol}
 					block = nil
 				}

@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"os"
 	"sync"
+	"log"
 )
 
 const MATCH_CHAIN = "MATCH"
@@ -100,6 +101,7 @@ func (blockchains *Blockchains) rollbackMatchToHeight(height uint64) {
 
 func (blockchains *Blockchains) RollbackToHeight(symbol string, height uint64) {
 	blockchains.chainsLock.Lock()
+	Log("Rolling back %v block to height: %v \n", symbol, height)
 	defer blockchains.chainsLock.Unlock()
 	if symbol == MATCH_CHAIN {
 		blockchains.rollbackMatchToHeight(height)
@@ -208,6 +210,7 @@ func (blockchains *Blockchains) AddBlocks(symbol string, blocks []Block, takeLoc
 	}
 
 	if _, ok := blockchains.chains[symbol]; !ok {
+		log.Println("AddBlocks failed as symbol not found: ", symbol)
 		return false
 	}
 
@@ -250,6 +253,7 @@ func (blockchains *Blockchains) AddBlocks(symbol string, blocks []Block, takeLoc
 		blocksAdded++
 	}
 	if failed {
+		log.Println("Adding blocks failed, rolling back.")
 		uncommitted.undoTransactions(symbol, blockchains)
 		for i := 0; i < blocksAdded; i++ {
 			blockchains.chains[symbol].RemoveLastBlock()
@@ -276,6 +280,7 @@ func (blockchains *Blockchains) GetBalance(symbol string, address string) (uint6
 
 func (blockchains *Blockchains) AddTokenChain(createToken CreateToken) {
 	//no lock needed
+	log.Println("Adding token chain")
 	chain := NewBlockchain(blockchains.db, createToken.TokenInfo.Symbol)
 	blockchains.chains[createToken.TokenInfo.Symbol] = chain
 	blockchains.mempools[createToken.TokenInfo.Symbol] = make(map[*GenericTransaction]bool)
@@ -287,6 +292,7 @@ func (blockchains *Blockchains) AddTokenChain(createToken CreateToken) {
 }
 
 func (blockchains *Blockchains) RemoveTokenChain(createToken CreateToken) {
+	log.Println("Removing token chain")
 	delete(blockchains.chains, createToken.TokenInfo.Symbol)
 	delete(blockchains.mempools, createToken.TokenInfo.Symbol)
 	delete(blockchains.mempoolUncommitted, createToken.TokenInfo.Symbol)
@@ -424,16 +430,19 @@ func (blockchains *Blockchains) AddTransactionToMempool(tx GenericTransaction, s
 	// Validate transaction
 	if !blockchains.addGenericTransaction(symbol, tx, blockchains.mempoolUncommitted[symbol]) {
 		blockchains.chainsLock.Unlock()
+		log.Println("Failed to add tx to mempool consensus state")
 		return false
 	}
 	blockchains.chainsLock.Unlock()
 
 	blockchains.mempoolsLock.Lock()
 	if _, ok := blockchains.mempools[symbol][&tx]; ok {
+		log.Println("Tx already in mempool")
 		blockchains.mempoolsLock.Unlock()
 		return false
 	}
 
+	log.Println("Tx added to empool")
 	// Add transaction to mempool
 	blockchains.mempools[symbol][&tx] = true
 	blockchains.mempoolsLock.Unlock()
@@ -464,7 +473,7 @@ func (blockchains *Blockchains) StartMining() {
 		Log("Starting match block")
 		blockchains.miner.minerCh <- MinerMsg{NewBlockMsg{MATCH_BLOCK, blockchains.chains[blockchains.minerChosenToken].tipHash, blockchains.minerChosenToken}, true}
 	default:
-		Log("Starting native block")
+		Log("Starting %v block", blockchains.minerChosenToken)
 		blockchains.miner.minerCh <- MinerMsg{NewBlockMsg{TOKEN_BLOCK, blockchains.chains[blockchains.minerChosenToken].tipHash, blockchains.minerChosenToken}, true}
 	}
 
@@ -491,6 +500,7 @@ func (blockchains *Blockchains) StartMining() {
 				blockchains.chainsLock.Unlock()
 				blockchains.mempoolsLock.Lock()
 				delete(blockchains.mempools[blockchains.minerChosenToken], &tx)
+				Log("TX in mempool failed revalidation")
 				blockchains.mempoolsLock.Unlock()
 				continue
 			}
@@ -527,6 +537,7 @@ func (blockchains *Blockchains) ApplyLoop() {
 
 				blockchains.mempoolsLock.Lock()
 				txInBlock := blockMsg.TxInBlock
+				Log("%v tx mined in block and added to chain %v", len(txInBlock), blockMsg.Symbol)
 
 				var newUncommitted []GenericTransaction
 				for _, tx := range blockchains.mempoolUncommitted[blockMsg.Symbol].transactions {
@@ -542,6 +553,7 @@ func (blockchains *Blockchains) ApplyLoop() {
 			}
 
 		case symbol := <-blockchains.stopMiningCh:
+			Log("Restarting mining due to new block being added or removed")
 			if symbol != blockchains.minerChosenToken {
 				continue
 			}

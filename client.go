@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"log"
 	"math/rand"
 	"net/rpc"
 )
@@ -29,22 +28,22 @@ func (client *Client) SendTx(tx *GenericTransaction, symbol string) error {
 	err := client.rpc.Call("Node.Tx", &args, &reply)
 
 	if err != nil {
-		log.Printf("Error communicating with node")
-		log.Printf(err.Error())
+		Log("Error communicating with node")
+		Log(err.Error())
 		return err
 	}
 	if !reply {
-		log.Printf("Node rejected transaction")
+		Log("Node rejected transaction")
 		return errors.New("node rejected transaction")
 	}
 
-	log.Printf("Transaction successfully sent")
+	Log("Transaction successfully sent")
 	return nil
 }
 
 func (client *Client) Order(buyAmt uint64, buySymbol string, sellAmt uint64, sellSymbol string, seller string) {
-	log.Printf("Client sending ORDER")
-	defer log.Printf("Client done sending ORDER")
+	Log("Client sending ORDER")
+	defer Log("Client done sending ORDER")
 
 	var empty []byte
 	id := rand.Uint64()
@@ -53,13 +52,13 @@ func (client *Client) Order(buyAmt uint64, buySymbol string, sellAmt uint64, sel
 
 	err := client.SendTx(tx, sellSymbol)
 	if err == nil {
-		log.Printf("transaction id: %v", id)
+		Log("transaction id: %v", id)
 	}
 }
 
 func (client *Client) Transfer(amount uint64, symbol string, from string, to string) {
-	log.Printf("Client sending TRANSFER")
-	defer log.Printf("Client done sending TRANSFER")
+	Log("Client sending TRANSFER")
+	defer Log("Client done sending TRANSFER")
 
 	var empty []byte
 	transfer := Transfer{rand.Uint64(), amount, from, to, empty}
@@ -69,8 +68,8 @@ func (client *Client) Transfer(amount uint64, symbol string, from string, to str
 }
 
 func (client *Client) Cancel(symbol string, orderId uint64) {
-	log.Printf("Client sending CANCEL_ORDER")
-	defer log.Printf("Client done sending CANCEL_ORDER")
+	Log("Client sending CANCEL_ORDER")
+	defer Log("Client done sending CANCEL_ORDER")
 
 	var empty []byte
 	cancel := CancelOrder{symbol, orderId, empty}
@@ -80,8 +79,8 @@ func (client *Client) Cancel(symbol string, orderId uint64) {
 }
 
 func (client *Client) Claim(amount uint64, symbol string, address string) {
-	log.Printf("Client sending CLAIM_FUNDS")
-	defer log.Printf("Client done sending CLAIM_FUNDS")
+	Log("Client sending CLAIM_FUNDS")
+	defer Log("Client done sending CLAIM_FUNDS")
 
 	claim := ClaimFunds{address, amount}
 	tx := &GenericTransaction{claim, CLAIM_FUNDS}
@@ -90,8 +89,8 @@ func (client *Client) Claim(amount uint64, symbol string, address string) {
 }
 
 func (client *Client) Create(symbol string, supply uint64, decimals uint8, address string) {
-	log.Printf("Client sending CREATE_TOKEN")
-	defer log.Printf("Client done sending CREATE_TOKEN")
+	Log("Client sending CREATE_TOKEN")
+	defer Log("Client done sending CREATE_TOKEN")
 
 	var empty []byte
 	tokenInfo := TokenInfo{symbol, supply, decimals}

@@ -42,28 +42,34 @@ func NewConsensusState() ConsensusState {
 func (state *ConsensusState) AddOrder(symbol string, order Order) bool {
 	tokenState, symbolExists := state.tokenStates[symbol]
 	if !symbolExists {
+		Log("Order failed as %v chain does not exist", symbol)
 		return false
 	}
 
 	if tokenState.balances[order.SellerAddress] < order.AmountToSell {
+		Log("Order failed as seller %v has %v, but needs %v", order.SellerAddress, tokenState.balances[order.SellerAddress], order.AmountToSell)
 		return false
 	}
 
 	_, loaded := tokenState.deletedOrders[order.ID]
 	if loaded {
+		Log("Order failed as orderID in deletedOrders")
 		return false
 	}
 
 	_, loaded = tokenState.openOrders[order.ID]
 	if loaded {
+		Log("Order failed as orderID in openOrders")
 		return false
 	}
+	Log("Order added to chain %v", order)
 	tokenState.openOrders[order.ID] = order
 	tokenState.balances[order.SellerAddress] -= order.AmountToSell
 	return true
 }
 
 func (state *ConsensusState) RollbackOrder(symbol string, order Order) {
+	Log("Order rolled back %v", order)
 	tokenState := state.tokenStates[symbol]
 	delete(tokenState.openOrders, order.ID)
 	tokenState.balances[order.SellerAddress] += order.AmountToSell
@@ -72,18 +78,22 @@ func (state *ConsensusState) RollbackOrder(symbol string, order Order) {
 func (state *ConsensusState) AddClaimFunds(symbol string, funds ClaimFunds) bool {
 	tokenState, symbolExists := state.tokenStates[symbol]
 	if !symbolExists {
+		Log("Claim funds failed as %v chain does not exist", symbol)
 		return false
 	}
 
 	if tokenState.unclaimedFunds[funds.Address] < funds.Amount {
+		Log("Claim funds failed as address %v has %v, but needs %v", funds.Address, tokenState.unclaimedFunds[funds.Address], funds.Amount)
 		return false
 	}
+	Log("Claim funds added to chain %v", funds)
 	tokenState.unclaimedFunds[funds.Address] -= funds.Amount
 	tokenState.balances[funds.Address] += funds.Amount
 	return true
 }
 
 func (state *ConsensusState) RollbackClaimFunds(symbol string, funds ClaimFunds) {
+	Log("Claim funds rolled back %v", funds)
 	tokenState := state.tokenStates[symbol]
 	tokenState.unclaimedFunds[funds.Address] += funds.Amount
 	tokenState.balances[funds.Address] -= funds.Amount
@@ -92,26 +102,31 @@ func (state *ConsensusState) RollbackClaimFunds(symbol string, funds ClaimFunds)
 func (state *ConsensusState) AddTransfer(symbol string, transfer Transfer) bool {
 	tokenState, symbolExists := state.tokenStates[symbol]
 	if !symbolExists {
+		Log("Transfer failed as %v chain does not exist", symbol)
 		return false
 	}
 
 	if _, ok := tokenState.usedTransferIDs[transfer.ID]; ok {
+		Log("Transfer failed as transferID in usedTransferIDs")
 		return false
 	}
 	if transfer.Amount < 0 {
+		Log("Transfer failed as amount < 0")
 		return false
 	}
 	if tokenState.balances[transfer.FromAddress] < transfer.Amount {
-		log.Printf("Rejecting block due to insufficient funds Address: %v Balance: %v TransferAMT: %v \n", transfer.FromAddress, tokenState.balances[transfer.FromAddress], transfer.Amount)
+		log.Printf("Transfer failed due to insufficient funds Address: %v Balance: %v TransferAMT: %v \n", transfer.FromAddress, tokenState.balances[transfer.FromAddress], transfer.Amount)
 		return false
 	}
 	tokenState.balances[transfer.FromAddress] -= transfer.Amount
 	tokenState.balances[transfer.ToAddress] += transfer.Amount
+	Log("Transfer added to chain %v FromBalance %v ToBalance %v", transfer, tokenState.balances[transfer.FromAddress], tokenState.balances[transfer.ToAddress])
 	tokenState.usedTransferIDs[transfer.ID] = true
 	return true
 }
 
 func (state *ConsensusState) RollbackTransfer(symbol string, transfer Transfer) {
+	Log("Transfer rolled back %v", transfer)
 	tokenState := state.tokenStates[symbol]
 	delete(tokenState.usedTransferIDs, transfer.ID)
 	tokenState.balances[transfer.FromAddress] += transfer.Amount
@@ -124,22 +139,27 @@ func (state *ConsensusState) AddMatch(match Match) bool {
 	//remove orders from openOrders
 	buyTokenState, symbolExists := state.tokenStates[match.BuySymbol]
 	if !symbolExists {
+		Log("Match failed as %v buy chain does not exist", match.BuySymbol)
 		return false
 	}
 	sellTokenState, symbolExists := state.tokenStates[match.SellSymbol]
 	if !symbolExists {
+		Log("Match failed as %v sell chain does not exist", match.SellSymbol)
 		return false
 	}
 	buyOrder, ok := buyTokenState.openOrders[match.BuyOrderID]
 	if !ok {
+		Log("Match failed as Buy Order is not in openOrders")
 		return false
 	}
 	sellOrder, ok := sellTokenState.openOrders[match.SellOrderID]
 	if !ok {
+		Log("Match failed as Sell Order is not in openOrders")
 		return false
 	}
 
 	if sellOrder.AmountToSell < match.AmountSold {
+		Log("Match failed as Sell Order has %v left, but match is for %v", sellOrder.AmountToSell, match.AmountSold)
 		return false
 	}
 
@@ -151,10 +171,16 @@ func (state *ConsensusState) AddMatch(match Match) bool {
 	buyerMaxAmountPaid := uint64(math.Ceil(buyPrice * float64(match.AmountSold)))
 	sellPrice := float64(sellOrder.AmountToSell) / float64(sellOrder.AmountToBuy)
 	sellerMinAmountReceived := uint64(math.Floor(sellPrice * float64(match.AmountSold)))
-	if buyerMaxAmountPaid < sellerMinAmountReceived || buyerMaxAmountPaid > buyOrder.AmountToSell {
+	if buyerMaxAmountPaid < sellerMinAmountReceived {
+		Log("Match failed as Buyer price is too high willing to pay %v, but seller needs at least %v", buyerMaxAmountPaid, sellerMinAmountReceived)
+		return false
+	}
+	if buyerMaxAmountPaid > buyOrder.AmountToSell {
+		Log("Match failed as Buy Order has %v left, but match needs %v from buyer", buyOrder.AmountToSell, buyerMaxAmountPaid)
 		return false
 	}
 
+	Log("Match added to chain %v", match)
 	//Trade is between match.AmountSold and buyerMaxAmountPaid
 	//TODO: minerReward := buyerMaxAmountPaid - sellerMinAmountPaid
 	buyTokenState.unclaimedFunds[sellOrder.SellerAddress] += sellerMinAmountReceived
@@ -168,6 +194,7 @@ func (state *ConsensusState) AddMatch(match Match) bool {
 
 	var deletedOrders []Order
 	if sellOrder.AmountToBuy <= 0 {
+		Log("Sell order depleted %v", sellOrder)
 		if sellOrder.AmountToSell > 0 {
 			sellTokenState.unclaimedFunds[sellOrder.SellerAddress] += sellOrder.AmountToSell
 		}
@@ -179,6 +206,7 @@ func (state *ConsensusState) AddMatch(match Match) bool {
 	}
 
 	if buyOrder.AmountToBuy <= 0 {
+		Log("Buy order depleted %v", buyOrder)
 		if buyOrder.AmountToSell > 0 {
 			buyTokenState.unclaimedFunds[buyOrder.SellerAddress] += buyOrder.AmountToSell
 		}
@@ -192,6 +220,7 @@ func (state *ConsensusState) AddMatch(match Match) bool {
 }
 
 func (state *ConsensusState) RollbackMatch(match Match) {
+	Log("Rolling back match %v", match)
 	buyTokenState := state.tokenStates[match.BuySymbol]
 	sellTokenState := state.tokenStates[match.SellSymbol]
 
@@ -238,12 +267,16 @@ func (state *ConsensusState) RollbackMatch(match Match) {
 func (state *ConsensusState) AddCancelOrder(cancelOrder CancelOrder) bool {
 	tokenState, symbolExists := state.tokenStates[cancelOrder.OrderSymbol]
 	if !symbolExists {
+		Log("Cancel Order failed as %v chain does not exist", cancelOrder.OrderSymbol)
 		return false
 	}
 	order, ok := tokenState.openOrders[cancelOrder.OrderID]
 	if !ok {
+		Log("Cancel Order failed as order %v is not open", cancelOrder.OrderID)
 		return false
 	}
+	Log("Cancel Order added to chain %v", cancelOrder)
+
 	tokenState.unclaimedFunds[order.SellerAddress] += order.AmountToSell
 	delete(tokenState.openOrders, cancelOrder.OrderID)
 	return true
@@ -263,8 +296,11 @@ func (state *ConsensusState) RollbackCancelOrder(cancelOrder CancelOrder) {
 func (state *ConsensusState) AddCreateToken(createToken CreateToken, blockchains *Blockchains) bool {
 	_, ok := state.createdTokens[createToken.TokenInfo.Symbol]
 	if ok {
+		Log("Create Token failed as symbol %v already exists", createToken.TokenInfo.Symbol)
 		return false
 	}
+
+	Log("Create token added %v", createToken)
 
 	//create a new entry in tokenStates
 	state.tokenStates[createToken.TokenInfo.Symbol] = NewConsensusStateToken()
@@ -281,6 +317,7 @@ func (state *ConsensusState) AddCreateToken(createToken CreateToken, blockchains
 }
 
 func (state *ConsensusState) RollbackCreateToken(createToken CreateToken, blockchains *Blockchains) {
+	Log("Create token rolled back %v", createToken)
 	delete(state.tokenStates, createToken.TokenInfo.Symbol)
 	delete(state.createdTokens, createToken.TokenInfo.Symbol)
 	blockchains.RemoveTokenChain(createToken)

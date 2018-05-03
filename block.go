@@ -179,8 +179,6 @@ func (b *Block) AddTransaction(tx GenericTransaction) {
 		log.Panic("ERROR: unknown transaction type")
 	}
 	b.Data = newData
-	fmt.Println(b.Data)
-
 }
 
 //
