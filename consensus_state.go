@@ -62,14 +62,14 @@ func (state *ConsensusState) AddOrder(symbol string, order Order) bool {
 		Log("Order failed as orderID in openOrders")
 		return false
 	}
-	Log("Order added to chain %v", order)
+	Log("Order added to consensus state %v", order)
 	tokenState.openOrders[order.ID] = order
 	tokenState.balances[order.SellerAddress] -= order.AmountToSell
 	return true
 }
 
 func (state *ConsensusState) RollbackOrder(symbol string, order Order) {
-	Log("Order rolled back %v", order)
+	Log("Order rolled back from consensus state %v", order)
 	tokenState := state.tokenStates[symbol]
 	delete(tokenState.openOrders, order.ID)
 	tokenState.balances[order.SellerAddress] += order.AmountToSell
@@ -93,7 +93,7 @@ func (state *ConsensusState) AddClaimFunds(symbol string, funds ClaimFunds) bool
 }
 
 func (state *ConsensusState) RollbackClaimFunds(symbol string, funds ClaimFunds) {
-	Log("Claim funds rolled back %v", funds)
+	Log("Claim funds rolled back from consensus state %v", funds)
 	tokenState := state.tokenStates[symbol]
 	tokenState.unclaimedFunds[funds.Address] += funds.Amount
 	tokenState.balances[funds.Address] -= funds.Amount
@@ -120,13 +120,13 @@ func (state *ConsensusState) AddTransfer(symbol string, transfer Transfer) bool 
 	}
 	tokenState.balances[transfer.FromAddress] -= transfer.Amount
 	tokenState.balances[transfer.ToAddress] += transfer.Amount
-	Log("Transfer added to chain %v FromBalance %v ToBalance %v", transfer, tokenState.balances[transfer.FromAddress], tokenState.balances[transfer.ToAddress])
+	Log("Transfer added to consensus state %v FromBalance %v ToBalance %v", transfer, tokenState.balances[transfer.FromAddress], tokenState.balances[transfer.ToAddress])
 	tokenState.usedTransferIDs[transfer.ID] = true
 	return true
 }
 
 func (state *ConsensusState) RollbackTransfer(symbol string, transfer Transfer) {
-	Log("Transfer rolled back %v", transfer)
+	Log("Transfer rolled back from consensus state %v", transfer)
 	tokenState := state.tokenStates[symbol]
 	delete(tokenState.usedTransferIDs, transfer.ID)
 	tokenState.balances[transfer.FromAddress] += transfer.Amount
@@ -220,7 +220,7 @@ func (state *ConsensusState) AddMatch(match Match) bool {
 }
 
 func (state *ConsensusState) RollbackMatch(match Match) {
-	Log("Rolling back match %v", match)
+	Log("Rolling back match from consensus state %v", match)
 	buyTokenState := state.tokenStates[match.BuySymbol]
 	sellTokenState := state.tokenStates[match.SellSymbol]
 
@@ -275,7 +275,7 @@ func (state *ConsensusState) AddCancelOrder(cancelOrder CancelOrder) bool {
 		Log("Cancel Order failed as order %v is not open", cancelOrder.OrderID)
 		return false
 	}
-	Log("Cancel Order added to chain %v", cancelOrder)
+	Log("Cancel Order added to consensus state %v", cancelOrder)
 
 	tokenState.unclaimedFunds[order.SellerAddress] += order.AmountToSell
 	delete(tokenState.openOrders, cancelOrder.OrderID)

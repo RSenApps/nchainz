@@ -442,7 +442,7 @@ func (blockchains *Blockchains) AddTransactionToMempool(tx GenericTransaction, s
 		return false
 	}
 
-	log.Println("Tx added to empool")
+	log.Println("Tx added to mempool")
 	// Add transaction to mempool
 	blockchains.mempools[symbol][&tx] = true
 	blockchains.mempoolsLock.Unlock()
@@ -478,15 +478,15 @@ func (blockchains *Blockchains) StartMining() {
 	}
 
 	blockchains.mempoolsLock.Lock()
-	var txInPool []GenericTransaction
+	var txInPool []*GenericTransaction
 	for tx := range blockchains.mempools[blockchains.minerChosenToken] {
-		txInPool = append(txInPool, *tx)
+		txInPool = append(txInPool, tx)
 	}
 	blockchains.mempoolsLock.Unlock()
 
 	//Send stuff currently in mem pool (re-validate too)
-	go func(currentToken string, transactions []GenericTransaction) {
-		for _, tx := range txInPool {
+	go func(currentToken string, transactions []*GenericTransaction) {
+		for _, tx := range transactions {
 			blockchains.mempoolsLock.Lock()
 			if currentToken != blockchains.minerChosenToken {
 				blockchains.mempoolsLock.Unlock()
@@ -496,10 +496,10 @@ func (blockchains *Blockchains) StartMining() {
 
 			blockchains.chainsLock.Lock()
 			// Validate transaction
-			if !blockchains.addGenericTransaction(blockchains.minerChosenToken, tx, blockchains.mempoolUncommitted[blockchains.minerChosenToken]) {
+			if !blockchains.addGenericTransaction(blockchains.minerChosenToken, *tx, blockchains.mempoolUncommitted[blockchains.minerChosenToken]) {
 				blockchains.chainsLock.Unlock()
 				blockchains.mempoolsLock.Lock()
-				delete(blockchains.mempools[blockchains.minerChosenToken], &tx)
+				delete(blockchains.mempools[blockchains.minerChosenToken], tx)
 				Log("TX in mempool failed revalidation")
 				blockchains.mempoolsLock.Unlock()
 				continue
