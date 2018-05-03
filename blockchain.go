@@ -187,10 +187,6 @@ func (bci *BlockchainForwardIterator) Undo() {
 	bci.currentIndex++
 }
 
-func (bc *Blockchain) GetStartHeight() uint64 {
-	return bc.height
-}
-
 func (bc *Blockchain) getBlockhashes() [][]byte {
 	blockhashes := make([][]byte, 0)
 	bci := bc.Iterator()

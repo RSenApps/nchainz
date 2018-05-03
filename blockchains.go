@@ -56,10 +56,10 @@ func (uncommitted *UncommittedTransactions) undoTransactions(symbol string, bloc
 }
 
 func (blockchains *Blockchains) rollbackTokenToHeight(symbol string, height uint64) {
-	if height >= blockchains.chains[symbol].GetStartHeight() {
+	if height >= blockchains.chains[symbol].height {
 		return
 	}
-	blocksToRemove := blockchains.chains[symbol].GetStartHeight() - height
+	blocksToRemove := blockchains.chains[symbol].height - height
 	for i := uint64(0); i < blocksToRemove; i++ {
 		removedData := blockchains.chains[symbol].RemoveLastBlock().(TokenData)
 		for _, order := range removedData.Orders {
@@ -77,11 +77,11 @@ func (blockchains *Blockchains) rollbackTokenToHeight(symbol string, height uint
 }
 
 func (blockchains *Blockchains) rollbackMatchToHeight(height uint64) {
-	if height >= blockchains.chains[MATCH_CHAIN].GetStartHeight() {
+	if height >= blockchains.chains[MATCH_CHAIN].height {
 		return
 	}
 
-	blocksToRemove := blockchains.chains[MATCH_CHAIN].GetStartHeight() - height
+	blocksToRemove := blockchains.chains[MATCH_CHAIN].height - height
 	for i := uint64(0); i < blocksToRemove; i++ {
 		removedData := blockchains.chains[MATCH_CHAIN].RemoveLastBlock().(MatchData)
 		for _, match := range removedData.Matches {
@@ -101,14 +101,6 @@ func (blockchains *Blockchains) rollbackMatchToHeight(height uint64) {
 func (blockchains *Blockchains) RollbackToHeight(symbol string, height uint64) {
 	blockchains.chainsLock.Lock()
 	defer blockchains.chainsLock.Unlock()
-	if !blockchains.recovering && blockchains.minerChosenToken == symbol {
-		go func() { blockchains.stopMiningCh <- symbol }()
-		blockchains.mempoolsLock.Lock()
-		blockchains.mempoolUncommitted[symbol].undoTransactions(symbol, blockchains)
-		blockchains.mempoolUncommitted[symbol] = &UncommittedTransactions{}
-		blockchains.mempoolsLock.Unlock()
-	}
-
 	if symbol == MATCH_CHAIN {
 		blockchains.rollbackMatchToHeight(height)
 	} else {
@@ -210,17 +202,17 @@ func (blockchains *Blockchains) AddBlock(symbol string, block Block, takeLock bo
 }
 
 func (blockchains *Blockchains) AddBlocks(symbol string, blocks []Block, takeLock bool) bool {
-	if takeLock {
-		blockchains.chainsLock.Lock()
-		defer blockchains.chainsLock.Unlock()
-	}
-
 	if !blockchains.recovering && blockchains.minerChosenToken == symbol {
 		go func() { blockchains.stopMiningCh <- symbol }()
 		blockchains.mempoolsLock.Lock()
 		blockchains.mempoolUncommitted[symbol].undoTransactions(symbol, blockchains)
 		blockchains.mempoolUncommitted[symbol] = &UncommittedTransactions{}
 		blockchains.mempoolsLock.Unlock()
+	}
+
+	if takeLock {
+		blockchains.chainsLock.Lock()
+		defer blockchains.chainsLock.Unlock()
 	}
 
 	blocksAdded := 0
@@ -233,12 +225,11 @@ func (blockchains *Blockchains) AddBlocks(symbol string, blocks []Block, takeLoc
 			break
 		}
 
-		//TODO:
-		pow := NewProofOfWork(&block)
-		if !pow.Validate() {
-			Log("Proof of work of block is invalid")
-			/*DEBUG failed = true
-			break*/
+		if blockchains.chains[symbol].height > 1 {
+			pow := NewProofOfWork(&block)
+			if !pow.Validate() {
+				Log("Proof of work of block is invalid")
+			}
 		}
 		if symbol == MATCH_CHAIN {
 			if !blockchains.addMatchData(block.Data.(MatchData), &uncommitted) {
@@ -292,7 +283,6 @@ func (blockchains *Blockchains) AddTokenChain(createToken CreateToken) {
 }
 
 func (blockchains *Blockchains) RemoveTokenChain(createToken CreateToken) {
-	blockchains.chains[createToken.TokenInfo.Symbol].DeleteStorage()
 	delete(blockchains.chains, createToken.TokenInfo.Symbol)
 	delete(blockchains.mempools, createToken.TokenInfo.Symbol)
 	delete(blockchains.mempoolUncommitted, createToken.TokenInfo.Symbol)
@@ -389,7 +379,7 @@ func CreateNewBlockchains(dbName string) *Blockchains {
 func (blockchains *Blockchains) GetHeight(symbol string) uint64 {
 	blockchains.chainsLock.RLock()
 	defer blockchains.chainsLock.RUnlock()
-	return blockchains.chains[symbol].GetStartHeight()
+	return blockchains.chains[symbol].height
 }
 
 func (blockchains *Blockchains) GetBlock(symbol string, blockhash []byte) (*Block, error) {
@@ -410,7 +400,7 @@ func (blockchains *Blockchains) GetHeights() map[string]uint64 {
 	defer blockchains.chainsLock.RUnlock()
 	heights := make(map[string]uint64)
 	for symbol, chain := range blockchains.chains {
-		heights[symbol] = chain.GetStartHeight()
+		heights[symbol] = chain.height
 	}
 	return heights
 }
@@ -484,7 +474,6 @@ func (blockchains *Blockchains) StartMining() {
 	//Send stuff currently in mem pool (re-validate too)
 	go func(currentToken string, transactions []GenericTransaction) {
 		for _, tx := range txInPool {
-			blockchains.chainsLock.Lock()
 			blockchains.mempoolsLock.Lock()
 			if currentToken != blockchains.minerChosenToken {
 				blockchains.mempoolsLock.Unlock()
@@ -492,12 +481,13 @@ func (blockchains *Blockchains) StartMining() {
 			}
 			blockchains.mempoolsLock.Unlock()
 
+			blockchains.chainsLock.Lock()
 			// Validate transaction
 			if !blockchains.addGenericTransaction(blockchains.minerChosenToken, tx, blockchains.mempoolUncommitted[blockchains.minerChosenToken]) {
+				blockchains.chainsLock.Unlock()
 				blockchains.mempoolsLock.Lock()
 				delete(blockchains.mempools[blockchains.minerChosenToken], &tx)
 				blockchains.mempoolsLock.Unlock()
-				blockchains.chainsLock.Unlock()
 				continue
 			}
 			blockchains.chainsLock.Unlock()

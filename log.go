@@ -31,15 +31,15 @@ func printf(path string, format string, a ...interface{}) {
 
 	switch file {
 	case "node.go":
-		colored = color.HiBlueString(format)
+		colored = color.BlueString(format)
 	case "blockchains.go", "blockchain.go", "block.go":
-		colored = color.HiGreenString(format)
+		colored = color.GreenString(format)
 	case "consensus_state.go":
-		colored = color.HiMagentaString(format)
+		colored = color.MagentaString(format)
 	case "miner.go", "pow.go":
-		colored = color.HiYellowString(format)
+		colored = color.YellowString(format)
 	case "matcher.go", "orderbook.go":
-		colored = color.HiRedString(format)
+		colored = color.RedString(format)
 	default:
 		colored = format
 	}

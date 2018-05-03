@@ -426,7 +426,7 @@ func (node *Node) reconcileChain(peerIp string, symbol string, theirBlockhashes 
 	node.bcs.chainsLock.RLock()
 
 	bc := node.bcs.chains[symbol]
-	myHeight := bc.GetStartHeight()
+	myHeight := bc.height
 	bci := bc.Iterator()
 	peer := node.peers[peerIp]
 

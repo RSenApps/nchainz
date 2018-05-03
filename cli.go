@@ -181,13 +181,16 @@ func (cli *CLI) printChain(db string) {
 	fmt.Println(MATCH_CHAIN)
 	fmt.Printf("Height: %d tiphash: %x\n", bc.height, bc.tipHash)
 	block, err := bci.Prev()
+	isGenesis := true
 	for err == nil {
-
 		fmt.Printf("Prev Hash: %x\n", block.PrevBlockHash)
 		fmt.Printf("Data: %s\n", block.Data)
 		fmt.Printf("Hash: %x\n", block.Hash)
 		pow := NewProofOfWork(block)
-		fmt.Printf("Validated Proof of Work: %s\n", strconv.FormatBool(pow.Validate()))
+		if !isGenesis {
+			fmt.Printf("Validated Proof of Work: %s\n", strconv.FormatBool(pow.Validate()))
+			isGenesis = false
+		}
 		fmt.Println("-------------------------------")
 		block, err = bci.Prev()
 	}
@@ -198,13 +201,16 @@ func (cli *CLI) printChain(db string) {
 	fmt.Println(NATIVE_CHAIN)
 	fmt.Printf("Height: %d tiphash: %x\n", bc.height, bc.tipHash)
 	block, err = bci.Prev()
+	isGenesis = true
 	for err == nil {
-
 		fmt.Printf("Prev Hash: %x\n", block.PrevBlockHash)
 		fmt.Printf("Data: %s\n", block.Data)
 		fmt.Printf("Hash: %x\n", block.Hash)
 		pow := NewProofOfWork(block)
-		fmt.Printf("Validated Proof of Work: %s\n", strconv.FormatBool(pow.Validate()))
+		if isGenesis {
+			fmt.Printf("Validated Proof of Work: %s\n", strconv.FormatBool(pow.Validate()))
+			isGenesis = false
+		}
 		fmt.Println("-------------------------------")
 		block, err = bci.Prev()
 	}
