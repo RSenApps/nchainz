@@ -132,6 +132,23 @@ func (blockchains *Blockchains) addGenericTransaction(symbol string, transaction
 	return true
 }
 
+func (blockchains *Blockchains) rollbackGenericTransaction(symbol string, transaction GenericTransaction) bool {
+	switch transaction.TransactionType {
+	case ORDER:
+		blockchains.consensusState.RollbackOrder(symbol, transaction.Transaction.(Order))
+	case CLAIM_FUNDS:
+		blockchains.consensusState.RollbackClaimFunds(symbol, transaction.Transaction.(ClaimFunds))
+	case TRANSFER:
+		blockchains.consensusState.RollbackTransfer(symbol, transaction.Transaction.(Transfer))
+	case MATCH:
+		blockchains.consensusState.RollbackMatch(transaction.Transaction.(Match))
+	case CANCEL_ORDER:
+		blockchains.consensusState.RollbackCancelOrder(transaction.Transaction.(CancelOrder))
+	case CREATE_TOKEN:
+		blockchains.consensusState.RollbackCreateToken(transaction.Transaction.(CreateToken), blockchains)
+	}
+}
+
 func (blockchains *Blockchains) addTokenData(symbol string, tokenData TokenData, uncommitted *UncommittedTransactions) bool {
 	for _, order := range tokenData.Orders {
 		tx := GenericTransaction{
@@ -439,8 +456,6 @@ func (blockchains *Blockchains) AddTransactionToMempool(tx GenericTransaction, s
 		Log("Failed to add tx to mempool consensus state")
 		return false
 	}
-	blockchains.chainsLock.Unlock()
-
 	blockchains.mempoolsLock.Lock()
 	if _, ok := blockchains.mempools[symbol][&tx]; ok {
 		Log("Tx already in mempool")
@@ -451,11 +466,16 @@ func (blockchains *Blockchains) AddTransactionToMempool(tx GenericTransaction, s
 	Log("Tx added to mempool")
 	// Add transaction to mempool
 	blockchains.mempools[symbol][&tx] = true
-	blockchains.mempoolsLock.Unlock()
 
 	if blockchains.minerChosenToken == symbol {
 		// Send transaction to miner
+		blockchains.mempoolsLock.Unlock()
+		blockchains.chainsLock.Unlock()
 		blockchains.miner.minerCh <- MinerMsg{&tx, false}
+	} else {
+		blockchains.rollbackGenericTransaction(symbol, tx)
+		blockchains.mempoolsLock.Unlock()
+		blockchains.chainsLock.Unlock()
 	}
 
 	return true
@@ -489,25 +509,24 @@ func (blockchains *Blockchains) StartMining() {
 		txInPool = append(txInPool, tx)
 	}
 	blockchains.mempoolsLock.Unlock()
+	Log("%v TX in mempool to revalidate and send", len(txInPool))
 
 	//Send stuff currently in mem pool (re-validate too)
 	go func(currentToken string, transactions []*GenericTransaction) {
 		for _, tx := range transactions {
+			blockchains.chainsLock.Lock()
 			blockchains.mempoolsLock.Lock()
 			if currentToken != blockchains.minerChosenToken {
 				blockchains.mempoolsLock.Unlock()
 				return
 			}
-			blockchains.mempoolsLock.Unlock()
 
-			blockchains.chainsLock.Lock()
 			// Validate transaction
 			if !blockchains.addGenericTransaction(blockchains.minerChosenToken, *tx, blockchains.mempoolUncommitted[blockchains.minerChosenToken]) {
-				blockchains.chainsLock.Unlock()
-				blockchains.mempoolsLock.Lock()
 				delete(blockchains.mempools[blockchains.minerChosenToken], tx)
 				Log("TX in mempool failed revalidation")
 				blockchains.mempoolsLock.Unlock()
+				blockchains.chainsLock.Unlock()
 				continue
 			}
 			blockchains.chainsLock.Unlock()
@@ -550,6 +569,7 @@ func (blockchains *Blockchains) ApplyLoop() {
 					if !txInBlock[&tx] {
 						newUncommitted = append(newUncommitted, tx)
 					} else {
+						Log("%tx mined in block and deleted from mempool %v", tx)
 						delete(blockchains.mempools[blockMsg.Symbol], &tx)
 					}
 				}
