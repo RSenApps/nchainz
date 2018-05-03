@@ -403,7 +403,7 @@ func CreateNewBlockchains(dbName string, startMining bool) *Blockchains {
 	blockchains.matcherCh = make(chan MatcherMsg, 1000)
 	StartMatcher(blockchains.matcherCh, blockchains, nil)
 
-	blockchains.mempools[MATCH_CHAIN] = make(map[*GenericTransaction]bool)
+	blockchains.mempools[MATCH_CHAIN] = make(map[string]GenericTransaction)
 	blockchains.mempoolUncommitted[MATCH_CHAIN] = &UncommittedTransactions{}
 	if newDatabase {
 		blockchains.recovering = false

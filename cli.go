@@ -55,8 +55,9 @@ func (cli *CLI) Run() {
 		cli.createWallet()
 
 	case "getbalance":
-		address := cli.getString(0)
-		cli.getBalance(address)
+		db := cli.getString(0)
+		address := cli.getString(1)
+		cli.getBalance(db, address)
 
 	case "printaddresses":
 		cli.printAddresses()
@@ -163,8 +164,8 @@ func (cli *CLI) getClient(serverIp string) *Client {
 ///////////////////////////////////////////////////////
 // CLI commands that really should live somewhere else
 
-func (cli *CLI) getBalance(address string) {
-	bcs := CreateNewBlockchains("blockchain.db", false)
+func (cli *CLI) getBalance(db string, address string) {
+	bcs := CreateNewBlockchains(db + ".db", false)
 	result, ok := bcs.GetBalance(NATIVE_CHAIN, address)
 	if !ok {
 		fmt.Println("Address not found")
