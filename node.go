@@ -408,7 +408,7 @@ func (node *Node) connectPeerIfNew(peerIp string) (isNew bool, peer *Peer, err e
 	node.SendVersion(peer)
 	node.setPeerState(peerIp, ACTIVE)
 
-	node.BroadcastAddr()
+	go node.SendAddr(peer)
 
 	ips := node.getPeerIps()
 	Log("Connected peer %s, known peers: %v", peerIp, ips)
