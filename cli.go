@@ -164,7 +164,7 @@ func (cli *CLI) getClient(serverIp string) *Client {
 // CLI commands that really should live somewhere else
 
 func (cli *CLI) getBalance(address string) {
-	bcs := CreateNewBlockchains("blockchain.db")
+	bcs := CreateNewBlockchains("blockchain.db", false)
 	result, ok := bcs.GetBalance(NATIVE_CHAIN, address)
 	if !ok {
 		fmt.Println("Address not found")
@@ -173,7 +173,7 @@ func (cli *CLI) getBalance(address string) {
 }
 
 func (cli *CLI) printChain(db string, symbol string) {
-	bcs := CreateNewBlockchains(db + ".db")
+	bcs := CreateNewBlockchains(db + ".db", false)
 	bc := bcs.chains[symbol]
 	bci := bc.Iterator()
 	fmt.Println(symbol)

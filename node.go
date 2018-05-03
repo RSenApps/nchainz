@@ -65,7 +65,7 @@ func StartNode(port uint64, seedIp string) {
 	}
 
 	peers := make(map[string]*Peer)
-	bcs := CreateNewBlockchains(dbName)
+	bcs := CreateNewBlockchains(dbName, true)
 	mu := sync.RWMutex{}
 	reconcileMu := sync.Mutex{}
 	node := &Node{myIp, peers, bcs, mu, reconcileMu}

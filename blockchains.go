@@ -210,13 +210,14 @@ func (blockchains *Blockchains) AddBlocks(symbol string, blocks []Block, takeLoc
 	}
 
 	if _, ok := blockchains.chains[symbol]; !ok {
-		log.Println("AddBlocks failed as symbol not found: ", symbol)
+		Log("AddBlocks failed as symbol not found: ", symbol)
 		return false
 	}
 
 	if !blockchains.recovering && blockchains.minerChosenToken == symbol {
 		go func() { blockchains.stopMiningCh <- symbol }()
 		blockchains.mempoolsLock.Lock()
+		Log("AddBlocks undoing transactions for: %v", symbol)
 		blockchains.mempoolUncommitted[symbol].undoTransactions(symbol, blockchains)
 		blockchains.mempoolUncommitted[symbol] = &UncommittedTransactions{}
 		blockchains.mempoolsLock.Unlock()
@@ -253,13 +254,15 @@ func (blockchains *Blockchains) AddBlocks(symbol string, blocks []Block, takeLoc
 		blocksAdded++
 	}
 	if failed {
-		log.Println("Adding blocks failed, rolling back.")
+		Log("Adding blocks failed, rolling back.")
 		uncommitted.undoTransactions(symbol, blockchains)
 		for i := 0; i < blocksAdded; i++ {
 			blockchains.chains[symbol].RemoveLastBlock()
 		}
 		return false
 	}
+	Log("AddBlocks added %v blocks to %v chain", blocksAdded, symbol)
+
 	return true
 }
 
@@ -280,7 +283,7 @@ func (blockchains *Blockchains) GetBalance(symbol string, address string) (uint6
 
 func (blockchains *Blockchains) AddTokenChain(createToken CreateToken) {
 	//no lock needed
-	log.Println("Adding token chain")
+	Log("Adding token chain")
 	chain := NewBlockchain(blockchains.db, createToken.TokenInfo.Symbol)
 	blockchains.chains[createToken.TokenInfo.Symbol] = chain
 	blockchains.mempools[createToken.TokenInfo.Symbol] = make(map[*GenericTransaction]bool)
@@ -292,7 +295,7 @@ func (blockchains *Blockchains) AddTokenChain(createToken CreateToken) {
 }
 
 func (blockchains *Blockchains) RemoveTokenChain(createToken CreateToken) {
-	log.Println("Removing token chain")
+	Log("Removing token chain")
 	delete(blockchains.chains, createToken.TokenInfo.Symbol)
 	delete(blockchains.mempools, createToken.TokenInfo.Symbol)
 	delete(blockchains.mempoolUncommitted, createToken.TokenInfo.Symbol)
@@ -343,7 +346,7 @@ func (blockchains *Blockchains) restoreFromDatabase() {
 	}
 }
 
-func CreateNewBlockchains(dbName string) *Blockchains {
+func CreateNewBlockchains(dbName string, startMining bool) *Blockchains {
 	//instantiates state and blockchains
 	blockchains := &Blockchains{}
 	newDatabase := true
@@ -358,20 +361,24 @@ func CreateNewBlockchains(dbName string) *Blockchains {
 	}
 	blockchains.db = db
 
-	blockchains.finishedBlockCh = make(chan BlockMsg, 1000)
-	blockchains.miner = NewMiner(blockchains.finishedBlockCh)
-	blockchains.stopMiningCh = make(chan string, 1000)
+	if startMining {
+		blockchains.finishedBlockCh = make(chan BlockMsg, 1000)
+		blockchains.miner = NewMiner(blockchains.finishedBlockCh)
+		blockchains.stopMiningCh = make(chan string, 1000)
+		blockchains.mempools = make(map[string]map[*GenericTransaction]bool)
+		blockchains.mempoolUncommitted = make(map[string]*UncommittedTransactions)
+
+		blockchains.mempools[MATCH_CHAIN] = make(map[*GenericTransaction]bool)
+		blockchains.mempoolUncommitted[MATCH_CHAIN] = &UncommittedTransactions{}
+	}
+
 	blockchains.consensusState = NewConsensusState()
 	blockchains.chains = make(map[string]*Blockchain)
 	blockchains.chains[MATCH_CHAIN] = NewBlockchain(db, MATCH_CHAIN)
 	blockchains.chainsLock = &sync.RWMutex{}
 	blockchains.mempoolsLock = &sync.Mutex{}
 
-	blockchains.mempools = make(map[string]map[*GenericTransaction]bool)
-	blockchains.mempoolUncommitted = make(map[string]*UncommittedTransactions)
 
-	blockchains.mempools[MATCH_CHAIN] = make(map[*GenericTransaction]bool)
-	blockchains.mempoolUncommitted[MATCH_CHAIN] = &UncommittedTransactions{}
 	if newDatabase {
 		blockchains.recovering = false
 		blockchains.AddBlock(MATCH_CHAIN, *NewGenesisBlock(), false)
@@ -380,9 +387,10 @@ func CreateNewBlockchains(dbName string) *Blockchains {
 		blockchains.restoreFromDatabase()
 		blockchains.recovering = false
 	}
-
-	go blockchains.StartMining()
-	go blockchains.ApplyLoop()
+	if startMining {
+		go blockchains.StartMining()
+		go blockchains.ApplyLoop()
+	}
 	return blockchains
 }
 
@@ -430,19 +438,19 @@ func (blockchains *Blockchains) AddTransactionToMempool(tx GenericTransaction, s
 	// Validate transaction
 	if !blockchains.addGenericTransaction(symbol, tx, blockchains.mempoolUncommitted[symbol]) {
 		blockchains.chainsLock.Unlock()
-		log.Println("Failed to add tx to mempool consensus state")
+		Log("Failed to add tx to mempool consensus state")
 		return false
 	}
 	blockchains.chainsLock.Unlock()
 
 	blockchains.mempoolsLock.Lock()
 	if _, ok := blockchains.mempools[symbol][&tx]; ok {
-		log.Println("Tx already in mempool")
+		Log("Tx already in mempool")
 		blockchains.mempoolsLock.Unlock()
 		return false
 	}
 
-	log.Println("Tx added to mempool")
+	Log("Tx added to mempool")
 	// Add transaction to mempool
 	blockchains.mempools[symbol][&tx] = true
 	blockchains.mempoolsLock.Unlock()
