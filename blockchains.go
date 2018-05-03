@@ -529,8 +529,8 @@ func (blockchains *Blockchains) StartMining() {
 			blockchains.chainsLock.Lock()
 			blockchains.mempoolsLock.Lock()
 			if currentToken != blockchains.minerChosenToken {
-				blockchains.chainsLock.Unlock()
 				blockchains.mempoolsLock.Unlock()
+				blockchains.chainsLock.Unlock()
 				return
 			}
 
@@ -542,6 +542,7 @@ func (blockchains *Blockchains) StartMining() {
 				blockchains.chainsLock.Unlock()
 				continue
 			}
+			blockchains.mempoolsLock.Unlock()
 			blockchains.chainsLock.Unlock()
 
 			// Send transaction to miner
