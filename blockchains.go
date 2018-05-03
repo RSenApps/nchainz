@@ -15,11 +15,11 @@ const NATIVE_CHAIN = "NATIVE"
 type Blockchains struct {
 	chains             map[string]*Blockchain
 	consensusState     ConsensusState
-	chainsLock         *sync.RWMutex
+	chainsLock         *sync.RWMutex // Lock on consensus state and chains
 	db                 *bolt.DB
 	mempools           map[string]map[*GenericTransaction]bool // map of sets
 	mempoolUncommitted map[string]*UncommittedTransactions
-	mempoolsLock       *sync.Mutex
+	mempoolsLock       *sync.Mutex // Lock on mempools
 	finishedBlockCh    chan BlockMsg
 	stopMiningCh       chan string
 	miner              *Miner
