@@ -9,6 +9,8 @@ import (
 	"net"
 	"net/rpc"
 	"os"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -50,8 +52,8 @@ const (
 	UNKNOWN
 )
 
-func StartNode(port uint64, seedIp string) {
-	myIp := fmt.Sprintf("127.0.0.1:%v", port)
+func StartNode(myIp string) {
+	port, _ := strconv.Atoi(strings.Split(myIp, ":")[1])
 	dbName := fmt.Sprintf("db/%v.db", port)
 
 	addr, err := net.ResolveTCPAddr("tcp", myIp)
@@ -74,7 +76,15 @@ func StartNode(port uint64, seedIp string) {
 	rpc.Register(node)
 	log.SetOutput(os.Stdout)
 
-	go node.connectPeerIfNew(seedIp)
+	seeds, err := GetSeeds()
+	if err != nil {
+		LogFatal("Couldn't find seeds file. Run \"echo SEED_IP:SEED_PORT > seeds.txt\" and try again.")
+	}
+
+	for _, seed := range seeds {
+		go node.connectPeerIfNew(seed)
+	}
+
 	go node.invLoop()
 
 	Log("Listening on %s", myIp)
@@ -411,6 +421,7 @@ func (node *Node) connectPeerIfNew(peerIp string) (isNew bool, peer *Peer, err e
 	go node.SendAddr(peer)
 
 	ips := node.getPeerIps()
+	SetSeeds(ips, node.myIp)
 	Log("Connected peer %s, known peers: %v", peerIp, ips)
 
 	return true, peer, nil

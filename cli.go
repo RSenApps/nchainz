@@ -25,20 +25,20 @@ Account management
 		Print all adddreses in wallet file
 
 Creating transactions
-	order BUY_AMT BUY_SYMBOL SELL_AMT SELL_SYMBOL ADDRESS NODE
-		Create an ORDER transaction and send it to the given node
-	transfer AMT SYMBOL FROM TO NODE
-		Create a TRANSFER transaction and send it to the given node
-	cancel SYMBOL ORDER_ID NODE
-		Create a CANCEL_ORDER transaction and send it to the given node
-	claim AMT SYMBOL ADDRESS NODE
-		Create a CLAIM_FUNDS transaction and send it to the given node
-	create SYMBOL SUPPLY DECIMALS ADDRESS NODE
-		Create a CREATE_TOKEN transaction and send it to the given node
+	order BUY_AMT BUY_SYMBOL SELL_AMT SELL_SYMBOL ADDRESS
+		Create an ORDER transaction
+	transfer AMT SYMBOL FROM TO
+		Create a TRANSFER transaction
+	cancel SYMBOL ORDER_ID
+		Create a CANCEL_ORDER transaction
+	claim AMT SYMBOL ADDRESS
+		Create a CLAIM_FUNDS transaction
+	create SYMBOL SUPPLY DECIMALS ADDRESS
+		Create a CREATE_TOKEN transaction
 
 Running a node or miner
-	node PORT SEED_IP
-		Start up a full node on the given port and connect to the given peer
+	node HOSTNAME:PORT
+		Start up a full node providing your hostname on the given port
 	printchain DB
 		Prints all the blocks in the blockchain
 `
@@ -68,9 +68,8 @@ func (cli *CLI) Run() {
 		sellAmt := cli.getUint(2)
 		sellSymbol := cli.getString(3)
 		seller := cli.getString(4)
-		serverIp := cli.getString(5)
 
-		client := cli.getClient(serverIp)
+		client := cli.getClient()
 		client.Order(buyAmt, buySymbol, sellAmt, sellSymbol, seller)
 
 	case "transfer":
@@ -78,26 +77,23 @@ func (cli *CLI) Run() {
 		symbol := cli.getString(1)
 		from := cli.getString(2)
 		to := cli.getString(3)
-		serverIp := cli.getString(4)
 
-		client := cli.getClient(serverIp)
+		client := cli.getClient()
 		client.Transfer(amt, symbol, from, to)
 
 	case "cancel":
 		orderSymbol := cli.getString(0)
 		orderId := cli.getUint(1)
-		serverIp := cli.getString(2)
 
-		client := cli.getClient(serverIp)
+		client := cli.getClient()
 		client.Cancel(orderSymbol, orderId)
 
 	case "claim":
 		amt := cli.getUint(0)
 		symbol := cli.getString(1)
 		address := cli.getString(2)
-		serverIp := cli.getString(3)
 
-		client := cli.getClient(serverIp)
+		client := cli.getClient()
 		client.Claim(amt, symbol, address)
 
 	case "create":
@@ -105,16 +101,14 @@ func (cli *CLI) Run() {
 		supply := cli.getUint(1)
 		decimals := uint8(cli.getUint(2))
 		address := cli.getString(3)
-		serverIp := cli.getString(4)
 
-		client := cli.getClient(serverIp)
+		client := cli.getClient()
 		client.Create(symbol, supply, decimals, address)
 
 	case "node":
-		port := cli.getUint(0)
-		seed := cli.getString(1)
+		socket := cli.getString(0)
 
-		StartNode(port, seed)
+		StartNode(socket)
 
 	case "printchain":
 		db := cli.getString(0)
@@ -150,8 +144,8 @@ func (cli *CLI) printHelpAndExit() {
 	os.Exit(1)
 }
 
-func (cli *CLI) getClient(serverIp string) *Client {
-	client, err := NewClient(serverIp)
+func (cli *CLI) getClient() *Client {
+	client, err := NewClient()
 
 	if err != nil {
 		log.Printf(err.Error())
@@ -165,7 +159,7 @@ func (cli *CLI) getClient(serverIp string) *Client {
 // CLI commands that really should live somewhere else
 
 func (cli *CLI) getBalance(db string, address string) {
-	bcs := CreateNewBlockchains(db + ".db", false)
+	bcs := CreateNewBlockchains(db+".db", false)
 	result, ok := bcs.GetBalance(NATIVE_CHAIN, address)
 	if !ok {
 		fmt.Println("Address not found")
@@ -174,7 +168,7 @@ func (cli *CLI) getBalance(db string, address string) {
 }
 
 func (cli *CLI) printChain(db string, symbol string) {
-	bcs := CreateNewBlockchains(db + ".db", false)
+	bcs := CreateNewBlockchains(db+".db", false)
 	bc := bcs.chains[symbol]
 	bci := bc.Iterator()
 	fmt.Println(symbol)

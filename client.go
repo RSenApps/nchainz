@@ -11,14 +11,24 @@ type Client struct {
 	rpc      *rpc.Client
 }
 
-func NewClient(serverIp string) (*Client, error) {
-	rpc, err := rpc.Dial("tcp", serverIp)
+func NewClient() (*Client, error) {
+	seeds, err := GetSeeds()
 	if err != nil {
-		return nil, err
+		return nil, errors.New("Couldn't find seeds file. Run \"echo NODE_IP:NODE_PORT > seeds.txt\" and try again.")
 	}
 
-	client := &Client{serverIp, rpc}
-	return client, nil
+	for _, seed := range seeds {
+		rpc, err := rpc.Dial("tcp", seed)
+
+		if err == nil {
+			Log("Connected to node %s", seed)
+
+			client := &Client{seed, rpc}
+			return client, nil
+		}
+	}
+
+	return nil, errors.New("No provided seed is online")
 }
 
 func (client *Client) SendTx(tx *GenericTransaction, symbol string) error {
@@ -61,10 +71,14 @@ func (client *Client) Transfer(amount uint64, symbol string, from string, to str
 	defer Log("Client done sending TRANSFER")
 
 	var empty []byte
-	transfer := Transfer{rand.Uint64(), amount, from, to, empty}
+	id := rand.Uint64()
+	transfer := Transfer{id, amount, from, to, empty}
 	tx := &GenericTransaction{transfer, TRANSFER}
 
-	client.SendTx(tx, symbol)
+	err := client.SendTx(tx, symbol)
+	if err == nil {
+		Log("transaction id: %v", id)
+	}
 }
 
 func (client *Client) Cancel(symbol string, orderId uint64) {
@@ -82,10 +96,14 @@ func (client *Client) Claim(amount uint64, symbol string, address string) {
 	Log("Client sending CLAIM_FUNDS")
 	defer Log("Client done sending CLAIM_FUNDS")
 
-	claim := ClaimFunds{rand.Uint64(),address, amount}
+	id := rand.Uint64()
+	claim := ClaimFunds{id, address, amount}
 	tx := &GenericTransaction{claim, CLAIM_FUNDS}
 
-	client.SendTx(tx, symbol)
+	err := client.SendTx(tx, symbol)
+	if err == nil {
+		Log("transaction id: %v", id)
+	}
 }
 
 func (client *Client) Create(symbol string, supply uint64, decimals uint8, address string) {
