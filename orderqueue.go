@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"container/heap"
 	"errors"
+	"fmt"
 )
 
 type OrderQueue struct {
@@ -32,9 +34,9 @@ func (oq *OrderQueue) Enq(order *Order) {
 	item := OrderQueueItem{}
 	item.order = order
 
-	if oq.Side == BASE {
+	if oq.Side == QUOTE {
 		item.price = float64(order.AmountToSell) / float64(order.AmountToBuy)
-	} else { // oq.Side == QUOTE
+	} else { // oq.Side == BASE
 		item.price = float64(order.AmountToBuy) / float64(order.AmountToSell)
 	}
 
@@ -64,6 +66,28 @@ func (oq *OrderQueue) Peek() (order *Order, price float64, err error) {
 	return item.order, item.price, nil
 }
 
+func (oq *OrderQueue) String() string {
+	var buffer bytes.Buffer
+
+	for _, oqi := range oq.Items {
+		buffer.WriteString(oq.oqiString(&oqi))
+	}
+
+	if oq.Side == BASE {
+		return fmt.Sprintf("BASE %s", buffer.String())
+	} else {
+		return fmt.Sprintf("QUOTE %s", buffer.String())
+	}
+}
+
+func (oq *OrderQueue) oqiString(oqi *OrderQueueItem) string {
+	if oq.Side == BASE {
+		return fmt.Sprintf("<%v @ %f #%v>", oqi.order.AmountToSell, oqi.price, oqi.order.ID)
+	} else {
+		return fmt.Sprintf("<%v @ %f #%v>", oqi.order.AmountToBuy, oqi.price, oqi.order.ID)
+	}
+}
+
 /////////////////////
 // Utils used by heap
 
@@ -73,9 +97,9 @@ func (oq *OrderQueue) Len() int {
 
 func (oq *OrderQueue) Less(i, j int) bool {
 	if oq.Side == BASE {
-		return oq.Items[i].price > oq.Items[j].price
-	} else { // oq.Side == QUOTE
 		return oq.Items[i].price < oq.Items[j].price
+	} else { // oq.Side == QUOTE
+		return oq.Items[i].price > oq.Items[j].price
 	}
 }
 

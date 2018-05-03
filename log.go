@@ -46,7 +46,7 @@ func printf(path string, format string, a ...interface{}) {
 		case "matcher.go", "orderbook.go":
 			colored = color.HiRedString(format)
 		case "red":
-			colored = color.New(color.FgHiBlack, color.BgHiYellow).Sprint(format)
+			colored = color.New(color.FgBlack, color.BgHiWhite).Sprint(format)
 		default:
 			colored = format
 		}
@@ -64,7 +64,7 @@ func printf(path string, format string, a ...interface{}) {
 		case "matcher.go", "orderbook.go":
 			colored = color.RedString(format)
 		case "red":
-			colored = color.New(color.FgBlack, color.BgWhite).Sprint(format)
+			colored = color.New(color.FgBlack, color.BgYellow).Sprint(format)
 		default:
 			colored = format
 		}

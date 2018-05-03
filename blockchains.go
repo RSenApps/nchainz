@@ -400,7 +400,8 @@ func CreateNewBlockchains(dbName string, startMining bool) *Blockchains {
 	blockchains.chainsLock = &sync.RWMutex{}
 	blockchains.mempoolsLock = &sync.Mutex{}
 
-	blockchains.matcherCh = StartMatcher(blockchains)
+	blockchains.matcherCh = make(chan MatcherMsg, 1000)
+	StartMatcher(blockchains.matcherCh, blockchains, nil)
 
 	blockchains.mempools[MATCH_CHAIN] = make(map[*GenericTransaction]bool)
 	blockchains.mempoolUncommitted[MATCH_CHAIN] = &UncommittedTransactions{}

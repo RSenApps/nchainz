@@ -9,6 +9,7 @@ type Matcher struct {
 	symbols    map[string]bool
 	txCh       chan MatcherMsg
 	bcs        *Blockchains
+	matchCh    chan Match
 	updated    bool
 }
 
@@ -17,15 +18,22 @@ type MatcherMsg struct {
 	SellSymbol string
 }
 
-func StartMatcher(bcs *Blockchains) chan MatcherMsg {
+func StartMatcher(txCh chan MatcherMsg, bcs *Blockchains, matchCh chan Match) (matcher *Matcher) {
 	orderbooks := make(map[string]map[string]*Orderbook)
 	symbols := make(map[string]bool)
-	txCh := make(chan MatcherMsg, 1000)
 
-	matcher := &Matcher{orderbooks, symbols, txCh, bcs, false}
-	go matcher.matchLoop()
+	if bcs != nil {
+		Log("Starting order matcher")
+		matcher = &Matcher{orderbooks, symbols, txCh, bcs, nil, false}
+		go matcher.matchLoop()
 
-	return txCh
+	} else {
+		Log("Simulating order matcher")
+		matcher = &Matcher{orderbooks, symbols, txCh, nil, matchCh, false}
+		go matcher.matchLoop()
+	}
+
+	return matcher
 }
 
 func (mr *Matcher) matchLoop() {
@@ -35,7 +43,7 @@ func (mr *Matcher) matchLoop() {
 			buySymbol := orderMsg.Order.BuySymbol
 			sellSymbol := orderMsg.SellSymbol
 
-			Log("Adding tx %v to %s orderbook", orderMsg.Order.ID, GetBookName(buySymbol, sellSymbol))
+			Log("Adding tx %v to %s", orderMsg.Order.ID, GetBookName(buySymbol, sellSymbol))
 
 			if _, exists := mr.symbols[buySymbol]; !exists {
 				mr.addSymbol(buySymbol)
@@ -49,7 +57,7 @@ func (mr *Matcher) matchLoop() {
 
 			mr.updated = true
 
-			Log("Done adding tx %v to %s orderbook", orderMsg.Order.ID, GetBookName(buySymbol, sellSymbol))
+			Log("Done adding tx %v to %s", orderMsg.Order.ID, GetBookName(buySymbol, sellSymbol))
 
 		default:
 			if mr.updated {
@@ -70,8 +78,7 @@ func (mr *Matcher) matchLoop() {
 						if foundHere {
 							Log("Found match on %s/%s: %v/%v", orderbook.QuoteSymbol, orderbook.BaseSymbol, match.BuyOrderID, match.SellOrderID)
 
-							tx := GenericTransaction{match, MATCH}
-							mr.bcs.AddTransactionToMempool(tx, MATCH_CHAIN)
+							mr.returnMatch(match)
 
 							foundAny = true
 							break OuterLoop
@@ -102,6 +109,15 @@ func (mr *Matcher) addSymbol(newSymbol string) {
 	}
 
 	mr.symbols[newSymbol] = true
+}
+
+func (mr *Matcher) returnMatch(match *Match) {
+	if mr.bcs != nil {
+		tx := GenericTransaction{*match, MATCH}
+		mr.bcs.AddTransactionToMempool(tx, MATCH_CHAIN)
+	} else {
+		mr.matchCh <- *match
+	}
 }
 
 func (mr *Matcher) getOrderbook(symbol1, symbol2 string) *Orderbook {

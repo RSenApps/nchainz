@@ -29,9 +29,9 @@ func (ob *Orderbook) Add(order *Order, sellSymbol string) {
 	defer ob.mu.Unlock()
 
 	if sellSymbol == ob.BaseSymbol {
-		ob.BaseQueue.Enq(order)
-	} else if sellSymbol == ob.QuoteSymbol {
 		ob.QuoteQueue.Enq(order)
+	} else if sellSymbol == ob.QuoteSymbol {
+		ob.BaseQueue.Enq(order)
 	}
 }
 
