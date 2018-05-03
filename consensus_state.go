@@ -26,6 +26,7 @@ func NewConsensusStateToken() *ConsensusStateToken {
 	token.balances = make(map[string]uint64)
 	token.unclaimedFunds = make(map[string]uint64)
 	token.deletedOrders = make(map[uint64]Order)
+	token.usedTransferIDs = make(map[uint64]bool)
 	return &token
 }
 
