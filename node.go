@@ -437,12 +437,12 @@ func (node *Node) reconcileChain(peerIp string, symbol string, theirBlockhashes 
 	bci := bc.Iterator()
 	peer := node.peers[peerIp]
 
-	Log("Reconciling chain %s with peer %s (myHeight %v, theirHeight %v)", symbol, peerIp, myHeight, theirHeight)
-	defer Log("Finished reconciling chain %s with peer %s", symbol, peerIp)
-
 	height := myHeight
 	theirIdx := theirHeight - myHeight
 	block, _ := bci.Prev()
+
+	Log("Reconciling chain %s with peer %s (myHeight %v, theirHeight %v)", symbol, peerIp, myHeight, theirHeight)
+	defer Log("Finished reconciling chain %s with peer %s", symbol, peerIp)
 
 	if theirHeight <= myHeight {
 		Log("No reconciliation necessary for chain %s with peer %s", symbol, peerIp)

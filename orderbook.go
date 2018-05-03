@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"math"
 	"math/rand"
 	"sync"
@@ -28,20 +29,33 @@ func (ob *Orderbook) Add(order *Order, sellSymbol string) {
 	defer ob.mu.Unlock()
 
 	if sellSymbol == ob.BaseSymbol {
-		ob.BaseQueue.Enq(order)
-	} else if sellSymbol == ob.QuoteSymbol {
 		ob.QuoteQueue.Enq(order)
+	} else if sellSymbol == ob.QuoteSymbol {
+		ob.BaseQueue.Enq(order)
 	}
 }
 
-func (ob *Orderbook) Match() (found bool, match *Match, spread uint64) {
+func (ob *Orderbook) Match() (found bool, match *Match) {
 	ob.mu.Lock()
 	defer ob.mu.Unlock()
+
+	Log("Checking for matches on %s/%s", ob.QuoteSymbol, ob.BaseSymbol)
 
 	buyOrder, buyPrice, buyErr := ob.QuoteQueue.Peek()
 	sellOrder, sellPrice, sellErr := ob.BaseQueue.Peek()
 
-	if buyErr != nil || sellErr != nil || buyPrice < sellPrice {
+	if buyErr != nil {
+		Log("No buy orders on %s/%s", ob.QuoteSymbol, ob.BaseSymbol)
+		return
+	}
+	if sellErr != nil {
+		Log("No sell orders on %s/%s", ob.QuoteSymbol, ob.BaseSymbol)
+		return
+	}
+
+	Log("%f bid (%v), %f ask (%v)", buyPrice, buyOrder.ID, sellPrice, sellOrder.ID)
+
+	if buyPrice < sellPrice {
 		return
 	}
 
@@ -65,7 +79,6 @@ func (ob *Orderbook) Match() (found bool, match *Match, spread uint64) {
 	found = true
 	id := rand.Uint64()
 	match = &Match{id, ob.BaseSymbol, sellOrder.ID, ob.QuoteSymbol, buyOrder.ID, uint64(transferAmt)}
-	spread = buyerBaseLoss - sellerBaseGain
 
 	ob.QuoteQueue.Deq()
 	if transferAmt < buyOrder.AmountToBuy && buyerBaseLoss < buyOrder.AmountToSell {
@@ -85,8 +98,15 @@ func (ob *Orderbook) Match() (found bool, match *Match, spread uint64) {
 }
 
 func GetBaseQuote(symbol1, symbol2 string) (base, quote string) {
-	if symbol1 < symbol2 {
+	if symbol1 > symbol2 {
 		return symbol1, symbol2
 	}
 	return symbol2, symbol1
+}
+
+func GetBookName(symbol1, symbol2 string) string {
+	if symbol1 < symbol2 {
+		return fmt.Sprintf("%v/%v", symbol1, symbol2)
+	}
+	return fmt.Sprintf("%v/%v", symbol2, symbol1)
 }

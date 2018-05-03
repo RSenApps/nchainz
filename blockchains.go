@@ -25,6 +25,7 @@ type Blockchains struct {
 	miner              *Miner
 	minerChosenToken   string
 	recovering         bool
+	matcherCh          chan MatcherMsg
 }
 
 type UncommittedTransactions struct {
@@ -125,9 +126,16 @@ func (blockchains *Blockchains) addGenericTransaction(symbol string, transaction
 	case CREATE_TOKEN:
 		success = blockchains.consensusState.AddCreateToken(transaction.Transaction.(CreateToken), blockchains)
 	}
+
+	if success && transaction.TransactionType == ORDER {
+		matcherMsg := MatcherMsg{transaction.Transaction.(Order), symbol}
+		blockchains.matcherCh <- matcherMsg
+	}
+
 	if !success {
 		return false
 	}
+
 	uncommitted.addTransaction(transaction)
 	return true
 }
@@ -386,14 +394,17 @@ func CreateNewBlockchains(dbName string, startMining bool) *Blockchains {
 	blockchains.mempools[MATCH_CHAIN] = make(map[string]GenericTransaction)
 	blockchains.mempoolUncommitted[MATCH_CHAIN] = &UncommittedTransactions{}
 
-
 	blockchains.consensusState = NewConsensusState()
 	blockchains.chains = make(map[string]*Blockchain)
 	blockchains.chains[MATCH_CHAIN] = NewBlockchain(db, MATCH_CHAIN)
 	blockchains.chainsLock = &sync.RWMutex{}
 	blockchains.mempoolsLock = &sync.Mutex{}
 
+	blockchains.matcherCh = make(chan MatcherMsg, 1000)
+	StartMatcher(blockchains.matcherCh, blockchains, nil)
 
+	blockchains.mempools[MATCH_CHAIN] = make(map[*GenericTransaction]bool)
+	blockchains.mempoolUncommitted[MATCH_CHAIN] = &UncommittedTransactions{}
 	if newDatabase {
 		blockchains.recovering = false
 		blockchains.AddBlock(MATCH_CHAIN, *NewGenesisBlock(), false)

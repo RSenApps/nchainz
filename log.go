@@ -37,16 +37,16 @@ func printf(path string, format string, a ...interface{}) {
 		switch file {
 		case "node.go":
 			colored = color.HiBlueString(format)
-		case "blockchains.go", "blockchain.go", "block.go":
+		case "blockchains.go", "blockchain.go":
 			colored = color.HiGreenString(format)
 		case "consensus_state.go":
 			colored = color.HiMagentaString(format)
 		case "miner.go", "pow.go":
 			colored = color.HiYellowString(format)
 		case "matcher.go", "orderbook.go":
-			colored = color.HiCyanString(format)
-		case "red":
 			colored = color.HiRedString(format)
+		case "red":
+			colored = color.New(color.FgBlack, color.BgHiWhite).Sprint(format)
 		default:
 			colored = format
 		}
@@ -62,9 +62,9 @@ func printf(path string, format string, a ...interface{}) {
 		case "miner.go", "pow.go":
 			colored = color.YellowString(format)
 		case "matcher.go", "orderbook.go":
-			colored = color.CyanString(format)
-		case "red":
 			colored = color.RedString(format)
+		case "red":
+			colored = color.New(color.FgBlack, color.BgYellow).Sprint(format)
 		default:
 			colored = format
 		}

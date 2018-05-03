@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/gob"
 	"fmt"
-	"log"
 )
 
 type TokenInfo struct {
@@ -117,7 +116,7 @@ type ClaimFunds struct {
 	Amount  uint64
 }
 
-func GetBytes(key interface{}) ([]byte) {
+func GetBytes(key interface{}) []byte {
 	return []byte(fmt.Sprintf("%v", key))
 }
 
@@ -189,9 +188,10 @@ func (b *Block) AddTransaction(tx GenericTransaction) {
 		temp.CreateTokens = append(temp.CreateTokens, tx.Transaction.(CreateToken))
 		newData = temp
 	default:
-		log.Panic("ERROR: unknown transaction type")
+		LogPanic("ERROR: unknown transaction type")
 	}
 	b.Data = newData
+	Log("Added transaction with data %v", b.Data)
 }
 
 //
@@ -203,7 +203,7 @@ func (b *Block) Serialize() []byte {
 
 	err := encoder.Encode(b) // encode block
 	if err != nil {
-		log.Panic(err)
+		LogPanic(err.Error())
 	}
 
 	return result.Bytes()
@@ -218,7 +218,7 @@ func DeserializeBlock(d []byte) *Block {
 	decoder := gob.NewDecoder(bytes.NewReader(d))
 	err := decoder.Decode(&block)
 	if err != nil {
-		log.Panic(err)
+		LogPanic(err.Error())
 	}
 
 	return &block
