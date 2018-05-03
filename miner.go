@@ -27,6 +27,7 @@ func (miner *Miner) mineLoop() {
 	var block *Block
 	var txInBlock map[string]GenericTransaction
 	var symbol string
+	var pow *ProofOfWork
 	for {
 		select {
 		case msg := <-miner.minerCh:
@@ -85,14 +86,14 @@ func (miner *Miner) mineLoop() {
 					}
 					miner.transactions = []GenericTransaction{}
 				}
+				pow = NewProofOfWork(block)
 
-				pow := NewProofOfWork(block)
 				success, nonce, hash := pow.Try(1000)
 				if success {
 					block.Hash = hash[:]
 					block.Nonce = nonce
 					Log("Sending mined block")
-					go func (msg BlockMsg) {miner.finishedBlockCh <- msg}(BlockMsg{*block, txInBlock,symbol})
+					go func(msg BlockMsg) { miner.finishedBlockCh <- msg }(BlockMsg{*block, txInBlock, symbol})
 					block = nil
 				}
 			}

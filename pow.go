@@ -10,10 +10,10 @@ import (
 )
 
 // Controls difficulty of mining
-const targetBits = 22
+const targetBits = 20
 
 // Maximum value of counter
-var maxNonce = math.MaxInt64
+var maxNonce = math.MaxInt32
 
 type ProofOfWork struct {
 	block  *Block   // pointer to block
@@ -43,12 +43,11 @@ func IntToHex(num int64) []byte {
 //
 // Merge block fields with target and nonce (counter)
 //
-func (pow *ProofOfWork) prepareData(nonce int) []byte {
-	blockBytes := GetBytes(pow.block.Data)
+func (pow *ProofOfWork) prepareData(dataBytes []byte, nonce int) []byte {
 	data := bytes.Join(
 		[][]byte{
 			pow.block.PrevBlockHash,
-			blockBytes,
+			dataBytes,
 			IntToHex(pow.block.Timestamp),
 			IntToHex(int64(targetBits)),
 			IntToHex(int64(nonce)),
@@ -63,9 +62,10 @@ func (pow *ProofOfWork) prepareData(nonce int) []byte {
 // Returns nonce and hash
 //
 func (pow *ProofOfWork) Try(iterations int) (bool, int, []byte) {
+	blockBytes := GetBytes(pow.block.Data)
 	for i := 0; i < iterations; i++ {
 		rand := rand.Intn(maxNonce)
-		success, nonce, hash := pow.Calculate(rand)
+		success, nonce, hash := pow.Calculate(blockBytes, rand)
 		if success {
 			Log("MINING SUCCESS")
 			return success, nonce, hash
@@ -79,11 +79,11 @@ func (pow *ProofOfWork) Try(iterations int) (bool, int, []byte) {
 //
 // Returns nonce and hash
 //
-func (pow *ProofOfWork) Calculate(nonce int) (bool, int, []byte) {
+func (pow *ProofOfWork) Calculate(blockBytes []byte, nonce int) (bool, int, []byte) {
 	var hashInt big.Int // int representation of hash
 	var hash [32]byte
 
-	data := pow.prepareData(nonce) // prepare data
+	data := pow.prepareData(blockBytes, nonce) // prepare data
 	hash = sha256.Sum256(data)     // hash with SHA-256
 	hashInt.SetBytes(hash[:])      // convert hash to a big integer
 
@@ -95,7 +95,8 @@ func (pow *ProofOfWork) Calculate(nonce int) (bool, int, []byte) {
 }
 
 func (pow *ProofOfWork) GetHash() []byte {
-	data := pow.prepareData(pow.block.Nonce)
+	blockBytes := GetBytes(pow.block.Data)
+	data := pow.prepareData(blockBytes, pow.block.Nonce)
 	hash := sha256.Sum256(data)
 	return hash[:]
 }
@@ -105,8 +106,8 @@ func (pow *ProofOfWork) GetHash() []byte {
 //
 func (pow *ProofOfWork) Validate() bool {
 	var hashInt big.Int
-
-	data := pow.prepareData(pow.block.Nonce)
+	blockBytes := GetBytes(pow.block.Data)
+	data := pow.prepareData(blockBytes, pow.block.Nonce)
 	hash := sha256.Sum256(data)
 	hashInt.SetBytes(hash[:])
 

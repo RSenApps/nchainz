@@ -103,6 +103,21 @@ func (blockchains *Blockchains) RollbackToHeight(symbol string, height uint64) {
 	blockchains.chainsLock.Lock()
 	Log("Rolling back %v block to height: %v \n", symbol, height)
 	defer blockchains.chainsLock.Unlock()
+
+	if _, ok := blockchains.chains[symbol]; !ok {
+		Log("RollbackToHeight failed as symbol not found: ", symbol)
+		return
+	}
+
+	if !blockchains.recovering && blockchains.minerChosenToken == symbol {
+		go func() { blockchains.stopMiningCh <- symbol }()
+		blockchains.mempoolsLock.Lock()
+		Log("RollbackToHeight undoing transactions for: %v", symbol)
+		blockchains.mempoolUncommitted[symbol].undoTransactions(symbol, blockchains)
+		blockchains.mempoolUncommitted[symbol] = &UncommittedTransactions{}
+		blockchains.mempoolsLock.Unlock()
+	}
+
 	if symbol == MATCH_CHAIN {
 		blockchains.rollbackMatchToHeight(height)
 	} else {
