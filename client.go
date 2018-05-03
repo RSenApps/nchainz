@@ -82,7 +82,7 @@ func (client *Client) Claim(amount uint64, symbol string, address string) {
 	Log("Client sending CLAIM_FUNDS")
 	defer Log("Client done sending CLAIM_FUNDS")
 
-	claim := ClaimFunds{address, amount}
+	claim := ClaimFunds{rand.Uint64(),address, amount}
 	tx := &GenericTransaction{claim, CLAIM_FUNDS}
 
 	client.SendTx(tx, symbol)

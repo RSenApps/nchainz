@@ -17,7 +17,7 @@ type Blockchains struct {
 	consensusState     ConsensusState
 	chainsLock         *sync.RWMutex // Lock on consensus state and chains
 	db                 *bolt.DB
-	mempools           map[string]map[*GenericTransaction]bool // map of sets
+	mempools           map[string]map[string]GenericTransaction // map of sets (of GenericTransaction ID)
 	mempoolUncommitted map[string]*UncommittedTransactions
 	mempoolsLock       *sync.Mutex // Lock on mempools
 	finishedBlockCh    chan BlockMsg
@@ -302,7 +302,7 @@ func (blockchains *Blockchains) AddTokenChain(createToken CreateToken) {
 	Log("Adding token chain")
 	chain := NewBlockchain(blockchains.db, createToken.TokenInfo.Symbol)
 	blockchains.chains[createToken.TokenInfo.Symbol] = chain
-	blockchains.mempools[createToken.TokenInfo.Symbol] = make(map[*GenericTransaction]bool)
+	blockchains.mempools[createToken.TokenInfo.Symbol] = make(map[string]GenericTransaction)
 	blockchains.mempoolUncommitted[createToken.TokenInfo.Symbol] = &UncommittedTransactions{}
 
 	if !blockchains.recovering { //recovery will replay this block normally
@@ -380,10 +380,10 @@ func CreateNewBlockchains(dbName string, startMining bool) *Blockchains {
 	blockchains.finishedBlockCh = make(chan BlockMsg, 1000)
 	blockchains.miner = NewMiner(blockchains.finishedBlockCh)
 	blockchains.stopMiningCh = make(chan string, 1000)
-	blockchains.mempools = make(map[string]map[*GenericTransaction]bool)
+	blockchains.mempools = make(map[string]map[string]GenericTransaction)
 	blockchains.mempoolUncommitted = make(map[string]*UncommittedTransactions)
 
-	blockchains.mempools[MATCH_CHAIN] = make(map[*GenericTransaction]bool)
+	blockchains.mempools[MATCH_CHAIN] = make(map[string]GenericTransaction)
 	blockchains.mempoolUncommitted[MATCH_CHAIN] = &UncommittedTransactions{}
 
 
@@ -457,21 +457,22 @@ func (blockchains *Blockchains) AddTransactionToMempool(tx GenericTransaction, s
 		return false
 	}
 	blockchains.mempoolsLock.Lock()
-	if _, ok := blockchains.mempools[symbol][&tx]; ok {
+	if _, ok := blockchains.mempools[symbol][tx.ID()]; ok {
 		Log("Tx already in mempool")
 		blockchains.mempoolsLock.Unlock()
+		blockchains.chainsLock.Unlock()
 		return false
 	}
 
 	Log("Tx added to mempool")
 	// Add transaction to mempool
-	blockchains.mempools[symbol][&tx] = true
+	blockchains.mempools[symbol][tx.ID()] = tx
 
 	if blockchains.minerChosenToken == symbol {
 		// Send transaction to miner
 		blockchains.mempoolsLock.Unlock()
 		blockchains.chainsLock.Unlock()
-		blockchains.miner.minerCh <- MinerMsg{&tx, false}
+		blockchains.miner.minerCh <- MinerMsg{tx, false}
 	} else {
 		blockchains.rollbackGenericTransaction(symbol, tx)
 		blockchains.mempoolsLock.Unlock()
@@ -504,26 +505,27 @@ func (blockchains *Blockchains) StartMining() {
 	}
 
 	blockchains.mempoolsLock.Lock()
-	var txInPool []*GenericTransaction
-	for tx := range blockchains.mempools[blockchains.minerChosenToken] {
+	var txInPool []GenericTransaction
+	for _, tx := range blockchains.mempools[blockchains.minerChosenToken] {
 		txInPool = append(txInPool, tx)
 	}
 	blockchains.mempoolsLock.Unlock()
 	Log("%v TX in mempool to revalidate and send", len(txInPool))
 
 	//Send stuff currently in mem pool (re-validate too)
-	go func(currentToken string, transactions []*GenericTransaction) {
+	go func(currentToken string, transactions []GenericTransaction) {
 		for _, tx := range transactions {
 			blockchains.chainsLock.Lock()
 			blockchains.mempoolsLock.Lock()
 			if currentToken != blockchains.minerChosenToken {
+				blockchains.chainsLock.Unlock()
 				blockchains.mempoolsLock.Unlock()
 				return
 			}
 
 			// Validate transaction
-			if !blockchains.addGenericTransaction(blockchains.minerChosenToken, *tx, blockchains.mempoolUncommitted[blockchains.minerChosenToken]) {
-				delete(blockchains.mempools[blockchains.minerChosenToken], tx)
+			if !blockchains.addGenericTransaction(blockchains.minerChosenToken, tx, blockchains.mempoolUncommitted[blockchains.minerChosenToken]) {
+				delete(blockchains.mempools[blockchains.minerChosenToken], tx.ID())
 				Log("TX in mempool failed revalidation")
 				blockchains.mempoolsLock.Unlock()
 				blockchains.chainsLock.Unlock()
@@ -542,6 +544,7 @@ func (blockchains *Blockchains) ApplyLoop() {
 	for {
 		select {
 		case blockMsg := <-blockchains.finishedBlockCh:
+			Log("Received block from miner")
 			// When miner finishes, try to add a block
 			blockchains.chainsLock.Lock()
 			//state was applied during validation so just add to chain
@@ -566,11 +569,12 @@ func (blockchains *Blockchains) ApplyLoop() {
 
 				var newUncommitted []GenericTransaction
 				for _, tx := range blockchains.mempoolUncommitted[blockMsg.Symbol].transactions {
-					if !txInBlock[&tx] {
+					if _, ok := txInBlock[tx.ID()]; !ok {
+						blockchains.rollbackGenericTransaction(blockMsg.Symbol, tx)
 						newUncommitted = append(newUncommitted, tx)
 					} else {
 						Log("%tx mined in block and deleted from mempool %v", tx)
-						delete(blockchains.mempools[blockMsg.Symbol], &tx)
+						delete(blockchains.mempools[blockMsg.Symbol], tx.ID())
 					}
 				}
 

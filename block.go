@@ -60,6 +60,18 @@ type GenericTransaction struct {
 	TransactionType TransactionType
 }
 
+func (gt *GenericTransaction) ID() string {
+	switch gt.TransactionType {
+	case CREATE_TOKEN: return string(gt.TransactionType) + gt.Transaction.(CreateToken).TokenInfo.Symbol
+	case MATCH: return string(gt.TransactionType) + string(gt.Transaction.(Match).MatchID)
+	case ORDER: return string(gt.TransactionType) + string(gt.Transaction.(Order).ID)
+	case TRANSFER: return string(gt.TransactionType) + string(gt.Transaction.(Transfer).ID)
+	case CANCEL_ORDER: return string(gt.TransactionType) + string(gt.Transaction.(CancelOrder).OrderID)
+	case CLAIM_FUNDS: return string(gt.TransactionType) + string(gt.Transaction.(ClaimFunds).ID)
+	}
+	return ""
+}
+
 type CreateToken struct {
 	TokenInfo      TokenInfo
 	CreatorAddress string //TODO: []byte
@@ -100,6 +112,7 @@ type CancelOrder struct { //goes on match chain
 }
 
 type ClaimFunds struct {
+	ID uint64
 	Address string
 	Amount  uint64
 }

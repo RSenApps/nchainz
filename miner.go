@@ -14,25 +14,25 @@ type MinerMsg struct {
 type Miner struct {
 	minerCh         chan MinerMsg
 	finishedBlockCh chan BlockMsg
-	transactions    []*GenericTransaction
+	transactions    []GenericTransaction
 }
 
 type BlockMsg struct {
 	Block  Block
-	TxInBlock map[*GenericTransaction]bool
+	TxInBlock map[string]GenericTransaction
 	Symbol string
 }
 
 func (miner *Miner) mineLoop() {
 	var block *Block
-	var txInBlock map[*GenericTransaction]bool
+	var txInBlock map[string]GenericTransaction
 	var symbol string
 	for {
 		select {
 		case msg := <-miner.minerCh:
 			// Stop mining
 			if msg.IsNewBlock {
-				miner.transactions = []*GenericTransaction{}
+				miner.transactions = []GenericTransaction{}
 				newBlock := msg.Msg.(NewBlockMsg)
 				symbol = newBlock.Symbol
 				switch symbol {
@@ -43,7 +43,7 @@ func (miner *Miner) mineLoop() {
 						CreateTokens: nil,
 					}
 					block = NewBlock(matchData, newBlock.BlockType, newBlock.LastHash)
-					txInBlock = make(map[*GenericTransaction]bool)
+					txInBlock = make(map[string]GenericTransaction)
 				default:
 					tokenData := TokenData{
 						Orders:     nil,
@@ -51,11 +51,11 @@ func (miner *Miner) mineLoop() {
 						Transfers:  nil,
 					}
 					block = NewBlock(tokenData, newBlock.BlockType, newBlock.LastHash)
-					txInBlock = make(map[*GenericTransaction]bool)
+					txInBlock = make(map[string]GenericTransaction)
 					Log("Mining new block: %s %v", newBlock.Symbol, newBlock.BlockType)
 				}
 			} else {
-				transaction := msg.Msg.(*GenericTransaction)
+				transaction := msg.Msg.(GenericTransaction)
 				switch transaction.TransactionType {
 				case MATCH, CANCEL_ORDER, CREATE_TOKEN:
 					if block.Type != MATCH_BLOCK {
@@ -71,8 +71,8 @@ func (miner *Miner) mineLoop() {
 					Log("Transaction added to array: %v", transaction)
 				} else {
 					Log("Transaction added to block: %v", transaction)
-					block.AddTransaction(*transaction)
-					txInBlock[transaction] = true
+					block.AddTransaction(transaction)
+					txInBlock[transaction.ID()] = transaction
 				}
 			}
 		default:
@@ -80,10 +80,10 @@ func (miner *Miner) mineLoop() {
 			if block != nil {
 				if len(miner.transactions) > 0 {
 					for t := range miner.transactions {
-						block.AddTransaction(*miner.transactions[t])
-						txInBlock[miner.transactions[t]] = true
+						block.AddTransaction(miner.transactions[t])
+						txInBlock[miner.transactions[t].ID()] = miner.transactions[t]
 					}
-					miner.transactions = []*GenericTransaction{}
+					miner.transactions = []GenericTransaction{}
 				}
 
 				pow := NewProofOfWork(block)
@@ -92,7 +92,7 @@ func (miner *Miner) mineLoop() {
 					block.Hash = hash[:]
 					block.Nonce = nonce
 					Log("Sending mined block")
-					miner.finishedBlockCh <- BlockMsg{*block, txInBlock,symbol}
+					go func (msg BlockMsg) {miner.finishedBlockCh <- msg}(BlockMsg{*block, txInBlock,symbol})
 					block = nil
 				}
 			}
@@ -102,7 +102,7 @@ func (miner *Miner) mineLoop() {
 
 func NewMiner(finishedBlockCh chan BlockMsg) *Miner {
 	minerCh := make(chan MinerMsg, 1000)
-	var transactions []*GenericTransaction
+	var transactions []GenericTransaction
 	miner := &Miner{minerCh, finishedBlockCh, transactions}
 	go miner.mineLoop()
 	return miner
