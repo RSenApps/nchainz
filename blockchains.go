@@ -360,16 +360,15 @@ func CreateNewBlockchains(dbName string, startMining bool) *Blockchains {
 	}
 	blockchains.db = db
 
-	if startMining {
-		blockchains.finishedBlockCh = make(chan BlockMsg, 1000)
-		blockchains.miner = NewMiner(blockchains.finishedBlockCh)
-		blockchains.stopMiningCh = make(chan string, 1000)
-		blockchains.mempools = make(map[string]map[*GenericTransaction]bool)
-		blockchains.mempoolUncommitted = make(map[string]*UncommittedTransactions)
+	blockchains.finishedBlockCh = make(chan BlockMsg, 1000)
+	blockchains.miner = NewMiner(blockchains.finishedBlockCh)
+	blockchains.stopMiningCh = make(chan string, 1000)
+	blockchains.mempools = make(map[string]map[*GenericTransaction]bool)
+	blockchains.mempoolUncommitted = make(map[string]*UncommittedTransactions)
 
-		blockchains.mempools[MATCH_CHAIN] = make(map[*GenericTransaction]bool)
-		blockchains.mempoolUncommitted[MATCH_CHAIN] = &UncommittedTransactions{}
-	}
+	blockchains.mempools[MATCH_CHAIN] = make(map[*GenericTransaction]bool)
+	blockchains.mempoolUncommitted[MATCH_CHAIN] = &UncommittedTransactions{}
+
 
 	blockchains.consensusState = NewConsensusState()
 	blockchains.chains = make(map[string]*Blockchain)
