@@ -7,42 +7,41 @@ import (
 type Matcher struct {
 	orderbooks map[string]map[string]*Orderbook
 	symbols    map[string]bool
-	orderCh    chan OrderMsg
-	matchCh    chan MatchMsg
+	txCh       chan MatcherMsg
+	bcs        *Blockchains
 	updated    bool
 }
 
-type OrderMsg struct {
+type MatcherMsg struct {
 	Order      Order
 	SellSymbol string
 }
 
-type MatchMsg struct {
-	Match  Match
-	Spread uint64
-}
-
-func NewMatcher(orderCh chan OrderMsg, matchCh chan MatchMsg) *Matcher {
+func StartMatcher(bcs *Blockchains) chan MatcherMsg {
 	orderbooks := make(map[string]map[string]*Orderbook)
 	symbols := make(map[string]bool)
+	txCh := make(chan MatcherMsg, 1000)
 
-	matcher := &Matcher{orderbooks, symbols, orderCh, matchCh, false}
+	matcher := &Matcher{orderbooks, symbols, txCh, bcs, false}
 	go matcher.matchLoop()
-	return matcher
+
+	return txCh
 }
 
 func (mr *Matcher) matchLoop() {
 	for {
 		select {
-		case orderMsg := <-mr.orderCh:
-			sellSymbol := orderMsg.SellSymbol
+		case orderMsg := <-mr.txCh:
 			buySymbol := orderMsg.Order.BuySymbol
+			sellSymbol := orderMsg.SellSymbol
 
-			if _, exists := mr.symbols[sellSymbol]; !exists {
-				mr.addSymbol(sellSymbol)
-			}
+			Log("Adding tx %v to %s orderbook", orderMsg.Order.ID, GetBookName(buySymbol, sellSymbol))
+
 			if _, exists := mr.symbols[buySymbol]; !exists {
 				mr.addSymbol(buySymbol)
+			}
+			if _, exists := mr.symbols[sellSymbol]; !exists {
+				mr.addSymbol(sellSymbol)
 			}
 
 			orderbook := mr.getOrderbook(buySymbol, sellSymbol)
@@ -50,23 +49,29 @@ func (mr *Matcher) matchLoop() {
 
 			mr.updated = true
 
+			Log("Done adding tx %v to %s orderbook", orderMsg.Order.ID, GetBookName(buySymbol, sellSymbol))
+
 		default:
 			if mr.updated {
+				Log("Looking for matches")
+
 				foundAny := false
 
 			OuterLoop:
 				for symbol1 := range mr.symbols {
 					for symbol2 := range mr.symbols {
-						if symbol1 == symbol2 {
+						if symbol1 >= symbol2 {
 							continue
 						}
 
 						orderbook := mr.getOrderbook(symbol1, symbol2)
-						foundHere, match, spread := orderbook.Match()
+						foundHere, match := orderbook.Match()
 
 						if foundHere {
-							matchMsg := MatchMsg{*match, spread}
-							mr.matchCh <- matchMsg
+							Log("Found match on %s/%s: %v/%v", orderbook.QuoteSymbol, orderbook.BaseSymbol, match.BuyOrderID, match.SellOrderID)
+
+							tx := GenericTransaction{match, MATCH}
+							mr.bcs.AddTransactionToMempool(tx, MATCH_CHAIN)
 
 							foundAny = true
 							break OuterLoop
@@ -75,6 +80,7 @@ func (mr *Matcher) matchLoop() {
 				}
 
 				if !foundAny {
+					Log("No matches found")
 					mr.updated = false
 				}
 
@@ -86,6 +92,10 @@ func (mr *Matcher) matchLoop() {
 }
 
 func (mr *Matcher) addSymbol(newSymbol string) {
+	Log("Adding symbol %s to matcher", newSymbol)
+
+	mr.orderbooks[newSymbol] = make(map[string]*Orderbook)
+
 	for oldSymbol := range mr.symbols {
 		base, quote := GetBaseQuote(newSymbol, oldSymbol)
 		mr.orderbooks[base][quote] = NewOrderbook(base, quote)

@@ -1,8 +1,8 @@
 package main
 
 import (
-	"math"
 	"log"
+	"math"
 )
 
 type ConsensusStateToken struct {
