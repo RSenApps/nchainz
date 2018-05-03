@@ -41,12 +41,9 @@ func (oq *OrderQueue) Enq(order *Order) {
 	}
 
 	heap.Push(oq, item)
-	Log("push %v", oq)
 }
 
 func (oq *OrderQueue) Deq() (order *Order, price float64, err error) {
-	Log("deq %v", oq)
-
 	if oq.Len() == 0 {
 		return nil, 0.0, errors.New("empty queue")
 	}
@@ -56,8 +53,6 @@ func (oq *OrderQueue) Deq() (order *Order, price float64, err error) {
 }
 
 func (oq *OrderQueue) Peek() (order *Order, price float64, err error) {
-	Log("peek %v", oq)
-
 	if oq.Len() == 0 {
 		return nil, 0.0, errors.New("empty queue")
 	}

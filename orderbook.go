@@ -33,6 +33,9 @@ func (ob *Orderbook) Add(order *Order, sellSymbol string) {
 	} else if sellSymbol == ob.QuoteSymbol {
 		ob.BaseQueue.Enq(order)
 	}
+
+	Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.QuoteQueue)
+	Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.BaseQueue)
 }
 
 func (ob *Orderbook) Match() (found bool, match *Match) {
@@ -94,6 +97,8 @@ func (ob *Orderbook) Match() (found bool, match *Match) {
 		ob.BaseQueue.Enq(sellOrder)
 	}
 
+	Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.QuoteQueue)
+	Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.BaseQueue)
 	return
 }
 
