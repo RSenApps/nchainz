@@ -132,7 +132,7 @@ func (blockchains *Blockchains) addGenericTransaction(symbol string, transaction
 	return true
 }
 
-func (blockchains *Blockchains) rollbackGenericTransaction(symbol string, transaction GenericTransaction) bool {
+func (blockchains *Blockchains) rollbackGenericTransaction(symbol string, transaction GenericTransaction) {
 	switch transaction.TransactionType {
 	case ORDER:
 		blockchains.consensusState.RollbackOrder(symbol, transaction.Transaction.(Order))
