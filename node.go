@@ -418,7 +418,7 @@ func (node *Node) connectPeerIfNew(peerIp string) (isNew bool, peer *Peer, err e
 	node.SendVersion(peer)
 	node.setPeerState(peerIp, ACTIVE)
 
-	go node.SendAddr(peer)
+	node.BroadcastAddr()
 
 	ips := node.getPeerIps()
 	SetSeeds(ips, node.myIp)
