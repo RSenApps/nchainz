@@ -401,7 +401,6 @@ func CreateNewBlockchains(dbName string, startMining bool) *Blockchains {
 	blockchains.mempoolsLock = &sync.Mutex{}
 
 	blockchains.matcherCh = make(chan MatcherMsg, 1000)
-	StartMatcher(blockchains.matcherCh, blockchains, nil)
 
 	blockchains.mempools[MATCH_CHAIN] = make(map[string]GenericTransaction)
 	blockchains.mempoolUncommitted[MATCH_CHAIN] = &UncommittedTransactions{}
@@ -416,6 +415,7 @@ func CreateNewBlockchains(dbName string, startMining bool) *Blockchains {
 	if startMining {
 		go blockchains.StartMining()
 		go blockchains.ApplyLoop()
+		StartMatcher(blockchains.matcherCh, blockchains, nil)
 	}
 	return blockchains
 }
