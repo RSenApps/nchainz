@@ -25,6 +25,10 @@ func LogPanic(format string, a ...interface{}) {
 	panic("log panic")
 }
 
+func LogRed(format string, a ...interface{}) {
+	printf("red", format, a...)
+}
+
 func printf(path string, format string, a ...interface{}) {
 	file := filepath.Base(path)
 	var colored string
@@ -39,6 +43,8 @@ func printf(path string, format string, a ...interface{}) {
 	case "miner.go", "pow.go":
 		colored = color.YellowString(format)
 	case "matcher.go", "orderbook.go":
+		colored = color.CyanString(format)
+	case "red":
 		colored = color.RedString(format)
 	default:
 		colored = format

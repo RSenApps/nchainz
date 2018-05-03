@@ -425,7 +425,14 @@ func (node *Node) reconcileChain(peerIp string, symbol string, theirBlockhashes 
 
 	node.bcs.chainsLock.RLock()
 
-	bc := node.bcs.chains[symbol]
+	bc, chainExists := node.bcs.chains[symbol]
+	if !chainExists {
+		Log("Attempted to reconcile non-existent chain %s with peer %s", symbol, peerIp)
+		node.bcs.chainsLock.RUnlock()
+
+		return errors.New("chain doesn't exist")
+	}
+
 	myHeight := bc.height
 	bci := bc.Iterator()
 	peer := node.peers[peerIp]
@@ -450,14 +457,17 @@ func (node *Node) reconcileChain(peerIp string, symbol string, theirBlockhashes 
 		block, _ = bci.Prev()
 	}
 
-	if int(theirIdx) == len(theirBlockhashes) || block == nil {
-		Log("Ran out of blockhashes reconciling chain %s with peer %s", symbol, peerIp)
-		node.bcs.chainsLock.RUnlock()
+	node.bcs.chainsLock.RUnlock()
 
+	if int(theirIdx) > len(theirBlockhashes) {
+		Log("Ran out of blockhashes reconciling chain %s with peer %s", symbol, peerIp)
 		return errors.New("more blockhashes needed")
 	}
 
-	node.bcs.chainsLock.RUnlock()
+	if block == nil {
+		Log("Hit nil block reconciling chain %s with peer %s", symbol, peerIp)
+		return errors.New("Hit nil block")
+	}
 
 	if height != myHeight {
 		Log("Found fork at height %v while reconciling chain %s with peer %s", height, symbol, peerIp)

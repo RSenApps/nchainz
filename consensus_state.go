@@ -94,6 +94,7 @@ func (state *ConsensusState) AddTransfer(symbol string, transfer Transfer) bool 
 	}
 	tokenState.balances[transfer.FromAddress] -= transfer.Amount
 	tokenState.balances[transfer.ToAddress] += transfer.Amount
+	tokenState.usedTransferIDs[transfer.ID] = true
 	return true
 }
 
