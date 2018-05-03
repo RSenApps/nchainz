@@ -101,6 +101,14 @@ func (blockchains *Blockchains) rollbackMatchToHeight(height uint64) {
 func (blockchains *Blockchains) RollbackToHeight(symbol string, height uint64) {
 	blockchains.chainsLock.Lock()
 	defer blockchains.chainsLock.Unlock()
+	if !blockchains.recovering && blockchains.minerChosenToken == symbol {
+		go func() { blockchains.stopMiningCh <- symbol }()
+		blockchains.mempoolsLock.Lock()
+		blockchains.mempoolUncommitted[symbol].undoTransactions(symbol, blockchains)
+		blockchains.mempoolUncommitted[symbol] = &UncommittedTransactions{}
+		blockchains.mempoolsLock.Unlock()
+	}
+
 	if symbol == MATCH_CHAIN {
 		blockchains.rollbackMatchToHeight(height)
 	} else {
@@ -202,17 +210,17 @@ func (blockchains *Blockchains) AddBlock(symbol string, block Block, takeLock bo
 }
 
 func (blockchains *Blockchains) AddBlocks(symbol string, blocks []Block, takeLock bool) bool {
+	if takeLock {
+		blockchains.chainsLock.Lock()
+		defer blockchains.chainsLock.Unlock()
+	}
+
 	if !blockchains.recovering && blockchains.minerChosenToken == symbol {
 		go func() { blockchains.stopMiningCh <- symbol }()
 		blockchains.mempoolsLock.Lock()
 		blockchains.mempoolUncommitted[symbol].undoTransactions(symbol, blockchains)
 		blockchains.mempoolUncommitted[symbol] = &UncommittedTransactions{}
 		blockchains.mempoolsLock.Unlock()
-	}
-
-	if takeLock {
-		blockchains.chainsLock.Lock()
-		defer blockchains.chainsLock.Unlock()
 	}
 
 	blocksAdded := 0
@@ -284,6 +292,7 @@ func (blockchains *Blockchains) AddTokenChain(createToken CreateToken) {
 }
 
 func (blockchains *Blockchains) RemoveTokenChain(createToken CreateToken) {
+	blockchains.chains[createToken.TokenInfo.Symbol].DeleteStorage()
 	delete(blockchains.chains, createToken.TokenInfo.Symbol)
 	delete(blockchains.mempools, createToken.TokenInfo.Symbol)
 	delete(blockchains.mempoolUncommitted, createToken.TokenInfo.Symbol)
@@ -475,6 +484,7 @@ func (blockchains *Blockchains) StartMining() {
 	//Send stuff currently in mem pool (re-validate too)
 	go func(currentToken string, transactions []GenericTransaction) {
 		for _, tx := range txInPool {
+			blockchains.chainsLock.Lock()
 			blockchains.mempoolsLock.Lock()
 			if currentToken != blockchains.minerChosenToken {
 				blockchains.mempoolsLock.Unlock()
@@ -482,13 +492,12 @@ func (blockchains *Blockchains) StartMining() {
 			}
 			blockchains.mempoolsLock.Unlock()
 
-			blockchains.chainsLock.Lock()
 			// Validate transaction
 			if !blockchains.addGenericTransaction(blockchains.minerChosenToken, tx, blockchains.mempoolUncommitted[blockchains.minerChosenToken]) {
-				blockchains.chainsLock.Unlock()
 				blockchains.mempoolsLock.Lock()
 				delete(blockchains.mempools[blockchains.minerChosenToken], &tx)
 				blockchains.mempoolsLock.Unlock()
+				blockchains.chainsLock.Unlock()
 				continue
 			}
 			blockchains.chainsLock.Unlock()

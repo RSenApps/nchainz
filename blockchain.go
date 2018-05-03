@@ -111,6 +111,14 @@ func (bc *Blockchain) RemoveLastBlock() BlockData {
 	return lastBlock.Data
 }
 
+func (bc *Blockchain) DeleteStorage() {
+	bc.db.Update(func(tx *bolt.Tx) error {
+		// Get bucket
+		tx.DeleteBucket([]byte(bc.bucketName))
+		return nil
+	})
+}
+
 //
 // Create iterator for a blockchain
 //
