@@ -33,21 +33,41 @@ func printf(path string, format string, a ...interface{}) {
 	file := filepath.Base(path)
 	var colored string
 
-	switch file {
-	case "node.go":
-		colored = color.BlueString(format)
-	case "blockchains.go", "blockchain.go", "block.go":
-		colored = color.GreenString(format)
-	case "consensus_state.go":
-		colored = color.MagentaString(format)
-	case "miner.go", "pow.go":
-		colored = color.YellowString(format)
-	case "matcher.go", "orderbook.go":
-		colored = color.CyanString(format)
-	case "red":
-		colored = color.RedString(format)
-	default:
-		colored = format
+	if os.Getenv("NCHAINZ_COLORS") == "hi" {
+		switch file {
+		case "node.go":
+			colored = color.HiBlueString(format)
+		case "blockchains.go", "blockchain.go", "block.go":
+			colored = color.HiGreenString(format)
+		case "consensus_state.go":
+			colored = color.HiMagentaString(format)
+		case "miner.go", "pow.go":
+			colored = color.HiYellowString(format)
+		case "matcher.go", "orderbook.go":
+			colored = color.HiCyanString(format)
+		case "red":
+			colored = color.HiRedString(format)
+		default:
+			colored = format
+		}
+
+	} else {
+		switch file {
+		case "node.go":
+			colored = color.BlueString(format)
+		case "blockchains.go", "blockchain.go", "block.go":
+			colored = color.GreenString(format)
+		case "consensus_state.go":
+			colored = color.MagentaString(format)
+		case "miner.go", "pow.go":
+			colored = color.YellowString(format)
+		case "matcher.go", "orderbook.go":
+			colored = color.CyanString(format)
+		case "red":
+			colored = color.RedString(format)
+		default:
+			colored = format
+		}
 	}
 
 	log.Printf(colored, a...)
