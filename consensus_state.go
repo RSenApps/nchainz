@@ -82,7 +82,11 @@ func (state *ConsensusState) RollbackClaimFunds(symbol string, funds ClaimFunds)
 }
 
 func (state *ConsensusState) AddTransfer(symbol string, transfer Transfer) bool {
-	tokenState := state.tokenStates[symbol]
+	tokenState, symbolExists := state.tokenStates[symbol]
+	if !symbolExists {
+		return false
+	}
+
 	if _, ok := tokenState.usedTransferIDs[transfer.ID]; ok {
 		return false
 	}
