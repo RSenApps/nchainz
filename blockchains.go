@@ -508,7 +508,7 @@ func (blockchains *Blockchains) StartMining() {
 
 			// Send transaction to miner
 			Log("Sending from re-validated mempool")
-			blockchains.miner.minerCh <- MinerMsg{&tx, false}
+			blockchains.miner.minerCh <- MinerMsg{tx, false}
 		}
 	}(blockchains.minerChosenToken, txInPool)
 }
