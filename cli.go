@@ -117,8 +117,8 @@ func (cli *CLI) Run() {
 
 	case "printchain":
 		db := cli.getString(0)
-
-		cli.printChain(db)
+		symbol := cli.getString(1)
+		cli.printChain(db, symbol)
 
 	default:
 		cli.printHelpAndExit()
@@ -172,13 +172,11 @@ func (cli *CLI) getBalance(address string) {
 	fmt.Printf("Balance: %v\n", result)
 }
 
-func (cli *CLI) printChain(db string) {
+func (cli *CLI) printChain(db string, symbol string) {
 	bcs := CreateNewBlockchains(db + ".db")
-	bc := bcs.chains[MATCH_CHAIN]
-	defer bc.db.Close()
-
+	bc := bcs.chains[symbol]
 	bci := bc.Iterator()
-	fmt.Println(MATCH_CHAIN)
+	fmt.Println(symbol)
 	fmt.Printf("Height: %d tiphash: %x\n", bc.height, bc.tipHash)
 	block, err := bci.Prev()
 	isGenesis := true
@@ -188,26 +186,6 @@ func (cli *CLI) printChain(db string) {
 		fmt.Printf("Hash: %x\n", block.Hash)
 		pow := NewProofOfWork(block)
 		if !isGenesis {
-			fmt.Printf("Validated Proof of Work: %s\n", strconv.FormatBool(pow.Validate()))
-			isGenesis = false
-		}
-		fmt.Println("-------------------------------")
-		block, err = bci.Prev()
-	}
-
-	bc = bcs.chains[NATIVE_CHAIN]
-
-	bci = bc.Iterator()
-	fmt.Println(NATIVE_CHAIN)
-	fmt.Printf("Height: %d tiphash: %x\n", bc.height, bc.tipHash)
-	block, err = bci.Prev()
-	isGenesis = true
-	for err == nil {
-		fmt.Printf("Prev Hash: %x\n", block.PrevBlockHash)
-		fmt.Printf("Data: %s\n", block.Data)
-		fmt.Printf("Hash: %x\n", block.Hash)
-		pow := NewProofOfWork(block)
-		if isGenesis {
 			fmt.Printf("Validated Proof of Work: %s\n", strconv.FormatBool(pow.Validate()))
 			isGenesis = false
 		}

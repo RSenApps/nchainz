@@ -1,8 +1,8 @@
 package main
 
 import (
-	"log"
 	"math"
+	"log"
 )
 
 type ConsensusStateToken struct {
@@ -90,7 +90,7 @@ func (state *ConsensusState) AddTransfer(symbol string, transfer Transfer) bool 
 		return false
 	}
 	if tokenState.balances[transfer.FromAddress] < transfer.Amount {
-		log.Println("Rejecting block due to insufficient funds")
+		log.Printf("Rejecting block due to insufficient funds Address: %v Balance: %v TransferAMT: %v \n", transfer.FromAddress, tokenState.balances[transfer.FromAddress], transfer.Amount)
 		return false
 	}
 	tokenState.balances[transfer.FromAddress] -= transfer.Amount
