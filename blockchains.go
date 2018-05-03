@@ -202,17 +202,21 @@ func (blockchains *Blockchains) AddBlock(symbol string, block Block, takeLock bo
 }
 
 func (blockchains *Blockchains) AddBlocks(symbol string, blocks []Block, takeLock bool) bool {
+	if takeLock {
+		blockchains.chainsLock.Lock()
+		defer blockchains.chainsLock.Unlock()
+	}
+
+	if _, ok := blockchains.chains[symbol]; !ok {
+		return false
+	}
+
 	if !blockchains.recovering && blockchains.minerChosenToken == symbol {
 		go func() { blockchains.stopMiningCh <- symbol }()
 		blockchains.mempoolsLock.Lock()
 		blockchains.mempoolUncommitted[symbol].undoTransactions(symbol, blockchains)
 		blockchains.mempoolUncommitted[symbol] = &UncommittedTransactions{}
 		blockchains.mempoolsLock.Unlock()
-	}
-
-	if takeLock {
-		blockchains.chainsLock.Lock()
-		defer blockchains.chainsLock.Unlock()
 	}
 
 	blocksAdded := 0

@@ -40,7 +40,11 @@ func NewConsensusState() ConsensusState {
 }
 
 func (state *ConsensusState) AddOrder(symbol string, order Order) bool {
-	tokenState := state.tokenStates[symbol]
+	tokenState, symbolExists := state.tokenStates[symbol]
+	if !symbolExists {
+		return false
+	}
+
 	if tokenState.balances[order.SellerAddress] < order.AmountToSell {
 		return false
 	}
@@ -66,7 +70,11 @@ func (state *ConsensusState) RollbackOrder(symbol string, order Order) {
 }
 
 func (state *ConsensusState) AddClaimFunds(symbol string, funds ClaimFunds) bool {
-	tokenState := state.tokenStates[symbol]
+	tokenState, symbolExists := state.tokenStates[symbol]
+	if !symbolExists {
+		return false
+	}
+
 	if tokenState.unclaimedFunds[funds.Address] < funds.Amount {
 		return false
 	}
@@ -114,8 +122,14 @@ func (state *ConsensusState) AddMatch(match Match) bool {
 	//Check if both buy and sell orders are satisfied by match and that orders are open
 	//add to unconfirmedSell and Buy Matches
 	//remove orders from openOrders
-	buyTokenState := state.tokenStates[match.BuySymbol]
-	sellTokenState := state.tokenStates[match.SellSymbol]
+	buyTokenState, symbolExists := state.tokenStates[match.BuySymbol]
+	if !symbolExists {
+		return false
+	}
+	sellTokenState, symbolExists := state.tokenStates[match.SellSymbol]
+	if !symbolExists {
+		return false
+	}
 	buyOrder, ok := buyTokenState.openOrders[match.BuyOrderID]
 	if !ok {
 		return false
@@ -222,7 +236,10 @@ func (state *ConsensusState) RollbackMatch(match Match) {
 }
 
 func (state *ConsensusState) AddCancelOrder(cancelOrder CancelOrder) bool {
-	tokenState := state.tokenStates[cancelOrder.OrderSymbol]
+	tokenState, symbolExists := state.tokenStates[cancelOrder.OrderSymbol]
+	if !symbolExists {
+		return false
+	}
 	order, ok := tokenState.openOrders[cancelOrder.OrderID]
 	if !ok {
 		return false
