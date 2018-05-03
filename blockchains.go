@@ -7,7 +7,6 @@ import (
 	"math/rand"
 	"os"
 	"sync"
-	"log"
 )
 
 const MATCH_CHAIN = "MATCH"
