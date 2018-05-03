@@ -191,7 +191,6 @@ func (b *Block) AddTransaction(tx GenericTransaction) {
 		LogPanic("ERROR: unknown transaction type")
 	}
 	b.Data = newData
-	Log("Added transaction with data %v", b.Data)
 }
 
 //
