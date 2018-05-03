@@ -18,6 +18,7 @@ type ConsensusStateToken struct {
 type ConsensusState struct {
 	tokenStates   map[string]*ConsensusStateToken
 	createdTokens map[string]TokenInfo
+	usedMatchIDs map[uint64]bool
 }
 
 func NewConsensusStateToken() *ConsensusStateToken {
@@ -137,6 +138,10 @@ func (state *ConsensusState) AddMatch(match Match) bool {
 	//Check if both buy and sell orders are satisfied by match and that orders are open
 	//add to unconfirmedSell and Buy Matches
 	//remove orders from openOrders
+	if state.usedMatchIDs[match.MatchID] {
+		Log("Duplicate match ignored: %v", match.MatchID)
+		return false
+	}
 	buyTokenState, symbolExists := state.tokenStates[match.BuySymbol]
 	if !symbolExists {
 		Log("Match failed as %v buy chain does not exist", match.BuySymbol)
@@ -216,6 +221,7 @@ func (state *ConsensusState) AddMatch(match Match) bool {
 	} else {
 		buyTokenState.openOrders[buyOrder.ID] = buyOrder
 	}
+	state.usedMatchIDs[match.MatchID] = true
 	return true
 }
 
@@ -262,6 +268,7 @@ func (state *ConsensusState) RollbackMatch(match Match) {
 
 	sellTokenState.openOrders[match.SellOrderID] = sellOrder
 	buyTokenState.openOrders[match.BuyOrderID] = buyOrder
+	delete(state.usedMatchIDs, match.MatchID)
 }
 
 func (state *ConsensusState) AddCancelOrder(cancelOrder CancelOrder) bool {
