@@ -469,7 +469,7 @@ func (blockchains *Blockchains) AddTransactionToMempool(tx GenericTransaction, s
 	}
 	blockchains.mempoolsLock.Lock()
 	if _, ok := blockchains.mempools[symbol][tx.ID()]; ok {
-		Log("Tx already in mempool")
+		Log("Tx already in mempool, %v", tx.ID())
 		blockchains.mempoolsLock.Unlock()
 		blockchains.chainsLock.Unlock()
 		return false

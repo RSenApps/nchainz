@@ -61,12 +61,12 @@ type GenericTransaction struct {
 
 func (gt *GenericTransaction) ID() string {
 	switch gt.TransactionType {
-	case CREATE_TOKEN: return string(gt.TransactionType) + gt.Transaction.(CreateToken).TokenInfo.Symbol
-	case MATCH: return string(gt.TransactionType) + string(gt.Transaction.(Match).MatchID)
-	case ORDER: return string(gt.TransactionType) + string(gt.Transaction.(Order).ID)
-	case TRANSFER: return string(gt.TransactionType) + string(gt.Transaction.(Transfer).ID)
-	case CANCEL_ORDER: return string(gt.TransactionType) + string(gt.Transaction.(CancelOrder).OrderID)
-	case CLAIM_FUNDS: return string(gt.TransactionType) + string(gt.Transaction.(ClaimFunds).ID)
+	case CREATE_TOKEN: return fmt.Sprintf("%v,%v", gt.TransactionType, gt.Transaction.(CreateToken).TokenInfo.Symbol)
+	case MATCH: return fmt.Sprintf("%v,%v", gt.TransactionType, gt.Transaction.(Match).MatchID)
+	case ORDER: return fmt.Sprintf("%v,%v", gt.TransactionType, gt.Transaction.(Order).ID)
+	case TRANSFER: return fmt.Sprintf("%v,%v", gt.TransactionType, gt.Transaction.(Transfer).ID)
+	case CANCEL_ORDER: return fmt.Sprintf("%v,%v", gt.TransactionType, gt.Transaction.(CancelOrder).OrderID)
+	case CLAIM_FUNDS: return fmt.Sprintf("%v,%v", gt.TransactionType, gt.Transaction.(ClaimFunds).ID)
 	}
 	return ""
 }
