@@ -11,6 +11,16 @@ type Client struct {
 	rpc      *rpc.Client
 }
 
+type GetBalanceRequest struct {
+	Address string
+	Symbol string
+}
+
+type GetBalanceResponse struct {
+	Amount uint64
+	Success bool
+}
+
 func NewClient() (*Client, error) {
 	seeds, err := GetSeeds()
 	if err != nil {
@@ -78,6 +88,25 @@ func (client *Client) Transfer(amount uint64, symbol string, from string, to str
 	err := client.SendTx(tx, symbol)
 	if err == nil {
 		Log("transaction id: %v", id)
+	}
+}
+
+func (client *Client) GetBalance(address string, symbol string) {
+	Log("Client sending GETBALANCE")
+	defer Log("Client done sending GETBALANCE")
+
+	request := GetBalanceRequest{address, symbol}
+	var reply GetBalanceResponse
+	err := client.rpc.Call("Node.GetBalance", &request, &reply)
+
+	if err != nil {
+		Log("Error communicating with node")
+		Log(err.Error())
+	}
+	if !reply.Success {
+		Log("Node rejected GetBalance")
+	} else {
+		Log("Adddress %v has amount: %v %v", address, reply.Amount, symbol)
 	}
 }
 

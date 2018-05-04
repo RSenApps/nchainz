@@ -367,6 +367,14 @@ func (node *Node) Tx(args *TxArgs, reply *bool) error {
 	return nil
 }
 
+func (node *Node) GetBalance(args *GetBalanceRequest, reply *GetBalanceResponse) error {
+	Log("Received GetBalance for address %v symbol %v", args.Address, args.Symbol)
+	amount, ok := node.bcs.GetBalance(args.Symbol, args.Address)
+	reply.Success = ok
+	reply.Amount = amount
+	return nil
+}
+
 func (node *Node) BroadcastTx(tx *GenericTransaction, symbol string) {
 	args := &TxArgs{*tx, symbol, node.myIp}
 

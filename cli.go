@@ -19,7 +19,7 @@ The commands are:
 Account management
 	createwallet
 		Create a wallet with a pair of keys
-	getbalance ADDRESS
+	getbalance ADDRESS SYMBOL
 		Get the balance for an address
 	printaddresses
 		Print all adddreses in wallet file
@@ -55,9 +55,10 @@ func (cli *CLI) Run() {
 		cli.createWallet()
 
 	case "getbalance":
-		db := cli.getString(0)
-		address := cli.getString(1)
-		cli.getBalance(db, address)
+		address := cli.getString(0)
+		symbol := cli.getString(1)
+		client := cli.getClient()
+		client.GetBalance(address, symbol)
 
 	case "printaddresses":
 		cli.printAddresses()
