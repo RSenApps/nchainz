@@ -130,7 +130,7 @@ func (cli *CLI) getString(index int) string {
 
 func (cli *CLI) getUint(index int) uint64 {
 	s := cli.getString(index)
-	i, err := strconv.Atoi(s)
+	i, err := strconv.ParseUint(s, 10, 64)
 
 	if err != nil {
 		cli.printHelpAndExit()

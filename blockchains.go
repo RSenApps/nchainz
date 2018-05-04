@@ -127,24 +127,34 @@ func (blockchains *Blockchains) RollbackToHeight(symbol string, height uint64) {
 
 func (blockchains *Blockchains) addGenericTransaction(symbol string, transaction GenericTransaction, uncommitted *UncommittedTransactions) bool {
 	success := false
+
 	switch transaction.TransactionType {
 	case ORDER:
 		success = blockchains.consensusState.AddOrder(symbol, transaction.Transaction.(Order))
+		if success {
+			matcherMsg := MatcherMsg{transaction.Transaction.(Order), symbol, false}
+			blockchains.matcherCh <- matcherMsg
+		}
+
 	case CLAIM_FUNDS:
 		success = blockchains.consensusState.AddClaimFunds(symbol, transaction.Transaction.(ClaimFunds))
+
 	case TRANSFER:
 		success = blockchains.consensusState.AddTransfer(symbol, transaction.Transaction.(Transfer))
+
 	case MATCH:
 		success = blockchains.consensusState.AddMatch(transaction.Transaction.(Match))
+
 	case CANCEL_ORDER:
-		success = blockchains.consensusState.AddCancelOrder(transaction.Transaction.(CancelOrder))
+		var order *Order
+		order, success = blockchains.consensusState.AddCancelOrder(transaction.Transaction.(CancelOrder))
+		if success {
+			matcherMsg := MatcherMsg{*order, symbol, true}
+			blockchains.matcherCh <- matcherMsg
+		}
+
 	case CREATE_TOKEN:
 		success = blockchains.consensusState.AddCreateToken(transaction.Transaction.(CreateToken), blockchains)
-	}
-
-	if success && transaction.TransactionType == ORDER {
-		matcherMsg := MatcherMsg{transaction.Transaction.(Order), symbol}
-		blockchains.matcherCh <- matcherMsg
 	}
 
 	if !success {

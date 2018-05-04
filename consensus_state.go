@@ -271,23 +271,22 @@ func (state *ConsensusState) RollbackMatch(match Match) {
 	delete(state.usedMatchIDs, match.MatchID)
 }
 
-func (state *ConsensusState) AddCancelOrder(cancelOrder CancelOrder) bool {
+func (state *ConsensusState) AddCancelOrder(cancelOrder CancelOrder) (*Order, bool) {
 	tokenState, symbolExists := state.tokenStates[cancelOrder.OrderSymbol]
 	if !symbolExists {
 		Log("Cancel Order failed as %v chain does not exist", cancelOrder.OrderSymbol)
-		return false
+		return nil, false
 	}
 	order, ok := tokenState.openOrders[cancelOrder.OrderID]
 	if !ok {
 		Log("Cancel Order failed as order %v is not open", cancelOrder.OrderID)
-		return false
+		return nil, false
 	}
 	Log("Cancel Order added to consensus state %v", cancelOrder)
 
 	tokenState.unclaimedFunds[order.SellerAddress] += order.AmountToSell
 	delete(tokenState.openOrders, cancelOrder.OrderID)
-	return true
-
+	return &order, true
 }
 
 func (state *ConsensusState) RollbackCancelOrder(cancelOrder CancelOrder) {

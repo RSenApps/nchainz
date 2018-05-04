@@ -38,6 +38,20 @@ func (ob *Orderbook) Add(order *Order, sellSymbol string) {
 	Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.BaseQueue)
 }
 
+func (ob *Orderbook) Cancel(order *Order, sellSymbol string) {
+	ob.mu.Lock()
+	defer ob.mu.Unlock()
+
+	if sellSymbol == ob.BaseSymbol {
+		ob.QuoteQueue.Remove(order)
+	} else if sellSymbol == ob.QuoteSymbol {
+		ob.BaseQueue.Remove(order)
+	}
+
+	Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.QuoteQueue)
+	Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.BaseQueue)
+}
+
 func (ob *Orderbook) Match() (found bool, match *Match) {
 	ob.mu.Lock()
 	defer ob.mu.Unlock()

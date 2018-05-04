@@ -161,14 +161,51 @@ func TestMultifill(t *testing.T) {
 	fmt.Println()
 }
 
+func TestCancellation(t *testing.T) {
+	LogRed("Testing: cancellation")
+	txCh := make(chan MatcherMsg, 1000)
+	matchCh := make(chan Match, 1000)
+
+	go func(txCh chan MatcherMsg) {
+		buyOrder := makeMsg(1, "ETH", 10, "USD")
+		sellOrder := makeMsg(1, "USD", 1, "ETH")
+
+		txCh <- buyOrder
+		txCh <- sellOrder
+		txCh <- makeCancel(buyOrder)
+		txCh <- makeCancel(sellOrder)
+
+		txCh <- makeMsg(1, "ETH", 1, "USD")
+		txCh <- makeMsg(1, "USD", 1, "ETH")
+	}(txCh)
+
+	matcher := StartMatcher(txCh, nil, matchCh)
+
+	match := <-matchCh
+	LogRed("Got match %v", match)
+
+	ob := matcher.orderbooks["USD"]["ETH"]
+	assertEqual(t, len(matchCh), 0)
+	assertEqual(t, ob.QuoteQueue.Len(), 0)
+	assertEqual(t, ob.BaseQueue.Len(), 0)
+
+	LogRed("Passed: cancellation")
+	fmt.Println()
+}
+
 func makeMsg(buyAmt uint64, buySymbol string, sellAmt uint64, sellSymbol string) MatcherMsg {
 	orderId := rand.Uint64()
 	signature := []byte{}
 	user := ""
 
 	order := Order{orderId, buySymbol, sellAmt, buyAmt, user, signature}
-	msg := MatcherMsg{order, sellSymbol}
+	msg := MatcherMsg{order, sellSymbol, false}
 	return msg
+}
+
+func makeCancel(orderMsg MatcherMsg) MatcherMsg {
+	orderMsg.Cancel = true
+	return orderMsg
 }
 
 func assertEqual(t *testing.T, a interface{}, b interface{}) {

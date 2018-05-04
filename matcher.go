@@ -16,6 +16,7 @@ type Matcher struct {
 type MatcherMsg struct {
 	Order      Order
 	SellSymbol string
+	Cancel     bool
 }
 
 func StartMatcher(txCh chan MatcherMsg, bcs *Blockchains, matchCh chan Match) (matcher *Matcher) {
@@ -43,8 +44,6 @@ func (mr *Matcher) matchLoop() {
 			buySymbol := orderMsg.Order.BuySymbol
 			sellSymbol := orderMsg.SellSymbol
 
-			Log("Adding tx %v to %s", orderMsg.Order.ID, GetBookName(buySymbol, sellSymbol))
-
 			if _, exists := mr.symbols[buySymbol]; !exists {
 				mr.addSymbol(buySymbol)
 			}
@@ -52,8 +51,16 @@ func (mr *Matcher) matchLoop() {
 				mr.addSymbol(sellSymbol)
 			}
 
-			orderbook := mr.getOrderbook(buySymbol, sellSymbol)
-			orderbook.Add(&orderMsg.Order, sellSymbol)
+			if orderMsg.Cancel {
+				Log("Canceling tx %v on %s", orderMsg.Order.ID, GetBookName(buySymbol, sellSymbol))
+				orderbook := mr.getOrderbook(buySymbol, sellSymbol)
+				orderbook.Cancel(&orderMsg.Order, sellSymbol)
+
+			} else {
+				Log("Adding tx %v to %s", orderMsg.Order.ID, GetBookName(buySymbol, sellSymbol))
+				orderbook := mr.getOrderbook(buySymbol, sellSymbol)
+				orderbook.Add(&orderMsg.Order, sellSymbol)
+			}
 
 			mr.updated = true
 

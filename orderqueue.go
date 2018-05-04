@@ -61,6 +61,23 @@ func (oq *OrderQueue) Peek() (order *Order, price float64, err error) {
 	return item.order, item.price, nil
 }
 
+func (oq *OrderQueue) Remove(order *Order) error {
+	index := -1
+	for i, oqi := range oq.Items {
+		if oqi.order.ID == order.ID {
+			index = i
+			break
+		}
+	}
+
+	if index == -1 {
+		return errors.New("Order not found in orderqueue")
+	}
+
+	heap.Remove(oq, index)
+	return nil
+}
+
 func (oq *OrderQueue) String() string {
 	var buffer bytes.Buffer
 
