@@ -115,6 +115,7 @@ func (bc *Blockchain) DeleteStorage() {
 	bc.db.Update(func(tx *bolt.Tx) error {
 		// Get bucket
 		tx.DeleteBucket([]byte(bc.bucketName))
+
 		return nil
 	})
 }
@@ -221,6 +222,9 @@ func (bc *Blockchain) getTipHash() []byte {
 	err := bc.db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(bc.bucketName))
 		temp := b.Get([]byte("l"))
+		if temp == nil {
+			return errors.New("No hash stored")
+		}
 		buf := make([]byte, len(temp))
 		copy(buf, temp)
 		lastHash = buf

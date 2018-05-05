@@ -109,7 +109,7 @@ func (blockchains *Blockchains) RollbackToHeight(symbol string, height uint64) {
 		return
 	}
 
-	if !blockchains.recovering && blockchains.minerChosenToken == symbol {
+	if !blockchains.recovering {
 		go func() { blockchains.stopMiningCh <- symbol }()
 		blockchains.mempoolsLock.Lock()
 		Log("RollbackToHeight undoing transactions for: %v", symbol)
@@ -263,7 +263,7 @@ func (blockchains *Blockchains) AddBlocks(symbol string, blocks []Block, takeLoc
 		return false
 	}
 
-	if !blockchains.recovering && blockchains.minerChosenToken == symbol {
+	if !blockchains.recovering {
 		go func() { blockchains.stopMiningCh <- symbol }()
 		blockchains.mempoolsLock.Lock()
 		Log("AddBlocks undoing transactions for: %v", symbol)
@@ -277,7 +277,7 @@ func (blockchains *Blockchains) AddBlocks(symbol string, blocks []Block, takeLoc
 	failed := false
 	for _, block := range blocks {
 		if !bytes.Equal(blockchains.chains[symbol].tipHash, block.PrevBlockHash) {
-			Log("prevBlockHash does not match tipHash %x != %x \n", blockchains.chains[symbol].tipHash, block.PrevBlockHash)
+			Log("prevBlockHash does not match tipHash for symbol %v %x != %x \n", symbol, blockchains.chains[symbol].tipHash, block.PrevBlockHash)
 			failed = true
 			break
 		}
@@ -494,7 +494,17 @@ func (blockchains *Blockchains) AddTransactionToMempool(tx GenericTransaction, s
 	// Validate transaction
 	if !blockchains.addGenericTransaction(symbol, tx, blockchains.mempoolUncommitted[symbol]) {
 		blockchains.chainsLock.Unlock()
-		Log("Failed to add tx to mempool consensus state")
+		if tx.TransactionType == MATCH {
+			// This is needed because when adding orders to a chain, we might be mining a different chain and
+			// therefore roll back the order. This will cause the Match to fail. So we should add to mempool and
+			// allow for it to be revalidated later
+			blockchains.mempoolsLock.Lock()
+			blockchains.mempools[symbol][tx.ID()] = tx
+			blockchains.mempoolsLock.Unlock()
+			Log("Made exception for Match and added to mempool %v", tx)
+		} else {
+			Log("Failed to add tx to mempool consensus state")
+		}
 		return false
 	}
 	blockchains.mempoolsLock.Lock()
