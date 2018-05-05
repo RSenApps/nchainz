@@ -325,7 +325,11 @@ func (blockchains *Blockchains) GetOpenOrders(symbol string) map[uint64]Order {
 func (blockchains *Blockchains) GetBalance(symbol string, address string) (uint64, bool) {
 	blockchains.chainsLock.RLock()
 	defer blockchains.chainsLock.RUnlock()
-	state, _ := blockchains.consensusState.tokenStates[symbol]
+	state, ok := blockchains.consensusState.tokenStates[symbol]
+	if !ok {
+		Log("GetBalance failed symbol %v does not exist", symbol)
+		return 0, false
+	}
 	balance, ok := state.balances[address]
 	return balance, ok
 }
@@ -345,6 +349,7 @@ func (blockchains *Blockchains) AddTokenChain(createToken CreateToken) {
 
 func (blockchains *Blockchains) RemoveTokenChain(createToken CreateToken) {
 	Log("Removing token chain")
+	blockchains.chains[createToken.TokenInfo.Symbol].DeleteStorage()
 	delete(blockchains.chains, createToken.TokenInfo.Symbol)
 	delete(blockchains.mempools, createToken.TokenInfo.Symbol)
 	delete(blockchains.mempoolUncommitted, createToken.TokenInfo.Symbol)

@@ -192,13 +192,38 @@ func (state *ConsensusState) AddMatch(match Match) bool {
 
 	sellTokenState.unclaimedFunds[buyOrder.SellerAddress] += match.AmountSold
 
-	sellOrder.AmountToSell -= match.AmountSold
-	sellOrder.AmountToBuy -= sellerMinAmountReceived
-	buyOrder.AmountToBuy -= match.AmountSold
-	buyOrder.AmountToSell -= buyerMaxAmountPaid
+	if match.AmountSold > sellOrder.AmountToSell {
+		sellOrder.AmountToSell = 0
+	} else {
+		sellOrder.AmountToSell -= match.AmountSold
+	}
+
+	if  sellerMinAmountReceived > sellOrder.AmountToBuy {
+		sellOrder.AmountToBuy = 0
+	} else {
+		sellOrder.AmountToSell -= sellerMinAmountReceived
+	}
+
+	if sellerMinAmountReceived > sellOrder.AmountToBuy {
+		sellOrder.AmountToBuy = 0
+	} else {
+		sellOrder.AmountToBuy -= sellerMinAmountReceived
+	}
+
+	if match.AmountSold > buyOrder.AmountToBuy {
+		buyOrder.AmountToBuy = 0
+	} else {
+		buyOrder.AmountToBuy -= match.AmountSold
+	}
+
+	if buyerMaxAmountPaid > buyOrder.AmountToSell {
+		buyOrder.AmountToSell = 0
+	} else {
+		buyOrder.AmountToSell -= buyerMaxAmountPaid
+	}
 
 	var deletedOrders []Order
-	if sellOrder.AmountToBuy <= 0 {
+	if sellOrder.AmountToBuy == 0 {
 		Log("Sell order depleted %v", sellOrder)
 		if sellOrder.AmountToSell > 0 {
 			sellTokenState.unclaimedFunds[sellOrder.SellerAddress] += sellOrder.AmountToSell
@@ -210,7 +235,7 @@ func (state *ConsensusState) AddMatch(match Match) bool {
 		sellTokenState.openOrders[sellOrder.ID] = sellOrder
 	}
 
-	if buyOrder.AmountToBuy <= 0 {
+	if buyOrder.AmountToBuy == 0 {
 		Log("Buy order depleted %v", buyOrder)
 		if buyOrder.AmountToSell > 0 {
 			buyTokenState.unclaimedFunds[buyOrder.SellerAddress] += buyOrder.AmountToSell
