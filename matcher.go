@@ -1,13 +1,8 @@
 package main
 
-import (
-	"time"
-)
-
 type Matcher struct {
 	orderbooks map[string]map[string]*Orderbook
 	symbols    map[string]bool
-	txCh       chan MatcherMsg
 	bcs        *Blockchains
 	matchCh    chan Match
 	updated    bool
@@ -19,89 +14,54 @@ type MatcherMsg struct {
 	Cancel     bool
 }
 
-func StartMatcher(txCh chan MatcherMsg, bcs *Blockchains, matchCh chan Match) (matcher *Matcher) {
+func StartMatcher(bcs *Blockchains, matchCh chan Match) (matcher *Matcher) {
 	orderbooks := make(map[string]map[string]*Orderbook)
 	symbols := make(map[string]bool)
 
 	if bcs != nil {
 		Log("Starting order matcher")
-		matcher = &Matcher{orderbooks, symbols, txCh, bcs, nil, false}
-		go matcher.matchLoop()
+		matcher = &Matcher{orderbooks, symbols, bcs, nil, false}
 
 	} else {
 		Log("Simulating order matcher")
-		matcher = &Matcher{orderbooks, symbols, txCh, nil, matchCh, false}
-		go matcher.matchLoop()
+		matcher = &Matcher{orderbooks, symbols, nil, matchCh, false}
 	}
 
 	return matcher
 }
 
-func (mr *Matcher) matchLoop() {
-	for {
-		select {
-		case orderMsg := <-mr.txCh:
-			buySymbol := orderMsg.Order.BuySymbol
-			sellSymbol := orderMsg.SellSymbol
+func (mr *Matcher) AddOrder(order Order, sellSymbol string) {
+	buySymbol := order.BuySymbol
 
-			if _, exists := mr.symbols[buySymbol]; !exists {
-				mr.addSymbol(buySymbol)
-			}
-			if _, exists := mr.symbols[sellSymbol]; !exists {
-				mr.addSymbol(sellSymbol)
-			}
+	if _, exists := mr.symbols[buySymbol]; !exists {
+		mr.addSymbol(buySymbol)
+	}
+	if _, exists := mr.symbols[sellSymbol]; !exists {
+		mr.addSymbol(sellSymbol)
+	}
 
-			if orderMsg.Cancel {
-				Log("Canceling tx %v on %s", orderMsg.Order.ID, GetBookName(buySymbol, sellSymbol))
-				orderbook := mr.getOrderbook(buySymbol, sellSymbol)
-				orderbook.Cancel(&orderMsg.Order, sellSymbol)
+	Log("Adding tx %v to %s", order.ID, GetBookName(buySymbol, sellSymbol))
+	orderbook := mr.getOrderbook(buySymbol, sellSymbol)
+	orderbook.Add(&order, sellSymbol)
 
-			} else {
-				Log("Adding tx %v to %s", orderMsg.Order.ID, GetBookName(buySymbol, sellSymbol))
-				orderbook := mr.getOrderbook(buySymbol, sellSymbol)
-				orderbook.Add(&orderMsg.Order, sellSymbol)
-			}
+	mr.Match(orderbook)
+}
 
-			mr.updated = true
+func (mr *Matcher) RemoveOrder(order Order, sellSymbol string) {
+	buySymbol := order.BuySymbol
+	orderbook := mr.getOrderbook(buySymbol, sellSymbol)
+	orderbook.Cancel(&order, sellSymbol)
 
-			Log("Done adding tx %v to %s", orderMsg.Order.ID, GetBookName(buySymbol, sellSymbol))
+	mr.Match(orderbook)
+}
 
-		default:
-			if mr.updated {
-				Log("Looking for matches")
+func (mr *Matcher) Match(orderbook *Orderbook) {
+	found, match := orderbook.Match()
+	if found {
+		Log("Found match on %s/%s: %v/%v", orderbook.QuoteSymbol, orderbook.BaseSymbol, match.BuyOrderID, match.SellOrderID)
+		mr.returnMatch(match)
 
-				foundAny := false
-
-			OuterLoop:
-				for symbol1 := range mr.symbols {
-					for symbol2 := range mr.symbols {
-						if symbol1 >= symbol2 {
-							continue
-						}
-
-						orderbook := mr.getOrderbook(symbol1, symbol2)
-						foundHere, match := orderbook.Match()
-
-						if foundHere {
-							Log("Found match on %s/%s: %v/%v", orderbook.QuoteSymbol, orderbook.BaseSymbol, match.BuyOrderID, match.SellOrderID)
-
-							mr.returnMatch(match)
-
-							foundAny = true
-							break OuterLoop
-						}
-					}
-				}
-
-				if !foundAny {
-					Log("No matches found")
-					mr.updated = false
-				}
-
-			} else {
-				time.Sleep(1 * time.Millisecond)
-			}
-		}
+		mr.Match(orderbook)
 	}
 }
 

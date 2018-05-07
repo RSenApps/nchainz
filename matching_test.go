@@ -8,33 +8,27 @@ import (
 
 func TestBasicMatch(t *testing.T) {
 	LogRed("Testing: basic match")
-	txCh := make(chan MatcherMsg, 1000)
 	matchCh := make(chan Match, 1000)
+	matcher := StartMatcher(nil, matchCh)
 
-	go func(txCh chan MatcherMsg) {
-		txCh <- makeMsg(1, "ETH", 1, "USD")
-		txCh <- makeMsg(1, "USD", 1, "ETH")
-	}(txCh)
+	matcher.AddOrder(makeOrder(1, "ETH", 1), "USD")
+	matcher.AddOrder(makeOrder(1, "USD", 1), "ETH")
 
-	StartMatcher(txCh, nil, matchCh)
 	match := <-matchCh
-
 	LogRed("Got match %v", match)
+
 	LogRed("Passed: basic match")
 	fmt.Println()
 }
 
 func TestLargerBuyCleanSplit(t *testing.T) {
 	LogRed("Testing: larger buy clean split")
-	txCh := make(chan MatcherMsg, 1000)
 	matchCh := make(chan Match, 1000)
+	matcher := StartMatcher(nil, matchCh)
 
-	go func(txCh chan MatcherMsg) {
-		txCh <- makeMsg(200, "ETH", 100, "USD")
-		txCh <- makeMsg(4, "USD", 10, "ETH")
-	}(txCh)
+	matcher.AddOrder(makeOrder(200, "ETH", 100), "USD")
+	matcher.AddOrder(makeOrder(4, "USD", 10), "ETH")
 
-	matcher := StartMatcher(txCh, nil, matchCh)
 	match := <-matchCh
 	LogRed("Got match %v", match)
 
@@ -52,15 +46,12 @@ func TestLargerBuyCleanSplit(t *testing.T) {
 
 func TestLargerSellMessySplit(t *testing.T) {
 	LogRed("Testing: larger sell messy split")
-	txCh := make(chan MatcherMsg, 1000)
 	matchCh := make(chan Match, 1000)
+	matcher := StartMatcher(nil, matchCh)
 
-	go func(txCh chan MatcherMsg) {
-		txCh <- makeMsg(123, "ETH", 71, "USD")
-		txCh <- makeMsg(367, "USD", 767, "ETH")
-	}(txCh)
+	matcher.AddOrder(makeOrder(123, "ETH", 71), "USD")
+	matcher.AddOrder(makeOrder(367, "USD", 767), "ETH")
 
-	matcher := StartMatcher(txCh, nil, matchCh)
 	match := <-matchCh
 	LogRed("Got match %v", match)
 
@@ -78,15 +69,12 @@ func TestLargerSellMessySplit(t *testing.T) {
 
 func TestVanishingOrders(t *testing.T) {
 	LogRed("Testing: vanishing orders")
-	txCh := make(chan MatcherMsg, 1000)
 	matchCh := make(chan Match, 1000)
+	matcher := StartMatcher(nil, matchCh)
 
-	go func(txCh chan MatcherMsg) {
-		txCh <- makeMsg(1, "ETH", 5, "USD")
-		txCh <- makeMsg(1, "USD", 5, "ETH")
-	}(txCh)
+	matcher.AddOrder(makeOrder(1, "ETH", 5), "USD")
+	matcher.AddOrder(makeOrder(1, "USD", 5), "ETH")
 
-	matcher := StartMatcher(txCh, nil, matchCh)
 	match := <-matchCh
 	LogRed("Got match %v", match)
 
@@ -102,19 +90,16 @@ func TestVanishingOrders(t *testing.T) {
 
 func TestSeveralOrders(t *testing.T) {
 	LogRed("Testing: several orders")
-	txCh := make(chan MatcherMsg, 1000)
 	matchCh := make(chan Match, 1000)
+	matcher := StartMatcher(nil, matchCh)
 
-	go func(txCh chan MatcherMsg) {
-		txCh <- makeMsg(100, "ETH", 10, "USD")
-		txCh <- makeMsg(100, "ETH", 20, "USD")
-		txCh <- makeMsg(100, "ETH", 30, "USD")
-		txCh <- makeMsg(10, "USD", 100, "ETH")
-		txCh <- makeMsg(20, "USD", 100, "ETH")
-		txCh <- makeMsg(30, "USD", 100, "ETH")
-	}(txCh)
+	matcher.AddOrder(makeOrder(100, "ETH", 10), "USD")
+	matcher.AddOrder(makeOrder(100, "ETH", 20), "USD")
+	matcher.AddOrder(makeOrder(100, "ETH", 30), "USD")
+	matcher.AddOrder(makeOrder(10, "USD", 100), "ETH")
+	matcher.AddOrder(makeOrder(20, "USD", 100), "ETH")
+	matcher.AddOrder(makeOrder(30, "USD", 100), "ETH")
 
-	matcher := StartMatcher(txCh, nil, matchCh)
 	match1 := <-matchCh
 	LogRed("Got match %v", match1)
 	match2 := <-matchCh
@@ -132,18 +117,15 @@ func TestSeveralOrders(t *testing.T) {
 
 func TestMultifill(t *testing.T) {
 	LogRed("Testing: multifill")
-	txCh := make(chan MatcherMsg, 1000)
 	matchCh := make(chan Match, 1000)
+	matcher := StartMatcher(nil, matchCh)
 
-	go func(txCh chan MatcherMsg) {
-		txCh <- makeMsg(10, "ETH", 90, "USD")
-		txCh <- makeMsg(100, "ETH", 1000, "USD")
-		txCh <- makeMsg(75, "USD", 25, "ETH")
-		txCh <- makeMsg(150, "USD", 30, "ETH")
-		txCh <- makeMsg(440, "USD", 55, "ETH")
-	}(txCh)
+	matcher.AddOrder(makeOrder(10, "ETH", 90), "USD")
+	matcher.AddOrder(makeOrder(100, "ETH", 1000), "USD")
+	matcher.AddOrder(makeOrder(75, "USD", 25), "ETH")
+	matcher.AddOrder(makeOrder(150, "USD", 30), "ETH")
+	matcher.AddOrder(makeOrder(440, "USD", 55), "ETH")
 
-	matcher := StartMatcher(txCh, nil, matchCh)
 	match1 := <-matchCh
 	LogRed("Got match %v", match1)
 	match2 := <-matchCh
@@ -163,23 +145,21 @@ func TestMultifill(t *testing.T) {
 
 func TestCancellation(t *testing.T) {
 	LogRed("Testing: cancellation")
-	txCh := make(chan MatcherMsg, 1000)
 	matchCh := make(chan Match, 1000)
+	matcher := StartMatcher(nil, matchCh)
 
-	go func(txCh chan MatcherMsg) {
-		buyOrder := makeMsg(1, "ETH", 10, "USD")
-		sellOrder := makeMsg(1, "USD", 1, "ETH")
+	buyOrder := makeOrder(1, "ETH", 10)
+	buySellSymbol := "USD"
+	sellOrder := makeOrder(1, "USD", 1)
+	sellSellSymbol := "ETH"
 
-		txCh <- buyOrder
-		txCh <- sellOrder
-		txCh <- makeCancel(buyOrder)
-		txCh <- makeCancel(sellOrder)
+	matcher.AddOrder(buyOrder, buySellSymbol)
+	matcher.RemoveOrder(buyOrder, buySellSymbol)
+	matcher.AddOrder(sellOrder, sellSellSymbol)
+	matcher.RemoveOrder(sellOrder, sellSellSymbol)
 
-		txCh <- makeMsg(1, "ETH", 1, "USD")
-		txCh <- makeMsg(1, "USD", 1, "ETH")
-	}(txCh)
-
-	matcher := StartMatcher(txCh, nil, matchCh)
+	matcher.AddOrder(makeOrder(1, "ETH", 1), "USD")
+	matcher.AddOrder(makeOrder(1, "USD", 1), "ETH")
 
 	match := <-matchCh
 	LogRed("Got match %v", match)
@@ -193,19 +173,12 @@ func TestCancellation(t *testing.T) {
 	fmt.Println()
 }
 
-func makeMsg(buyAmt uint64, buySymbol string, sellAmt uint64, sellSymbol string) MatcherMsg {
+func makeOrder(buyAmt uint64, buySymbol string, sellAmt uint64) Order {
 	orderId := rand.Uint64()
 	signature := []byte{}
 	user := ""
 
-	order := Order{orderId, buySymbol, sellAmt, buyAmt, user, signature}
-	msg := MatcherMsg{order, sellSymbol, false}
-	return msg
-}
-
-func makeCancel(orderMsg MatcherMsg) MatcherMsg {
-	orderMsg.Cancel = true
-	return orderMsg
+	return Order{orderId, buySymbol, sellAmt, buyAmt, user, signature}
 }
 
 func assertEqual(t *testing.T, a interface{}, b interface{}) {
