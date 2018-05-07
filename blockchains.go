@@ -538,6 +538,7 @@ func (blockchains *Blockchains) AddTransactionToMempool(tx GenericTransaction, s
 }
 
 func (blockchains *Blockchains) StartMining() {
+	blockchains.chainsLock.RLock()
 	blockchains.mempoolsLock.Lock()
 	Log("Start mining")
 	// Pick a random token to start mining
@@ -553,11 +554,13 @@ func (blockchains *Blockchains) StartMining() {
 		Log("Starting match block")
 		msg := MinerMsg{NewBlockMsg{MATCH_BLOCK, blockchains.chains[blockchains.minerChosenToken].tipHash, blockchains.minerChosenToken}, true}
 		blockchains.mempoolsLock.Unlock()
+		blockchains.chainsLock.RUnlock()
 		blockchains.miner.minerCh <- msg
 	default:
 		Log("Starting %v block", blockchains.minerChosenToken)
 		msg := MinerMsg{NewBlockMsg{TOKEN_BLOCK, blockchains.chains[blockchains.minerChosenToken].tipHash, blockchains.minerChosenToken}, true}
 		blockchains.mempoolsLock.Unlock()
+		blockchains.chainsLock.RUnlock()
 		blockchains.miner.minerCh <- msg
 	}
 
@@ -606,9 +609,14 @@ func (blockchains *Blockchains) ApplyLoop() {
 			// When miner finishes, try to add a block
 			blockchains.chainsLock.Lock()
 			//state was applied during validation so just add to chain
-			if !bytes.Equal(blockchains.chains[blockMsg.Symbol].tipHash, blockMsg.Block.PrevBlockHash) {
+			chain, ok := blockchains.chains[blockMsg.Symbol]
+			if !ok || !bytes.Equal(chain.tipHash, blockMsg.Block.PrevBlockHash) {
 				//block failed so retry
-				Log("miner prevBlockHash does not match tipHash %x != %x", blockchains.chains[blockMsg.Symbol].tipHash, blockMsg.Block.PrevBlockHash)
+				if !ok {
+					Log("miner failed symbol no longer exists")
+				} else {
+					Log("miner prevBlockHash does not match tipHash %x != %x", chain.tipHash, blockMsg.Block.PrevBlockHash)
+				}
 
 				blockchains.mempoolsLock.Lock()
 				blockchains.mempoolUncommitted[blockMsg.Symbol].undoTransactions(blockMsg.Symbol, blockchains)
