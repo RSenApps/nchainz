@@ -491,7 +491,6 @@ func (blockchains *Blockchains) GetBlockhashes() map[string][][]byte {
 
 func (blockchains *Blockchains) AddTransactionToMempool(tx GenericTransaction, symbol string) bool {
 	blockchains.chainsLock.Lock()
-
 	blockchains.mempoolsLock.Lock()
 	if _, ok := blockchains.mempools[symbol][tx.ID()]; ok {
 		Log("Tx already in mempool, %v", tx.ID())
@@ -502,18 +501,17 @@ func (blockchains *Blockchains) AddTransactionToMempool(tx GenericTransaction, s
 
 	// Validate transaction
 	if !blockchains.addGenericTransaction(symbol, tx, blockchains.mempoolUncommitted[symbol]) {
-		blockchains.chainsLock.Unlock()
 		if tx.TransactionType == MATCH {
 			// This is needed because when adding orders to a chain, we might be mining a different chain and
 			// therefore roll back the order. This will cause the Match to fail. So we should add to mempool and
 			// allow for it to be revalidated later
-			blockchains.mempoolsLock.Lock()
 			blockchains.mempools[symbol][tx.ID()] = tx
-			blockchains.mempoolsLock.Unlock()
 			Log("Made exception for Match and added to mempool %v", tx)
 		} else {
 			Log("Failed to add tx to mempool consensus state")
 		}
+		blockchains.mempoolsLock.Unlock()
+		blockchains.chainsLock.Unlock()
 		return false
 	}
 	Log("Tx added to mempool")
@@ -616,7 +614,6 @@ func (blockchains *Blockchains) ApplyLoop() {
 
 			} else {
 				blockchains.chains[blockMsg.Symbol].AddBlock(blockMsg.Block)
-				blockchains.chainsLock.Unlock()
 
 				blockchains.mempoolsLock.Lock()
 				txInBlock := blockMsg.TxInBlock
@@ -635,6 +632,7 @@ func (blockchains *Blockchains) ApplyLoop() {
 
 				blockchains.mempoolUncommitted[blockMsg.Symbol].transactions = newUncommitted
 				blockchains.mempoolsLock.Unlock()
+				blockchains.chainsLock.Unlock()
 			}
 
 		case symbol := <-blockchains.stopMiningCh:
