@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"log"
 	"math"
 )
@@ -18,7 +19,7 @@ type ConsensusStateToken struct {
 type ConsensusState struct {
 	tokenStates   map[string]*ConsensusStateToken
 	createdTokens map[string]TokenInfo
-	usedMatchIDs map[uint64]bool
+	usedMatchIDs  map[uint64]bool
 }
 
 func NewConsensusStateToken() *ConsensusStateToken {
@@ -199,7 +200,7 @@ func (state *ConsensusState) AddMatch(match Match) bool {
 		sellOrder.AmountToSell -= match.AmountSold
 	}
 
-	if  sellerMinAmountReceived > sellOrder.AmountToBuy {
+	if sellerMinAmountReceived > sellOrder.AmountToBuy {
 		sellOrder.AmountToBuy = 0
 	} else {
 		sellOrder.AmountToSell -= sellerMinAmountReceived
@@ -297,22 +298,22 @@ func (state *ConsensusState) RollbackMatch(match Match) {
 	delete(state.usedMatchIDs, match.MatchID)
 }
 
-func (state *ConsensusState) AddCancelOrder(cancelOrder CancelOrder) (*Order, bool) {
+func (state *ConsensusState) AddCancelOrder(cancelOrder CancelOrder) bool {
 	tokenState, symbolExists := state.tokenStates[cancelOrder.OrderSymbol]
 	if !symbolExists {
 		Log("Cancel Order failed as %v chain does not exist", cancelOrder.OrderSymbol)
-		return nil, false
+		return false
 	}
 	order, ok := tokenState.openOrders[cancelOrder.OrderID]
 	if !ok {
 		Log("Cancel Order failed as order %v is not open", cancelOrder.OrderID)
-		return nil, false
+		return false
 	}
 	Log("Cancel Order added to consensus state %v", cancelOrder)
 
 	tokenState.unclaimedFunds[order.SellerAddress] += order.AmountToSell
 	delete(tokenState.openOrders, cancelOrder.OrderID)
-	return &order, true
+	return true
 }
 
 func (state *ConsensusState) RollbackCancelOrder(cancelOrder CancelOrder) {
@@ -353,4 +354,18 @@ func (state *ConsensusState) RollbackCreateToken(createToken CreateToken, blockc
 	delete(state.tokenStates, createToken.TokenInfo.Symbol)
 	delete(state.createdTokens, createToken.TokenInfo.Symbol)
 	blockchains.RemoveTokenChain(createToken)
+}
+
+func (state *ConsensusState) GetOpenOrder(orderId uint64, sellSymbol string) (*Order, error) {
+	tokenState, symbolExists := state.tokenStates[sellSymbol]
+	if !symbolExists {
+		return nil, errors.New("chain doesn't exist")
+	}
+
+	order, orderExists := tokenState.openOrders[orderId]
+	if !orderExists {
+		return nil, errors.New("no such open order exists")
+	}
+
+	return &order, nil
 }

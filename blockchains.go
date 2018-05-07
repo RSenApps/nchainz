@@ -58,7 +58,7 @@ func (uncommitted *UncommittedTransactions) undoTransactions(symbol string, bloc
 
 func (uncommitted *UncommittedTransactions) rollbackLast(symbol string, blockchains *Blockchains) {
 	blockchains.rollbackGenericTransaction(symbol, uncommitted.transactions[len(uncommitted.transactions)-1])
-	uncommitted.transactions = uncommitted.transactions[ : len(uncommitted.transactions) - 1]
+	uncommitted.transactions = uncommitted.transactions[:len(uncommitted.transactions)-1]
 }
 
 func (blockchains *Blockchains) rollbackTokenToHeight(symbol string, height uint64) {
@@ -69,6 +69,9 @@ func (blockchains *Blockchains) rollbackTokenToHeight(symbol string, height uint
 	for i := uint64(0); i < blocksToRemove; i++ {
 		removedData := blockchains.chains[symbol].RemoveLastBlock().(TokenData)
 		for _, order := range removedData.Orders {
+			matcherMsg := MatcherMsg{order, symbol, true}
+			blockchains.matcherCh <- matcherMsg
+
 			blockchains.consensusState.RollbackOrder(symbol, order)
 		}
 
@@ -95,6 +98,14 @@ func (blockchains *Blockchains) rollbackMatchToHeight(height uint64) {
 		}
 
 		for _, cancelOrder := range removedData.CancelOrders {
+			canceledOrder, err := blockchains.consensusState.GetOpenOrder(cancelOrder.OrderID, cancelOrder.OrderSymbol)
+			if err != nil {
+				matcherMsg := MatcherMsg{*canceledOrder, cancelOrder.OrderSymbol, false}
+				blockchains.matcherCh <- matcherMsg
+			} else {
+				Log(err.Error())
+			}
+
 			blockchains.consensusState.RollbackCancelOrder(cancelOrder)
 		}
 
@@ -136,28 +147,14 @@ func (blockchains *Blockchains) addGenericTransaction(symbol string, transaction
 	switch transaction.TransactionType {
 	case ORDER:
 		success = blockchains.consensusState.AddOrder(symbol, transaction.Transaction.(Order))
-		if success {
-			matcherMsg := MatcherMsg{transaction.Transaction.(Order), symbol, false}
-			blockchains.matcherCh <- matcherMsg
-		}
-
 	case CLAIM_FUNDS:
 		success = blockchains.consensusState.AddClaimFunds(symbol, transaction.Transaction.(ClaimFunds))
-
 	case TRANSFER:
 		success = blockchains.consensusState.AddTransfer(symbol, transaction.Transaction.(Transfer))
-
 	case MATCH:
 		success = blockchains.consensusState.AddMatch(transaction.Transaction.(Match))
-
 	case CANCEL_ORDER:
-		var order *Order
-		order, success = blockchains.consensusState.AddCancelOrder(transaction.Transaction.(CancelOrder))
-		if success {
-			matcherMsg := MatcherMsg{*order, symbol, true}
-			blockchains.matcherCh <- matcherMsg
-		}
-
+		blockchains.consensusState.AddCancelOrder(transaction.Transaction.(CancelOrder))
 	case CREATE_TOKEN:
 		success = blockchains.consensusState.AddCreateToken(transaction.Transaction.(CreateToken), blockchains)
 	}
@@ -195,6 +192,9 @@ func (blockchains *Blockchains) addTokenData(symbol string, tokenData TokenData,
 		}
 		if !blockchains.addGenericTransaction(symbol, tx, uncommitted) {
 			return false
+		} else {
+			matcherMsg := MatcherMsg{order, symbol, false}
+			blockchains.matcherCh <- matcherMsg
 		}
 	}
 
@@ -232,12 +232,22 @@ func (blockchains *Blockchains) addMatchData(matchData MatchData, uncommitted *U
 	}
 
 	for _, cancelOrder := range matchData.CancelOrders {
+		canceledOrderPtr, err := blockchains.consensusState.GetOpenOrder(cancelOrder.OrderID, cancelOrder.OrderSymbol)
+		if err != nil {
+			Log(err.Error())
+			return false
+		}
+		canceledOrder := *canceledOrderPtr
+
 		tx := GenericTransaction{
 			Transaction:     cancelOrder,
 			TransactionType: CANCEL_ORDER,
 		}
 		if !blockchains.addGenericTransaction(MATCH_CHAIN, tx, uncommitted) {
 			return false
+		} else {
+			matcherMsg := MatcherMsg{canceledOrder, cancelOrder.OrderSymbol, true}
+			blockchains.matcherCh <- matcherMsg
 		}
 	}
 
@@ -264,7 +274,7 @@ func (blockchains *Blockchains) AddBlocks(symbol string, blocks []Block, takeLoc
 	}
 
 	if _, ok := blockchains.chains[symbol]; !ok {
-		Log("AddBlocks failed as symbol not found: ", symbol)
+		Log("AddBlocks failed as symbol not found: %v", symbol)
 		return false
 	}
 
@@ -638,6 +648,7 @@ func (blockchains *Blockchains) ApplyLoop() {
 						blockchains.rollbackGenericTransaction(blockMsg.Symbol, tx)
 						newUncommitted = append(newUncommitted, tx)
 					} else {
+						blockchains.updateOrderbook(&tx, blockMsg.Symbol, false)
 						Log("%tx mined in block and deleted from mempool %v", tx)
 						delete(blockchains.mempools[blockMsg.Symbol], tx.ID())
 					}
@@ -665,5 +676,27 @@ func (blockchains *Blockchains) ApplyLoop() {
 
 		blockchains.StartMining()
 
+	}
+}
+
+func (blockchains *Blockchains) updateOrderbook(tx *GenericTransaction, sellSymbol string, rollback bool) {
+	switch tx.TransactionType {
+	case ORDER:
+		order := tx.Transaction.(Order)
+		matcherMsg := MatcherMsg{order, sellSymbol, rollback}
+		blockchains.matcherCh <- matcherMsg
+
+	case CANCEL_ORDER:
+		cancel := tx.Transaction.(CancelOrder)
+		deletedOrder, err := blockchains.consensusState.GetOpenOrder(cancel.OrderID, cancel.OrderSymbol)
+		if err != nil {
+			Log(err.Error())
+		}
+
+		matcherMsg := MatcherMsg{*deletedOrder, cancel.OrderSymbol, !rollback}
+		blockchains.matcherCh <- matcherMsg
+
+	case MATCH:
+		// TODO
 	}
 }
