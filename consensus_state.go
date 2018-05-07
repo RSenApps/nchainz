@@ -36,7 +36,7 @@ func NewConsensusState() ConsensusState {
 	state := ConsensusState{}
 	state.tokenStates = make(map[string]*ConsensusStateToken)
 	state.createdTokens = make(map[string]TokenInfo)
-
+	state.usedMatchIDs = make(map[uint64]bool)
 	state.tokenStates[MATCH_CHAIN] = NewConsensusStateToken()
 	return state
 }
