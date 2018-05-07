@@ -56,6 +56,11 @@ func (uncommitted *UncommittedTransactions) undoTransactions(symbol string, bloc
 	}
 }
 
+func (uncommitted *UncommittedTransactions) rollbackLast(symbol string, blockchains *Blockchains) {
+	blockchains.rollbackGenericTransaction(symbol, uncommitted.transactions[len(uncommitted.transactions)-1])
+	uncommitted.transactions = uncommitted.transactions[ : len(uncommitted.transactions) - 1]
+}
+
 func (blockchains *Blockchains) rollbackTokenToHeight(symbol string, height uint64) {
 	if height >= blockchains.chains[symbol].height {
 		return
@@ -524,7 +529,7 @@ func (blockchains *Blockchains) AddTransactionToMempool(tx GenericTransaction, s
 		blockchains.chainsLock.Unlock()
 		blockchains.miner.minerCh <- MinerMsg{tx, false}
 	} else {
-		blockchains.rollbackGenericTransaction(symbol, tx)
+		blockchains.mempoolUncommitted[symbol].rollbackLast(symbol, blockchains)
 		blockchains.mempoolsLock.Unlock()
 		blockchains.chainsLock.Unlock()
 	}

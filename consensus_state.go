@@ -127,11 +127,12 @@ func (state *ConsensusState) AddTransfer(symbol string, transfer Transfer) bool 
 }
 
 func (state *ConsensusState) RollbackTransfer(symbol string, transfer Transfer) {
-	Log("Transfer rolled back from consensus state %v", transfer)
 	tokenState := state.tokenStates[symbol]
 	delete(tokenState.usedTransferIDs, transfer.ID)
 	tokenState.balances[transfer.FromAddress] += transfer.Amount
 	tokenState.balances[transfer.ToAddress] -= transfer.Amount
+
+	Log("Transfer rolled back from consensus state %v FromBalance %v ToBalance %v", transfer, tokenState.balances[transfer.FromAddress], tokenState.balances[transfer.ToAddress])
 }
 
 func (state *ConsensusState) AddMatch(match Match) bool {
