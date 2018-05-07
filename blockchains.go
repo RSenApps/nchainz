@@ -268,7 +268,7 @@ func (blockchains *Blockchains) AddBlocks(symbol string, blocks []Block, takeLoc
 		return false
 	}
 
-	if !blockchains.recovering {
+	if !blockchains.recovering && takeLock {
 		go func() { blockchains.stopMiningCh <- symbol }()
 		blockchains.mempoolsLock.Lock()
 		Log("AddBlocks undoing transactions for: %v", symbol)
