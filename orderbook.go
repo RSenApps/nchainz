@@ -97,18 +97,20 @@ func (ob *Orderbook) Match() (found bool, match *Match) {
 	id := rand.Uint64()
 	match = &Match{id, ob.BaseSymbol, sellOrder.ID, ob.QuoteSymbol, buyOrder.ID, uint64(transferAmt)}
 
-	ob.QuoteQueue.Deq()
 	if transferAmt < buyOrder.AmountToBuy && buyerBaseLoss < buyOrder.AmountToSell {
 		buyOrder.AmountToBuy -= transferAmt
 		buyOrder.AmountToSell -= buyerBaseLoss
-		ob.QuoteQueue.Enq(buyOrder)
+		ob.QuoteQueue.FixHeadPrice()
+	} else {
+		ob.QuoteQueue.Deq()
 	}
 
-	ob.BaseQueue.Deq()
 	if transferAmt < sellOrder.AmountToSell && sellerBaseGain < sellOrder.AmountToBuy {
 		sellOrder.AmountToSell -= transferAmt
 		sellOrder.AmountToBuy -= sellerBaseGain
-		ob.BaseQueue.Enq(sellOrder)
+		ob.BaseQueue.FixHeadPrice()
+	} else {
+		ob.BaseQueue.Deq()
 	}
 
 	Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.QuoteQueue)
