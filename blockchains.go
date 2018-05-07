@@ -516,15 +516,7 @@ func (blockchains *Blockchains) AddTransactionToMempool(tx GenericTransaction, s
 
 	// Validate transaction
 	if !blockchains.addGenericTransaction(symbol, tx, blockchains.mempoolUncommitted[symbol]) {
-		if tx.TransactionType == MATCH {
-			// This is needed because when adding orders to a chain, we might be mining a different chain and
-			// therefore roll back the order. This will cause the Match to fail. So we should add to mempool and
-			// allow for it to be revalidated later
-			blockchains.mempools[symbol][tx.ID()] = tx
-			Log("Made exception for Match and added to mempool %v", tx)
-		} else {
-			Log("Failed to add tx to mempool consensus state")
-		}
+		Log("Failed to add tx to mempool consensus state")
 		blockchains.mempoolsLock.Unlock()
 		blockchains.chainsLock.Unlock()
 		return false

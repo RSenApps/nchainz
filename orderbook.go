@@ -95,7 +95,7 @@ func (ob *Orderbook) Match() (found bool, match *Match) {
 
 	found = true
 	id := rand.Uint64()
-	match = &Match{id, ob.BaseSymbol, sellOrder.ID, ob.QuoteSymbol, buyOrder.ID, uint64(transferAmt)}
+	match = &Match{id, ob.BaseSymbol, buyOrder.ID, ob.QuoteSymbol, sellOrder.ID, uint64(transferAmt)}
 
 	if transferAmt < buyOrder.AmountToBuy && buyerBaseLoss < buyOrder.AmountToSell {
 		buyOrder.AmountToBuy -= transferAmt
