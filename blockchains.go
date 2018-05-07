@@ -491,6 +491,15 @@ func (blockchains *Blockchains) GetBlockhashes() map[string][][]byte {
 
 func (blockchains *Blockchains) AddTransactionToMempool(tx GenericTransaction, symbol string) bool {
 	blockchains.chainsLock.Lock()
+
+	blockchains.mempoolsLock.Lock()
+	if _, ok := blockchains.mempools[symbol][tx.ID()]; ok {
+		Log("Tx already in mempool, %v", tx.ID())
+		blockchains.mempoolsLock.Unlock()
+		blockchains.chainsLock.Unlock()
+		return false
+	}
+
 	// Validate transaction
 	if !blockchains.addGenericTransaction(symbol, tx, blockchains.mempoolUncommitted[symbol]) {
 		blockchains.chainsLock.Unlock()
@@ -507,14 +516,6 @@ func (blockchains *Blockchains) AddTransactionToMempool(tx GenericTransaction, s
 		}
 		return false
 	}
-	blockchains.mempoolsLock.Lock()
-	if _, ok := blockchains.mempools[symbol][tx.ID()]; ok {
-		Log("Tx already in mempool, %v", tx.ID())
-		blockchains.mempoolsLock.Unlock()
-		blockchains.chainsLock.Unlock()
-		return false
-	}
-
 	Log("Tx added to mempool")
 	// Add transaction to mempool
 	blockchains.mempools[symbol][tx.ID()] = tx
@@ -541,18 +542,20 @@ func (blockchains *Blockchains) StartMining() {
 	for token := range blockchains.mempools {
 		tokens = append(tokens, token)
 	}
-	blockchains.mempoolsLock.Unlock()
-
 	blockchains.minerChosenToken = tokens[rand.Intn(len(tokens))]
 
 	// Send new block message
 	switch blockchains.minerChosenToken {
 	case MATCH_CHAIN:
 		Log("Starting match block")
-		blockchains.miner.minerCh <- MinerMsg{NewBlockMsg{MATCH_BLOCK, blockchains.chains[blockchains.minerChosenToken].tipHash, blockchains.minerChosenToken}, true}
+		msg := MinerMsg{NewBlockMsg{MATCH_BLOCK, blockchains.chains[blockchains.minerChosenToken].tipHash, blockchains.minerChosenToken}, true}
+		blockchains.mempoolsLock.Unlock()
+		blockchains.miner.minerCh <- msg
 	default:
 		Log("Starting %v block", blockchains.minerChosenToken)
-		blockchains.miner.minerCh <- MinerMsg{NewBlockMsg{TOKEN_BLOCK, blockchains.chains[blockchains.minerChosenToken].tipHash, blockchains.minerChosenToken}, true}
+		msg := MinerMsg{NewBlockMsg{TOKEN_BLOCK, blockchains.chains[blockchains.minerChosenToken].tipHash, blockchains.minerChosenToken}, true}
+		blockchains.mempoolsLock.Unlock()
+		blockchains.miner.minerCh <- msg
 	}
 
 	blockchains.mempoolsLock.Lock()
@@ -560,7 +563,6 @@ func (blockchains *Blockchains) StartMining() {
 	for _, tx := range blockchains.mempools[blockchains.minerChosenToken] {
 		txInPool = append(txInPool, tx)
 	}
-	blockchains.mempoolsLock.Unlock()
 	Log("%v TX in mempool to revalidate and send", len(txInPool))
 
 	//Send stuff currently in mem pool (re-validate too)
@@ -590,6 +592,7 @@ func (blockchains *Blockchains) StartMining() {
 			blockchains.miner.minerCh <- MinerMsg{tx, false}
 		}
 	}(blockchains.minerChosenToken, txInPool)
+	blockchains.mempoolsLock.Unlock()
 }
 
 func (blockchains *Blockchains) ApplyLoop() {
@@ -636,9 +639,17 @@ func (blockchains *Blockchains) ApplyLoop() {
 
 		case symbol := <-blockchains.stopMiningCh:
 			Log("Restarting mining due to new block being added or removed")
+			blockchains.chainsLock.Lock()
+			blockchains.mempoolsLock.Lock()
 			if symbol != blockchains.minerChosenToken {
+				blockchains.mempoolsLock.Unlock()
+				blockchains.chainsLock.Unlock()
 				continue
 			}
+			blockchains.mempoolUncommitted[symbol].undoTransactions(symbol, blockchains)
+			blockchains.mempoolUncommitted[symbol] = &UncommittedTransactions{}
+			blockchains.mempoolsLock.Unlock()
+			blockchains.chainsLock.Unlock()
 		}
 
 		blockchains.StartMining()
