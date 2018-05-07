@@ -39,7 +39,7 @@ Creating transactions
 Running a node or miner
 	node HOSTNAME:PORT
 		Start up a full node providing your hostname on the given port
-	printchain DB
+	printchain DB SYMBOL
 		Prints all the blocks in the blockchain
 `
 
