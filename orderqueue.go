@@ -33,12 +33,7 @@ func NewOrderQueue(side OrderSide) *OrderQueue {
 func (oq *OrderQueue) Enq(order *Order) {
 	item := OrderQueueItem{}
 	item.order = order
-
-	if oq.Side == QUOTE {
-		item.price = float64(order.AmountToSell) / float64(order.AmountToBuy)
-	} else { // oq.Side == BASE
-		item.price = float64(order.AmountToBuy) / float64(order.AmountToSell)
-	}
+	oq.setItemPrice(&item)
 
 	heap.Push(oq, item)
 }
@@ -78,6 +73,12 @@ func (oq *OrderQueue) Remove(order *Order) error {
 	return nil
 }
 
+func (oq *OrderQueue) FixHeadPrice() {
+	item := &oq.Items[0]
+	oq.setItemPrice(item)
+	heap.Fix(oq, 0)
+}
+
 func (oq *OrderQueue) String() string {
 	var buffer bytes.Buffer
 
@@ -97,6 +98,14 @@ func (oq *OrderQueue) oqiString(oqi *OrderQueueItem) string {
 		return fmt.Sprintf("<%v @ %f #%v>", oqi.order.AmountToSell, oqi.price, oqi.order.ID)
 	} else {
 		return fmt.Sprintf("<%v @ %f #%v>", oqi.order.AmountToBuy, oqi.price, oqi.order.ID)
+	}
+}
+
+func (oq *OrderQueue) setItemPrice(item *OrderQueueItem) {
+	if oq.Side == QUOTE {
+		item.price = float64(item.order.AmountToSell) / float64(item.order.AmountToBuy)
+	} else { // oq.Side == BASE
+		item.price = float64(item.order.AmountToBuy) / float64(item.order.AmountToSell)
 	}
 }
 
