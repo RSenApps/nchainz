@@ -72,6 +72,10 @@ func TestSwapTransfer(t *testing.T) {
 	fmt.Println()
 }
 
+/*func TestManyTransfers(t *testing.T) {
+
+}*/
+
 // Multiple client
 // Lots of transfers
 // Transfers that shouldn't work
@@ -87,6 +91,7 @@ func checkBalance(client *Client, users []string, amounts []uint64, symbol strin
 	}
 
 	for {
+		success := true
 		for i := 0; i < len(users); i++ {
 			r := client.GetBalance(users[i], symbol)
 
@@ -94,11 +99,14 @@ func checkBalance(client *Client, users []string, amounts []uint64, symbol strin
 				return false
 			}
 
-			if r.Amount == amounts[i] {
-				return true
-			} else {
+			if r.Amount != amounts[i] {
+				success = false
 				break
 			}
+		}
+
+		if success {
+			return true
 		}
 
 		time.Sleep(100 * time.Millisecond)
