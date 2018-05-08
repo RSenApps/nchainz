@@ -19,7 +19,6 @@ type ConsensusState struct {
 	tokenStates    map[string]*ConsensusStateToken
 	createdTokens  map[string]TokenInfo
 	usedMatchIDs   map[uint64]bool
-	orderMatchings map[uint64]Match
 	matcher        *Matcher
 }
 
@@ -38,7 +37,6 @@ func NewConsensusState(matcher *Matcher) ConsensusState {
 	state.tokenStates = make(map[string]*ConsensusStateToken)
 	state.createdTokens = make(map[string]TokenInfo)
 	state.usedMatchIDs = make(map[uint64]bool)
-	state.orderMatchings = make(map[uint64]Match)
 	state.tokenStates[MATCH_CHAIN] = NewConsensusStateToken()
 	state.matcher = matcher
 	return state
@@ -192,11 +190,19 @@ func (state *ConsensusState) AddMatch(match Match) bool {
 	if buyOrder.AmountToBuy > sellOrder.AmountToSell {
 		transferAmt = sellOrder.AmountToSell
 		sellerBaseGain = sellOrder.AmountToBuy
+		if buyPrice * float64(transferAmt) > float64(^uint64(0)) {
+			Log("Match failed due to buy overflow")
+			return false
+		}
 		buyerBaseLoss = uint64(math.Floor(buyPrice * float64(transferAmt)))
 
 	} else { // buyOrder.AmountToBuy <= sellOrder.AmountToSell
 		transferAmt = buyOrder.AmountToBuy
 		buyerBaseLoss = buyOrder.AmountToSell
+		if sellPrice * float64(transferAmt) > float64(^uint64(0)) {
+			Log("Match failed due to sell overflow")
+			return false
+		}
 		sellerBaseGain = uint64(math.Ceil(sellPrice * float64(transferAmt)))
 	}
 
