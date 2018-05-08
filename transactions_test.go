@@ -56,9 +56,7 @@ func TestSwapTransfer(t *testing.T) {
 
 	client.Transfer(500, "NATIVE", "Satoshi", "x")
 	success := checkBalance(client, []string{"Satoshi", "x"}, []uint64{99999500, 500}, "NATIVE")
-	if success {
-		LogRed("Passed: swap transfers")
-	} else {
+	if !success {
 		t.Fatal("FAILED: swap transfers")
 	}
 
