@@ -478,6 +478,11 @@ func (blockchains *Blockchains) GetBlockhashes() map[string][][]byte {
 }
 
 func (blockchains *Blockchains) AddTransactionToMempool(tx GenericTransaction, symbol string, takeLocks bool) bool {
+	if blockchains.recovering {
+		Log("Ignoring tx as still recovering")
+		return false
+	}
+
 	unlock := func() {
 		if takeLocks {
 			blockchains.mempoolsLock.Unlock()
