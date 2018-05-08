@@ -13,11 +13,11 @@ type Client struct {
 
 type GetBalanceRequest struct {
 	Address string
-	Symbol string
+	Symbol  string
 }
 
 type GetBalanceResponse struct {
-	Amount uint64
+	Amount  uint64
 	Success bool
 }
 
@@ -91,7 +91,7 @@ func (client *Client) Transfer(amount uint64, symbol string, from string, to str
 	}
 }
 
-func (client *Client) GetBalance(address string, symbol string) {
+func (client *Client) GetBalance(address string, symbol string) GetBalanceResponse {
 	Log("Client sending GETBALANCE")
 	defer Log("Client done sending GETBALANCE")
 
@@ -108,6 +108,8 @@ func (client *Client) GetBalance(address string, symbol string) {
 	} else {
 		Log("Adddress %v has amount: %v %v", address, reply.Amount, symbol)
 	}
+
+	return reply
 }
 
 func (client *Client) Cancel(symbol string, orderId uint64) {
