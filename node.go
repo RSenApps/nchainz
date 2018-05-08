@@ -55,8 +55,9 @@ const (
 func StartNode(myIp string) {
 	port, _ := strconv.Atoi(strings.Split(myIp, ":")[1])
 	dbName := fmt.Sprintf("db/%v.db", port)
+	localIp := fmt.Sprintf("localhost:%v", port)
 
-	addr, err := net.ResolveTCPAddr("tcp", myIp)
+	addr, err := net.ResolveTCPAddr("tcp", localIp)
 	if err != nil {
 		LogFatal(err.Error())
 	}
@@ -74,7 +75,7 @@ func StartNode(myIp string) {
 
 	log.SetOutput(ioutil.Discard)
 	rpc.Register(node)
-	log.SetOutput(os.Stdout)
+	log.SetOutput(os.Stderr)
 
 	seeds, err := GetSeeds()
 	if err != nil {
