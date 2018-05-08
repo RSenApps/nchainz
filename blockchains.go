@@ -596,13 +596,15 @@ func (blockchains *Blockchains) ApplyLoop() {
 			blockchains.chainsLock.Lock()
 			//state was applied during validation so just add to chain
 			chain, ok := blockchains.chains[blockMsg.Symbol]
-			if !ok || !bytes.Equal(chain.tipHash, blockMsg.Block.PrevBlockHash) {
+			if !ok {
+				Log("miner failed symbol no longer exists")
+				blockchains.chainsLock.Unlock()
+				continue
+			}
+
+			if !bytes.Equal(chain.tipHash, blockMsg.Block.PrevBlockHash) {
 				//block failed so retry
-				if !ok {
-					Log("miner failed symbol no longer exists")
-				} else {
-					Log("miner prevBlockHash does not match tipHash %x != %x", chain.tipHash, blockMsg.Block.PrevBlockHash)
-				}
+				Log("miner prevBlockHash does not match tipHash %x != %x", chain.tipHash, blockMsg.Block.PrevBlockHash)
 
 				blockchains.mempoolsLock.Lock()
 				blockchains.mempoolUncommitted[blockMsg.Symbol].undoTransactions(blockMsg.Symbol, blockchains)
