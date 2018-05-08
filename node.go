@@ -55,7 +55,7 @@ const (
 func StartNode(myIp string) {
 	port, _ := strconv.Atoi(strings.Split(myIp, ":")[1])
 	dbName := fmt.Sprintf("db/%v.db", port)
-	localIp := fmt.Sprintf("localhost:%v", port)
+	localIp := fmt.Sprintf(":%v", port)
 
 	addr, err := net.ResolveTCPAddr("tcp", localIp)
 	if err != nil {
@@ -417,7 +417,7 @@ func (node *Node) connectPeerIfNew(peerIp string) (isNew bool, peer *Peer, err e
 
 	client, err := rpc.Dial("tcp", peerIp)
 	if err != nil {
-		Log("Dialing error connecting to peer %s", peerIp)
+		Log("Dialing error connecting to peer %s, (%s)", peerIp, err.Error())
 		node.setPeerState(peerIp, INVALID)
 
 		return true, nil, err
