@@ -32,36 +32,53 @@ func StartMatcher(bcs *Blockchains, matchCh chan Match) (matcher *Matcher) {
 
 func (mr *Matcher) AddOrder(order Order, sellSymbol string) {
 	buySymbol := order.BuySymbol
+	Log("Adding order %v to %s", order.ID, GetBookName(buySymbol, sellSymbol))
 
-	if _, exists := mr.symbols[buySymbol]; !exists {
-		mr.addSymbol(buySymbol)
-	}
-	if _, exists := mr.symbols[sellSymbol]; !exists {
-		mr.addSymbol(sellSymbol)
-	}
-
-	Log("Adding tx %v to %s", order.ID, GetBookName(buySymbol, sellSymbol))
 	orderbook := mr.getOrderbook(buySymbol, sellSymbol)
 	orderbook.Add(&order, sellSymbol)
 
-	mr.Match(orderbook)
+	mr.CheckMatch(orderbook)
 }
 
 func (mr *Matcher) RemoveOrder(order Order, sellSymbol string) {
 	buySymbol := order.BuySymbol
+	Log("Removing order %v from %s", order.ID, GetBookName(buySymbol, sellSymbol))
+
 	orderbook := mr.getOrderbook(buySymbol, sellSymbol)
 	orderbook.Cancel(&order, sellSymbol)
 
-	mr.Match(orderbook)
+	mr.CheckMatch(orderbook)
 }
 
-func (mr *Matcher) Match(orderbook *Orderbook) {
-	found, match := orderbook.Match()
+func (mr *Matcher) AddMatch(match Match) {
+	Log("Adding match %v/%v to %s", match.BuyOrderID, match.SellOrderID, GetBookName(match.BuySymbol, match.SellSymbol))
+
+	orderbook := mr.getOrderbook(match.BuySymbol, match.SellSymbol)
+	orderbook.ApplyMatch(&match)
+}
+
+// TODO: vanish amt argument
+func (mr *Matcher) RemoveMatch(match Match) {
+	Log("Removing match %v/%v from %s", match.BuyOrderID, match.SellOrderID, GetBookName(match.BuySymbol, match.SellSymbol))
+
+	orderbook := mr.getOrderbook(match.BuySymbol, match.SellSymbol)
+	orderbook.UnapplyMatch(&match)
+}
+
+func (mr *Matcher) CheckMatch(orderbook *Orderbook) {
+	found, match := orderbook.FindMatch()
 	if found {
 		Log("Found match on %s/%s: %v/%v", orderbook.QuoteSymbol, orderbook.BaseSymbol, match.BuyOrderID, match.SellOrderID)
-		mr.returnMatch(match)
 
-		mr.Match(orderbook)
+		if mr.bcs != nil {
+			tx := GenericTransaction{*match, MATCH}
+			mr.bcs.AddTransactionToMempool(tx, MATCH_CHAIN, false)
+		} else {
+			orderbook.ApplyMatch(match)
+			mr.matchCh <- *match
+		}
+
+		mr.CheckMatch(orderbook)
 	}
 }
 
@@ -78,16 +95,14 @@ func (mr *Matcher) addSymbol(newSymbol string) {
 	mr.symbols[newSymbol] = true
 }
 
-func (mr *Matcher) returnMatch(match *Match) {
-	if mr.bcs != nil {
-		tx := GenericTransaction{*match, MATCH}
-		mr.bcs.AddTransactionToMempool(tx, MATCH_CHAIN)
-	} else {
-		mr.matchCh <- *match
-	}
-}
-
 func (mr *Matcher) getOrderbook(symbol1, symbol2 string) *Orderbook {
+	if _, exists := mr.symbols[symbol1]; !exists {
+		mr.addSymbol(symbol1)
+	}
+	if _, exists := mr.symbols[symbol2]; !exists {
+		mr.addSymbol(symbol2)
+	}
+
 	base, quote := GetBaseQuote(symbol1, symbol2)
 	return mr.orderbooks[base][quote]
 }

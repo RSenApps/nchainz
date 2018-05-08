@@ -8,8 +8,9 @@ import (
 )
 
 type OrderQueue struct {
-	Items []OrderQueueItem
-	Side  OrderSide
+	Items    []*OrderQueueItem
+	Side     OrderSide
+	IdToItem map[uint64]*OrderQueueItem
 }
 
 type OrderQueueItem struct {
@@ -26,16 +27,18 @@ const (
 )
 
 func NewOrderQueue(side OrderSide) *OrderQueue {
-	items := make([]OrderQueueItem, 0)
-	return &OrderQueue{items, side}
+	items := make([]*OrderQueueItem, 0)
+	idToItem := make(map[uint64]*OrderQueueItem)
+	return &OrderQueue{items, side, idToItem}
 }
 
 func (oq *OrderQueue) Enq(order *Order) {
-	item := OrderQueueItem{}
+	item := &OrderQueueItem{}
 	item.order = order
-	oq.setItemPrice(&item)
+	oq.setItemPrice(item)
 
 	heap.Push(oq, item)
+	oq.IdToItem[order.ID] = item
 }
 
 func (oq *OrderQueue) Deq() (order *Order, price float64, err error) {
@@ -43,7 +46,8 @@ func (oq *OrderQueue) Deq() (order *Order, price float64, err error) {
 		return nil, 0.0, errors.New("empty queue")
 	}
 
-	item := heap.Pop(oq).(OrderQueueItem)
+	item := heap.Pop(oq).(*OrderQueueItem)
+	delete(oq.IdToItem, item.order.ID)
 	return item.order, item.price, nil
 }
 
@@ -56,34 +60,38 @@ func (oq *OrderQueue) Peek() (order *Order, price float64, err error) {
 	return item.order, item.price, nil
 }
 
-func (oq *OrderQueue) Remove(order *Order) error {
-	index := -1
-	for i, oqi := range oq.Items {
-		if oqi.order.ID == order.ID {
-			index = i
-			break
-		}
+func (oq *OrderQueue) Remove(id uint64) error {
+	item, exists := oq.IdToItem[id]
+	if !exists {
+		return errors.New("order does not exist in queue")
 	}
 
-	if index == -1 {
-		return errors.New("Order not found in orderqueue")
-	}
-
-	heap.Remove(oq, index)
+	heap.Remove(oq, item.index)
+	delete(oq.IdToItem, id)
 	return nil
 }
 
-func (oq *OrderQueue) FixHeadPrice() {
-	item := &oq.Items[0]
+func (oq *OrderQueue) GetOrder(id uint64) (*Order, bool) {
+	item, exists := oq.IdToItem[id]
+
+	if !exists {
+		return nil, false
+	}
+
+	return item.order, true
+}
+
+func (oq *OrderQueue) FixPrice(id uint64) {
+	item := oq.IdToItem[id]
 	oq.setItemPrice(item)
-	heap.Fix(oq, 0)
+	heap.Fix(oq, item.index)
 }
 
 func (oq *OrderQueue) String() string {
 	var buffer bytes.Buffer
 
 	for _, oqi := range oq.Items {
-		buffer.WriteString(oq.oqiString(&oqi))
+		buffer.WriteString(oq.oqiString(oqi))
 	}
 
 	if oq.Side == BASE {
@@ -131,7 +139,7 @@ func (oq *OrderQueue) Swap(i, j int) {
 }
 
 func (oq *OrderQueue) Push(x interface{}) {
-	item := x.(OrderQueueItem)
+	item := x.(*OrderQueueItem)
 	item.index = len(oq.Items)
 	oq.Items = append(oq.Items, item)
 }

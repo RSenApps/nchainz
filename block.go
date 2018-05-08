@@ -61,12 +61,18 @@ type GenericTransaction struct {
 
 func (gt *GenericTransaction) ID() string {
 	switch gt.TransactionType {
-	case CREATE_TOKEN: return fmt.Sprintf("%v,%v", gt.TransactionType, gt.Transaction.(CreateToken).TokenInfo.Symbol)
-	case MATCH: return fmt.Sprintf("%v,%v", gt.TransactionType, gt.Transaction.(Match).MatchID)
-	case ORDER: return fmt.Sprintf("%v,%v", gt.TransactionType, gt.Transaction.(Order).ID)
-	case TRANSFER: return fmt.Sprintf("%v,%v", gt.TransactionType, gt.Transaction.(Transfer).ID)
-	case CANCEL_ORDER: return fmt.Sprintf("%v,%v", gt.TransactionType, gt.Transaction.(CancelOrder).OrderID)
-	case CLAIM_FUNDS: return fmt.Sprintf("%v,%v", gt.TransactionType, gt.Transaction.(ClaimFunds).ID)
+	case CREATE_TOKEN:
+		return fmt.Sprintf("%v,%v", gt.TransactionType, gt.Transaction.(CreateToken).TokenInfo.Symbol)
+	case MATCH:
+		return fmt.Sprintf("%v,%v", gt.TransactionType, gt.Transaction.(Match).MatchID)
+	case ORDER:
+		return fmt.Sprintf("%v,%v", gt.TransactionType, gt.Transaction.(Order).ID)
+	case TRANSFER:
+		return fmt.Sprintf("%v,%v", gt.TransactionType, gt.Transaction.(Transfer).ID)
+	case CANCEL_ORDER:
+		return fmt.Sprintf("%v,%v", gt.TransactionType, gt.Transaction.(CancelOrder).OrderID)
+	case CLAIM_FUNDS:
+		return fmt.Sprintf("%v,%v", gt.TransactionType, gt.Transaction.(ClaimFunds).ID)
 	}
 	return ""
 }
@@ -82,9 +88,11 @@ type Match struct {
 	MatchID     uint64
 	SellSymbol  string
 	SellOrderID uint64
+	SellerGain  uint64
 	BuySymbol   string
 	BuyOrderID  uint64
-	AmountSold  uint64
+	BuyerLoss   uint64
+	TransferAmt uint64
 }
 
 type Order struct {
@@ -111,7 +119,7 @@ type CancelOrder struct { //goes on match chain
 }
 
 type ClaimFunds struct {
-	ID uint64
+	ID      uint64
 	Address string
 	Amount  uint64
 }

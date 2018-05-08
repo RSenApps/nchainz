@@ -32,7 +32,7 @@ func TestLargerBuyCleanSplit(t *testing.T) {
 	match := <-matchCh
 	LogRed("Got match %v", match)
 
-	assertEqual(t, match.AmountSold, 10)
+	assertEqual(t, match.TransferAmt, 10)
 
 	ob := matcher.orderbooks["USD"]["ETH"]
 	assertEqual(t, ob.QuoteQueue.Len(), 1)
@@ -55,7 +55,7 @@ func TestLargerSellMessySplit(t *testing.T) {
 	match := <-matchCh
 	LogRed("Got match %v", match)
 
-	assertEqual(t, match.AmountSold, 123)
+	assertEqual(t, match.TransferAmt, 123)
 
 	ob := matcher.orderbooks["USD"]["ETH"]
 	assertEqual(t, ob.QuoteQueue.Len(), 0)
@@ -78,7 +78,7 @@ func TestVanishingOrders(t *testing.T) {
 	match := <-matchCh
 	LogRed("Got match %v", match)
 
-	assertEqual(t, match.AmountSold, 1)
+	assertEqual(t, match.TransferAmt, 1)
 
 	ob := matcher.orderbooks["USD"]["ETH"]
 	assertEqual(t, ob.QuoteQueue.Len(), 0)

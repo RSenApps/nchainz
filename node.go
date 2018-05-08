@@ -355,7 +355,7 @@ func (node *Node) Tx(args *TxArgs, reply *bool) error {
 	Log("Received TX from %s %v", from, args.Tx)
 	defer Log("Done handling TX from %s", from)
 
-	new := node.bcs.AddTransactionToMempool(args.Tx, args.Symbol)
+	new := node.bcs.AddTransactionToMempool(args.Tx, args.Symbol, true)
 
 	if new {
 		node.BroadcastTx(&args.Tx, args.Symbol)

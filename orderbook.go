@@ -43,16 +43,16 @@ func (ob *Orderbook) Cancel(order *Order, sellSymbol string) {
 	defer ob.mu.Unlock()
 
 	if sellSymbol == ob.BaseSymbol {
-		ob.QuoteQueue.Remove(order)
+		ob.QuoteQueue.Remove(order.ID)
 	} else if sellSymbol == ob.QuoteSymbol {
-		ob.BaseQueue.Remove(order)
+		ob.BaseQueue.Remove(order.ID)
 	}
 
 	Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.QuoteQueue)
 	Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.BaseQueue)
 }
 
-func (ob *Orderbook) Match() (found bool, match *Match) {
+func (ob *Orderbook) FindMatch() (found bool, match *Match) {
 	ob.mu.Lock()
 	defer ob.mu.Unlock()
 
@@ -95,27 +95,56 @@ func (ob *Orderbook) Match() (found bool, match *Match) {
 
 	found = true
 	id := rand.Uint64()
-	match = &Match{id, ob.BaseSymbol, buyOrder.ID, ob.QuoteSymbol, sellOrder.ID, uint64(transferAmt)}
+	match = &Match{id, ob.QuoteSymbol, sellOrder.ID, sellerBaseGain, ob.BaseSymbol, buyOrder.ID, buyerBaseLoss, uint64(transferAmt)}
+	return
+}
 
-	if transferAmt < buyOrder.AmountToBuy && buyerBaseLoss < buyOrder.AmountToSell {
-		buyOrder.AmountToBuy -= transferAmt
-		buyOrder.AmountToSell -= buyerBaseLoss
-		ob.QuoteQueue.FixHeadPrice()
+func (ob *Orderbook) ApplyMatch(match *Match) {
+	buyOrder, _ := ob.QuoteQueue.GetOrder(match.BuyOrderID)
+	sellOrder, _ := ob.BaseQueue.GetOrder(match.SellOrderID)
+
+	if match.TransferAmt < buyOrder.AmountToBuy && match.BuyerLoss < buyOrder.AmountToSell {
+		buyOrder.AmountToBuy -= match.TransferAmt
+		buyOrder.AmountToSell -= match.BuyerLoss
+		ob.QuoteQueue.FixPrice(buyOrder.ID)
 	} else {
-		ob.QuoteQueue.Deq()
+		ob.QuoteQueue.Remove(buyOrder.ID)
 	}
 
-	if transferAmt < sellOrder.AmountToSell && sellerBaseGain < sellOrder.AmountToBuy {
-		sellOrder.AmountToSell -= transferAmt
-		sellOrder.AmountToBuy -= sellerBaseGain
-		ob.BaseQueue.FixHeadPrice()
+	if match.TransferAmt < sellOrder.AmountToSell && match.SellerGain < sellOrder.AmountToBuy {
+		sellOrder.AmountToSell -= match.TransferAmt
+		sellOrder.AmountToBuy -= match.SellerGain
+		ob.BaseQueue.FixPrice(sellOrder.ID)
 	} else {
-		ob.BaseQueue.Deq()
+		ob.BaseQueue.Remove(sellOrder.ID)
 	}
 
 	Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.QuoteQueue)
 	Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.BaseQueue)
-	return
+}
+
+func (ob *Orderbook) UnapplyMatch(match *Match) {
+	buyOrder, buyExists := ob.QuoteQueue.GetOrder(match.BuyOrderID)
+	sellOrder, sellExists := ob.BaseQueue.GetOrder(match.SellOrderID)
+
+	if buyExists {
+		buyOrder.AmountToBuy += match.TransferAmt
+		buyOrder.AmountToSell += match.BuyerLoss
+	} else {
+		buyOrder = &Order{match.BuyOrderID, match.BuySymbol, match.BuyerLoss, match.TransferAmt, "", []byte{}}
+		ob.QuoteQueue.Enq(buyOrder)
+	}
+
+	if sellExists {
+		sellOrder.AmountToBuy += match.SellerGain
+		sellOrder.AmountToSell += match.TransferAmt
+	} else {
+		sellOrder = &Order{match.SellOrderID, match.SellSymbol, match.TransferAmt, match.SellerGain, "", []byte{}}
+		ob.BaseQueue.Enq(sellOrder)
+	}
+
+	Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.QuoteQueue)
+	Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.BaseQueue)
 }
 
 func GetBaseQuote(symbol1, symbol2 string) (base, quote string) {
