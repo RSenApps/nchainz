@@ -493,7 +493,7 @@ func (node *Node) reconcileChain(peerIp string, symbol string, theirBlockhashes 
 
 	if height != myHeight {
 		Log("Found fork at height %v while reconciling chain %s with peer %s", height, symbol, peerIp)
-		node.bcs.RollbackToHeight(symbol, height)
+		node.bcs.RollbackToHeight(symbol, height, true)
 	}
 
 	for i := height + 1; i <= theirHeight; i++ {
