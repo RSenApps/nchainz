@@ -75,7 +75,7 @@ func StartNode(myIp string) {
 
 	log.SetOutput(ioutil.Discard)
 	rpc.Register(node)
-	log.SetOutput(os.Stdout)
+	log.SetOutput(os.Stderr)
 
 	seeds, err := GetSeeds()
 	if err != nil {
