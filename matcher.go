@@ -46,8 +46,6 @@ func (mr *Matcher) RemoveOrder(order Order, sellSymbol string) {
 
 	orderbook := mr.getOrderbook(buySymbol, sellSymbol)
 	orderbook.Cancel(&order, sellSymbol)
-
-	mr.CheckMatch(orderbook)
 }
 
 func (mr *Matcher) AddMatch(match Match) {

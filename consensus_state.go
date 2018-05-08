@@ -170,12 +170,12 @@ func (state *ConsensusState) AddMatch(match Match) bool {
 	}
 	buyOrder, ok := buyTokenState.openOrders[match.BuyOrderID]
 	if !ok {
-		Log("Match failed as Buy Order is not in openOrders")
+		Log("Match failed as Buy Order %v is not in openOrders", match.BuyOrderID)
 		return false
 	}
 	sellOrder, ok := sellTokenState.openOrders[match.SellOrderID]
 	if !ok {
-		Log("Match failed as Sell Order is not in openOrders")
+		Log("Match failed as Sell Order %v is not in openOrders", match.SellOrderID)
 		return false
 	}
 

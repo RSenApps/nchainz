@@ -2,11 +2,11 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"github.com/boltdb/bolt"
 	"math/rand"
-	"sync"
 	"os"
-	"errors"
+	"sync"
 )
 
 const MATCH_CHAIN = "MATCH"
@@ -74,7 +74,6 @@ func CreateNewBlockchains(dbName string, startMining bool) *Blockchains {
 	}
 	return blockchains
 }
-
 
 ////////////////////////////////
 // Chain Manipulation
@@ -193,7 +192,6 @@ func (blockchains *Blockchains) RemoveTokenChain(createToken CreateToken) {
 	delete(blockchains.mempoolUncommitted, createToken.TokenInfo.Symbol)
 }
 
-
 ////////////////////////////////
 // State Getters
 
@@ -254,7 +252,6 @@ func (blockchains *Blockchains) GetOpenOrders(symbol string) map[uint64]Order {
 	state, _ := blockchains.consensusState.tokenStates[symbol]
 	return state.openOrders
 }
-
 
 ////////////////////////////////
 // Mining
@@ -437,7 +434,6 @@ func (blockchains *Blockchains) ApplyLoop() {
 
 	}
 }
-
 
 ////////////////////////////////
 // Private Implementation

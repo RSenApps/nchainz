@@ -157,6 +157,7 @@ func (node *Node) Addr(args *AddrArgs, reply *bool) error {
 	if peerState != ACTIVE && peerState != FOUND {
 		Log("Received ADDR from inactive or unknown peer %s", args.From)
 		*reply = false
+		go node.connectPeerIfNew(args.From)
 		return nil
 	}
 
@@ -217,6 +218,7 @@ func (node *Node) Inv(args *InvArgs, reply *bool) error {
 	if peerState != ACTIVE && peerState != FOUND {
 		Log("Received INV from inactive or unknown peer %s", args.From)
 		*reply = false
+		go node.connectPeerIfNew(args.From)
 		return nil
 	}
 
@@ -299,6 +301,7 @@ func (node *Node) GetBlock(args *GetBlockArgs, reply *GetBlockReply) error {
 	if peerState != ACTIVE && peerState != FOUND {
 		Log("Received GETBLOCK from inactive or unknown peer %s for block %x on chain %s", args.From, args.Blockhash, args.Symbol)
 		*reply = GetBlockReply{false, Block{}}
+		go node.connectPeerIfNew(args.From)
 	}
 
 	block, err := node.bcs.GetBlock(args.Symbol, args.Blockhash)
