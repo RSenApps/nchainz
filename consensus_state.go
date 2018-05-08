@@ -19,7 +19,7 @@ type ConsensusState struct {
 	tokenStates    map[string]*ConsensusStateToken
 	createdTokens  map[string]TokenInfo
 	usedMatchIDs   map[uint64]bool
-	orderMatchings map[uint64]Order
+	orderMatchings map[uint64]Match
 	matcher        *Matcher
 }
 
@@ -38,7 +38,7 @@ func NewConsensusState(matcher *Matcher) ConsensusState {
 	state.tokenStates = make(map[string]*ConsensusStateToken)
 	state.createdTokens = make(map[string]TokenInfo)
 	state.usedMatchIDs = make(map[uint64]bool)
-	state.orderMatchings = make(map[uint64]Order)
+	state.orderMatchings = make(map[uint64]Match)
 	state.tokenStates[MATCH_CHAIN] = NewConsensusStateToken()
 	state.matcher = matcher
 	return state
@@ -77,6 +77,11 @@ func (state *ConsensusState) AddOrder(symbol string, order Order) bool {
 }
 
 func (state *ConsensusState) RollbackOrder(symbol string, order Order) {
+	match, matched := state.orderMatchings[order.ID]
+	if matched {
+		state.RollbackMatch(match)
+	}
+
 	Log("Order rolled back from consensus state %v", order)
 	tokenState := state.tokenStates[symbol]
 
@@ -84,11 +89,6 @@ func (state *ConsensusState) RollbackOrder(symbol string, order Order) {
 	tokenState.balances[order.SellerAddress] += order.AmountToSell
 
 	state.matcher.RemoveOrder(order, symbol)
-
-	complement, matched := state.orderMatchings[order.ID]
-	if matched {
-		state.AddOrder(order.BuySymbol, complement)
-	}
 }
 
 func (state *ConsensusState) AddClaimFunds(symbol string, funds ClaimFunds) bool {
@@ -249,97 +249,11 @@ func (state *ConsensusState) AddMatch(match Match) bool {
 	}
 
 	state.usedMatchIDs[match.MatchID] = true
-	state.orderMatchings[buyOrder.ID] = sellOrder
-	state.orderMatchings[sellOrder.ID] = buyOrder
+	state.orderMatchings[buyOrder.ID] = match
+	state.orderMatchings[sellOrder.ID] = match
 
 	state.matcher.AddMatch(match)
 	return true
-
-	//
-	/*
-
-		//sell currency: AmountFromSellOrder = match.AmountSold; AmountToBuyer = match.AmountSold;
-		//buy currency: AmountFromBuyOrder = buyerMaxAmountPaid; AmountToSeller = sellerMinAmountReceived;
-
-		//price = amountBuyCurrency / amountSellCurrency
-		buyPrice := float64(buyOrder.AmountToBuy) / float64(buyOrder.AmountToSell)
-		buyerMaxAmountPaid := uint64(math.Ceil(buyPrice * float64(match.AmountSold)))
-		sellPrice := float64(sellOrder.AmountToSell) / float64(sellOrder.AmountToBuy)
-		sellerMinAmountReceived := uint64(math.Floor(sellPrice * float64(match.AmountSold)))
-		if buyerMaxAmountPaid < sellerMinAmountReceived {
-			Log("Match failed as Buyer price is too high willing to pay %v, but seller needs at least %v", buyerMaxAmountPaid, sellerMinAmountReceived)
-			return false
-		}
-		if buyerMaxAmountPaid > buyOrder.AmountToSell {
-			Log("Match failed as Buy Order has %v left, but match needs %v from buyer", buyOrder.AmountToSell, buyerMaxAmountPaid)
-			return false
-		}
-
-		Log("Match added to chain %v", match)
-		//Trade is between match.AmountSold and buyerMaxAmountPaid
-		//TODO: minerReward := buyerMaxAmountPaid - sellerMinAmountPaid
-		buyTokenState.unclaimedFunds[sellOrder.SellerAddress] += sellerMinAmountReceived
-
-		sellTokenState.unclaimedFunds[buyOrder.SellerAddress] += match.AmountSold
-
-		if match.AmountSold > sellOrder.AmountToSell {
-			sellOrder.AmountToSell = 0
-		} else {
-			sellOrder.AmountToSell -= match.AmountSold
-		}
-
-		if sellerMinAmountReceived > sellOrder.AmountToBuy {
-			sellOrder.AmountToBuy = 0
-		} else {
-			sellOrder.AmountToSell -= sellerMinAmountReceived
-		}
-
-		if sellerMinAmountReceived > sellOrder.AmountToBuy {
-			sellOrder.AmountToBuy = 0
-		} else {
-			sellOrder.AmountToBuy -= sellerMinAmountReceived
-		}
-
-		if match.AmountSold > buyOrder.AmountToBuy {
-			buyOrder.AmountToBuy = 0
-		} else {
-			buyOrder.AmountToBuy -= match.AmountSold
-		}
-
-		if buyerMaxAmountPaid > buyOrder.AmountToSell {
-			buyOrder.AmountToSell = 0
-		} else {
-			buyOrder.AmountToSell -= buyerMaxAmountPaid
-		}
-
-		var deletedOrders []Order
-		if sellOrder.AmountToBuy == 0 {
-			Log("Sell order depleted %v", sellOrder)
-			if sellOrder.AmountToSell > 0 {
-				sellTokenState.unclaimedFunds[sellOrder.SellerAddress] += sellOrder.AmountToSell
-			}
-			deletedOrders = append(deletedOrders, sellOrder)
-			sellTokenState.deletedOrders[sellOrder.ID] = sellOrder
-			delete(sellTokenState.openOrders, sellOrder.ID)
-		} else {
-			sellTokenState.openOrders[sellOrder.ID] = sellOrder
-		}
-
-		if buyOrder.AmountToBuy == 0 {
-			Log("Buy order depleted %v", buyOrder)
-			if buyOrder.AmountToSell > 0 {
-				buyTokenState.unclaimedFunds[buyOrder.SellerAddress] += buyOrder.AmountToSell
-			}
-			deletedOrders = append(deletedOrders, buyOrder)
-			buyTokenState.deletedOrders[buyOrder.ID] = buyOrder
-			delete(buyTokenState.openOrders, buyOrder.ID)
-		} else {
-			buyTokenState.openOrders[buyOrder.ID] = buyOrder
-		}
-		state.usedMatchIDs[match.MatchID] = true
-
-		return true
-	*/
 }
 
 func (state *ConsensusState) RollbackMatch(match Match) {
@@ -384,29 +298,6 @@ func (state *ConsensusState) RollbackMatch(match Match) {
 	delete(state.orderMatchings, buyOrder.ID)
 
 	state.matcher.RemoveMatch(match)
-
-	/*
-		buyPrice := float64(buyOrder.AmountToBuy) / float64(buyOrder.AmountToSell)
-		buyerMaxAmountPaid := uint64(math.Ceil(buyPrice * float64(match.AmountSold)))
-		sellPrice := float64(sellOrder.AmountToSell) / float64(sellOrder.AmountToBuy)
-		sellerMinAmountReceived := uint64(math.Floor(sellPrice * float64(match.AmountSold)))
-
-		//TODO: minerReward := buyerMaxAmountPaid - sellerMinAmountPaid
-		buyTokenState.unclaimedFunds[sellOrder.SellerAddress] -= sellerMinAmountReceived
-
-		sellTokenState.unclaimedFunds[buyOrder.SellerAddress] -= match.AmountSold
-
-		sellOrder.AmountToSell += match.AmountSold
-		sellOrder.AmountToBuy += sellerMinAmountReceived
-		buyOrder.AmountToBuy += match.AmountSold
-		buyOrder.AmountToSell += buyerMaxAmountPaid
-
-		sellTokenState.openOrders[match.SellOrderID] = sellOrder
-		buyTokenState.openOrders[match.BuyOrderID] = buyOrder
-		delete(state.usedMatchIDs, match.MatchID)
-
-		state.matcher.RemoveMatch(buyOrder, sellOrder)
-	*/
 }
 
 func (state *ConsensusState) AddCancelOrder(cancelOrder CancelOrder) bool {
