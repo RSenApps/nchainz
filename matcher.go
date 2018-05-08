@@ -55,6 +55,8 @@ func (mr *Matcher) AddMatch(match Match) {
 
 	orderbook := mr.getOrderbook(match.BuySymbol, match.SellSymbol)
 	orderbook.ApplyMatch(&match)
+
+	mr.CheckMatch(orderbook)
 }
 
 // TODO: vanish amt argument
@@ -74,11 +76,9 @@ func (mr *Matcher) CheckMatch(orderbook *Orderbook) {
 			tx := GenericTransaction{*match, MATCH}
 			mr.bcs.AddTransactionToMempool(tx, MATCH_CHAIN, false)
 		} else {
-			orderbook.ApplyMatch(match)
+			mr.AddMatch(*match)
 			mr.matchCh <- *match
 		}
-
-		mr.CheckMatch(orderbook)
 	}
 }
 

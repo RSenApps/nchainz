@@ -16,10 +16,11 @@ type ConsensusStateToken struct {
 }
 
 type ConsensusState struct {
-	tokenStates   map[string]*ConsensusStateToken
-	createdTokens map[string]TokenInfo
-	usedMatchIDs  map[uint64]bool
-	matcher       *Matcher
+	tokenStates    map[string]*ConsensusStateToken
+	createdTokens  map[string]TokenInfo
+	usedMatchIDs   map[uint64]bool
+	orderMatchings map[uint64]Order
+	matcher        *Matcher
 }
 
 func NewConsensusStateToken() *ConsensusStateToken {
@@ -37,6 +38,7 @@ func NewConsensusState(matcher *Matcher) ConsensusState {
 	state.tokenStates = make(map[string]*ConsensusStateToken)
 	state.createdTokens = make(map[string]TokenInfo)
 	state.usedMatchIDs = make(map[uint64]bool)
+	state.orderMatchings = make(map[uint64]Order)
 	state.tokenStates[MATCH_CHAIN] = NewConsensusStateToken()
 	state.matcher = matcher
 	return state
@@ -82,6 +84,11 @@ func (state *ConsensusState) RollbackOrder(symbol string, order Order) {
 	tokenState.balances[order.SellerAddress] += order.AmountToSell
 
 	state.matcher.RemoveOrder(order, symbol)
+
+	complement, matched := state.orderMatchings[order.ID]
+	if matched {
+		state.AddOrder(order.BuySymbol, complement)
+	}
 }
 
 func (state *ConsensusState) AddClaimFunds(symbol string, funds ClaimFunds) bool {
@@ -242,6 +249,9 @@ func (state *ConsensusState) AddMatch(match Match) bool {
 	}
 
 	state.usedMatchIDs[match.MatchID] = true
+	state.orderMatchings[buyOrder.ID] = sellOrder
+	state.orderMatchings[sellOrder.ID] = buyOrder
+
 	state.matcher.AddMatch(match)
 	return true
 
@@ -368,7 +378,10 @@ func (state *ConsensusState) RollbackMatch(match Match) {
 
 	sellTokenState.openOrders[match.SellOrderID] = sellOrder
 	buyTokenState.openOrders[match.BuyOrderID] = buyOrder
+
 	delete(state.usedMatchIDs, match.MatchID)
+	delete(state.orderMatchings, sellOrder.ID)
+	delete(state.orderMatchings, buyOrder.ID)
 
 	state.matcher.RemoveMatch(match)
 

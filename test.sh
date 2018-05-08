@@ -23,6 +23,10 @@ case $1 in
     done
     dex claim 1000 NATIVE Satoshi 
     ;; 
+  "MC")
+    nchainz create ETH 100000000 5 vit
+    nchainz create USD 100000000 2 sam
+    ;;
   *)
     echo "Command not found: try again"
     ;;
