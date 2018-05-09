@@ -18,9 +18,9 @@ type Miner struct {
 }
 
 type BlockMsg struct {
-	Block  Block
+	Block     Block
 	TxInBlock map[string]GenericTransaction
-	Symbol string
+	Symbol    string
 }
 
 func (miner *Miner) mineLoop() {

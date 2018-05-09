@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/gob"
+	"github.com/fatih/color"
 	"math/rand"
 	"time"
 )
@@ -9,6 +10,7 @@ import (
 func main() {
 	rand.Seed(time.Now().UTC().UnixNano())
 	gobRegister()
+	color.NoColor = false
 
 	cli := CLI{}
 	cli.Run()
