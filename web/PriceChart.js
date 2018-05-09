@@ -39,8 +39,6 @@ export default class PriceChart {
       x: this.prices.length-1,
       y: price,
     })
-    console.log(this.chartData)
-    console.log(this.yMin, this.yMax)
   }
 
   static initChartOptions(orderbook) {
