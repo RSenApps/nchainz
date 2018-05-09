@@ -123,25 +123,34 @@ func (ob *Orderbook) ApplyMatch(match *Match) {
 	Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.BaseQueue)
 }
 
-func (ob *Orderbook) UnapplyMatch(match *Match) {
+func (ob *Orderbook) UnapplyMatch(match *Match, order1 *Order, order2 *Order) {
+	var backupBuy, backupSell *Order
+
+	if order1.BuySymbol == ob.QuoteSymbol {
+		backupBuy = order1
+		backupSell = order2
+	} else {
+		backupBuy = order2
+		backupSell = order1
+	}
+
 	buyOrder, buyExists := ob.QuoteQueue.GetOrder(match.BuyOrderID)
 	sellOrder, sellExists := ob.BaseQueue.GetOrder(match.SellOrderID)
 
-	if buyExists {
-		buyOrder.AmountToBuy += match.TransferAmt
-		buyOrder.AmountToSell += match.BuyerLoss
-	} else {
-		buyOrder = &Order{match.BuyOrderID, match.BuySymbol, match.BuyerLoss, match.TransferAmt, "", []byte{}}
+	if !buyExists {
+		buyOrder = backupBuy
 		ob.QuoteQueue.Enq(buyOrder)
 	}
 
-	if sellExists {
-		sellOrder.AmountToBuy += match.SellerGain
-		sellOrder.AmountToSell += match.TransferAmt
-	} else {
-		sellOrder = &Order{match.SellOrderID, match.SellSymbol, match.TransferAmt, match.SellerGain, "", []byte{}}
+	if !sellExists {
+		sellOrder = backupSell
 		ob.BaseQueue.Enq(sellOrder)
 	}
+
+	buyOrder.AmountToBuy += match.TransferAmt
+	buyOrder.AmountToSell += match.BuyerLoss
+	sellOrder.AmountToBuy += match.SellerGain
+	sellOrder.AmountToSell += match.TransferAmt
 
 	Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.QuoteQueue)
 	Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.BaseQueue)

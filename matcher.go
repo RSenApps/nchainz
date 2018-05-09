@@ -57,10 +57,13 @@ func (mr *Matcher) AddMatch(match Match) {
 
 // TODO: vanish amt argument
 func (mr *Matcher) RemoveMatch(match Match, buyOrder Order, sellOrder Order) {
+
 	Log("Removing match %v/%v from %s", match.BuyOrderID, match.SellOrderID, GetBookName(match.BuySymbol, match.SellSymbol))
 
 	orderbook := mr.getOrderbook(match.BuySymbol, match.SellSymbol)
-	orderbook.UnapplyMatch(&match)
+	orderbook.UnapplyMatch(&match, &buyOrder, &sellOrder)
+
+	mr.CheckMatch(orderbook)
 }
 
 func (mr *Matcher) RemoveCancelOrder(cancelOrder CancelOrder) {
