@@ -1,55 +1,46 @@
 export default class PriceChart {
   constructor(elementId, orderbook) {
     let ctx = document.getElementById(elementId).getContext('2d')
+
     this.numPrices = 60
     this.prices = []
+    this.chartData = []
+    this.yMin = Number.MAX_VALUE
+    this.yMax = 0
+
     this.chart = new Chart(ctx, PriceChart.initChartOptions(orderbook))
     this.updateChart(orderbook)
   }
 
   updateChart(orderbook) {
-    this.prices.push(orderbook.marketPrice)
-    let chartData = this.getChartData(orderbook)
+    this.setChartData(orderbook)
 
-    this.chart.data.datasets[0].data = chartData.data
+    this.chart.data.datasets[0].data = this.chartData
     this.chart.options.scales.xAxes[0].ticks.min = this.prices.length - this.numPrices
     this.chart.options.scales.xAxes[0].ticks.max = this.prices.length - 1
-    this.chart.options.scales.yAxes[0].ticks.suggestedMin = chartData.yMin
-    this.chart.options.scales.yAxes[0].ticks.suggestedMax = chartData.yMax
+    this.chart.options.scales.yAxes[0].ticks.suggestedMin = this.yMin - orderbook.marketPrice / 200
+    this.chart.options.scales.yAxes[0].ticks.suggestedMax = this.yMax + orderbook.marketPrice / 200
 
     this.chart.update(300)
   }
 
-  getChartData(orderbook) {
-    let data = []
-    
-    let yMin = Number.MAX_VALUE
-    let yMax = 0
+  setChartData(orderbook) {
+    let price = orderbook.marketPrice
+    this.prices.push(price)
 
-    for (let i = 0; i < this.prices.length; i++) {
-      let price = this.prices[i]
-      if (price < yMin) {
-        yMin = price
-      }
-      if (price > yMax) {
-        yMax = price
-      }
-
-      data.push({
-        x: i,
-        y: price,
-      })
+    if (price < this.yMin) {
+      this.yMin = price
+    }
+    if (price > this.yMax) {
+      this.yMax = price
     }
 
-    yMin -= orderbook.marketPrice / 200
-    yMax += orderbook.marketPrice / 200
-    console.log(yMin, yMax)
-
-    return {
-      data,
-      yMin,
-      yMax,
-    }
+    this.chartData.push({
+      x: this.prices.length-1,
+      y: price,
+    })
+    console.log(this.chartData)
+    console.log(this.yMin, this.yMax)
   }
 
   static initChartOptions(orderbook) {
