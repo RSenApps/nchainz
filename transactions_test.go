@@ -119,19 +119,23 @@ func TestMultipleClients(t *testing.T) {
 		return
 	}
 
-	client1.Transfer(500, "NATIVE", "Satoshi", "x")
-	client2.Transfer(600, "NATIVE", "Satoshi", "x")
-	client3.Transfer(1, "NATIVE", "x", "Satoshi")
+	amounts := []uint64{100, 300, 200, 400}
 
-	success := checkBalance(client1, []string{"Satoshi", "x"}, []uint64{99998901, 1099}, "NATIVE")
+	for i := 0; i < len(amounts); i++ {
+		client1.Transfer(amounts[i], "NATIVE", "Satoshi", "x")
+		client2.Transfer(amounts[i], "NATIVE", "Satoshi", "x")
+		client3.Transfer(amounts[i], "NATIVE", "Satoshi", "x")
+	}
+
+	success := checkBalance(client1, []string{"Satoshi", "x"}, []uint64{99997000, 3000}, "NATIVE")
 	if !success {
 		t.Fatal("FAILED: multiple clients")
 	}
-	success = checkBalance(client1, []string{"Satoshi", "x"}, []uint64{99998901, 1099}, "NATIVE")
+	success = checkBalance(client1, []string{"Satoshi", "x"}, []uint64{99997000, 3000}, "NATIVE")
 	if !success {
 		t.Fatal("FAILED: multiple clients")
 	}
-	success = checkBalance(client1, []string{"Satoshi", "x"}, []uint64{99998901, 1099}, "NATIVE")
+	success = checkBalance(client1, []string{"Satoshi", "x"}, []uint64{99997000, 3000}, "NATIVE")
 	if !success {
 		t.Fatal("FAILED: multiple clients")
 	}
