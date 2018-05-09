@@ -1,6 +1,6 @@
 export default class DepthChart {
-  constructor(orderbook) {
-    let ctx = document.getElementById('orderbook').getContext('2d')
+  constructor(elementId, orderbook) {
+    let ctx = document.getElementById(elementId).getContext('2d')
     this.chart = new Chart(ctx, DepthChart.initChartOptions(orderbook))
     this.updateChart(orderbook)
   }

@@ -2,10 +2,16 @@
 <html>
   <head>
     <title>N Chainz</title>
+    <link rel="stylesheet" type="text/css" href="style.css" />
   </head>
 
   <body>
-    <canvas id="orderbook" width="500" height="300"></canvas>
+    <div id="depthChartContainer">
+      <canvas id="depthChart" width="500" height="300"></canvas>
+    </div>
+    <div id="priceChartContainer">
+      <canvas id="priceChart" width="500" height="300"></canvas>
+    </div>
   </body>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.7.2/Chart.min.js"></script>

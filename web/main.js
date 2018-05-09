@@ -1,15 +1,18 @@
 import DataLoader from './DataLoader.js'
 import DepthChart from './DepthChart.js'
+import PriceChart from './PriceChart.js'
 
 const REFRESH_INTERVAL = 1000
 
 let dl = new DataLoader("ETH/USD")
 
 dl.getBook((orderbook) => {
-  let chart = new DepthChart(orderbook)
+  let depthChart = new DepthChart('depthChart', orderbook)
+  let priceChart = new PriceChart('priceChart', orderbook)
 
   setInterval(() => dl.getBook((orderbook) => {
-    chart.updateChart(orderbook)
+    depthChart.updateChart(orderbook)
+    priceChart.updateChart(orderbook)
   }), REFRESH_INTERVAL)
 })
 
