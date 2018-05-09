@@ -139,7 +139,7 @@ func (client *Client) GetBalance(address string, symbol string) GetBalanceReply 
 	return reply
 }
 
-func (client *Client) GetBook(symbol1 string, symbol2 string) string {
+func (client *Client) GetBook(symbol1 string, symbol2 string) (string, error) {
 	Log("Client sending GETBOOK")
 	defer Log("Client done sending GETBOOK")
 
@@ -148,11 +148,10 @@ func (client *Client) GetBook(symbol1 string, symbol2 string) string {
 	err := client.rpc.Call("Node.GetBook", &request, &reply)
 
 	if err != nil {
-		Log("Error communicating with node")
-		Log(err.Error())
+		return "", err
 	}
 
 	Log(reply.Serial)
 
-	return reply.Serial
+	return reply.Serial, nil
 }

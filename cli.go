@@ -123,6 +123,11 @@ func (cli *CLI) Run() {
 		client := cli.getClient()
 		client.GetBook(symbol1, symbol2)
 
+	case "webserver":
+		port := cli.getUint(0)
+
+		StartWebserver(port)
+
 	default:
 		cli.printHelpAndExit()
 	}
