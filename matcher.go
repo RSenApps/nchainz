@@ -8,12 +8,6 @@ type Matcher struct {
 	updated    bool
 }
 
-type MatcherMsg struct {
-	Order      Order
-	SellSymbol string
-	Cancel     bool
-}
-
 func StartMatcher(bcs *Blockchains, matchCh chan Match) (matcher *Matcher) {
 	orderbooks := make(map[string]map[string]*Orderbook)
 	symbols := make(map[string]bool)
@@ -40,6 +34,10 @@ func (mr *Matcher) AddOrder(order Order, sellSymbol string) {
 	mr.CheckMatch(orderbook)
 }
 
+func (mr *Matcher) AddCancelOrder(cancelOrder CancelOrder, sellSymbol string) {
+	//TODO
+}
+
 func (mr *Matcher) RemoveOrder(order Order, sellSymbol string) {
 	buySymbol := order.BuySymbol
 	Log("Removing order %v from %s", order.ID, GetBookName(buySymbol, sellSymbol))
@@ -58,11 +56,15 @@ func (mr *Matcher) AddMatch(match Match) {
 }
 
 // TODO: vanish amt argument
-func (mr *Matcher) RemoveMatch(match Match) {
+func (mr *Matcher) RemoveMatch(match Match, buyOrder Order, sellOrder Order) {
 	Log("Removing match %v/%v from %s", match.BuyOrderID, match.SellOrderID, GetBookName(match.BuySymbol, match.SellSymbol))
 
 	orderbook := mr.getOrderbook(match.BuySymbol, match.SellSymbol)
 	orderbook.UnapplyMatch(&match)
+}
+
+func (mr *Matcher) RemoveCancelOrder(cancelOrder CancelOrder) {
+	//TODO:
 }
 
 func (mr *Matcher) CheckMatch(orderbook *Orderbook) {

@@ -19,7 +19,6 @@ type ConsensusState struct {
 	tokenStates    map[string]*ConsensusStateToken
 	createdTokens  map[string]TokenInfo
 	usedMatchIDs   map[uint64]bool
-	matcher        *Matcher
 }
 
 func NewConsensusStateToken() *ConsensusStateToken {
@@ -32,13 +31,12 @@ func NewConsensusStateToken() *ConsensusStateToken {
 	return &token
 }
 
-func NewConsensusState(matcher *Matcher) ConsensusState {
+func NewConsensusState() ConsensusState {
 	state := ConsensusState{}
 	state.tokenStates = make(map[string]*ConsensusStateToken)
 	state.createdTokens = make(map[string]TokenInfo)
 	state.usedMatchIDs = make(map[uint64]bool)
 	state.tokenStates[MATCH_CHAIN] = NewConsensusStateToken()
-	state.matcher = matcher
 	return state
 }
 
@@ -69,8 +67,6 @@ func (state *ConsensusState) AddOrder(symbol string, order Order) bool {
 	tokenState.openOrders[order.ID] = order
 	tokenState.balances[order.SellerAddress] -= order.AmountToSell
 
-	state.matcher.AddOrder(order, symbol)
-
 	return true
 }
 
@@ -92,8 +88,6 @@ func (state *ConsensusState) RollbackOrder(symbol string, order Order, blockchai
 
 	delete(tokenState.openOrders, order.ID)
 	tokenState.balances[order.SellerAddress] += order.AmountToSell
-
-	state.matcher.RemoveOrder(order, symbol)
 }
 
 func (state *ConsensusState) AddClaimFunds(symbol string, funds ClaimFunds) bool {
@@ -263,16 +257,13 @@ func (state *ConsensusState) AddMatch(match Match) bool {
 	}
 
 	state.usedMatchIDs[match.MatchID] = true
-	state.matcher.AddMatch(match)
 	return true
 }
 
-func (state *ConsensusState) RollbackMatch(match Match, blockchains *Blockchains) {
-	Log("Rolling back match from consensus state %v", match)
+func (state *ConsensusState) GetBuySellOrdersForMatch(match Match) (Order, Order) {
 	buyTokenState := state.tokenStates[match.BuySymbol]
 	sellTokenState := state.tokenStates[match.SellSymbol]
 
-	// were orders deleted?
 	buyOrder, ok := buyTokenState.deletedOrders[match.BuyOrderID]
 	if ok {
 		if buyOrder.AmountToSell > 0 {
@@ -292,6 +283,16 @@ func (state *ConsensusState) RollbackMatch(match Match, blockchains *Blockchains
 	} else {
 		sellOrder, _ = sellTokenState.openOrders[match.SellOrderID]
 	}
+	return buyOrder, sellOrder
+}
+
+func (state *ConsensusState) RollbackMatch(match Match, blockchains *Blockchains) {
+	Log("Rolling back match from consensus state %v", match)
+	buyTokenState := state.tokenStates[match.BuySymbol]
+	sellTokenState := state.tokenStates[match.SellSymbol]
+
+	// were orders deleted?
+	buyOrder, sellOrder := state.GetBuySellOrdersForMatch(match)
 
 	//if rolling back match and unclaimed funds will become negative then it must rollback token chain until claim funds are removed
 	if buyTokenState.unclaimedFunds[sellOrder.SellerAddress] < match.SellerGain {
@@ -326,8 +327,6 @@ func (state *ConsensusState) RollbackMatch(match Match, blockchains *Blockchains
 	buyTokenState.openOrders[match.BuyOrderID] = buyOrder
 
 	delete(state.usedMatchIDs, match.MatchID)
-
-	state.matcher.RemoveMatch(match)
 }
 
 func (state *ConsensusState) AddCancelOrder(cancelOrder CancelOrder) bool {
@@ -345,8 +344,6 @@ func (state *ConsensusState) AddCancelOrder(cancelOrder CancelOrder) bool {
 
 	tokenState.unclaimedFunds[order.SellerAddress] += order.AmountToSell
 	delete(tokenState.openOrders, cancelOrder.OrderID)
-
-	state.matcher.RemoveOrder(order, cancelOrder.OrderSymbol)
 	return true
 }
 
@@ -369,8 +366,6 @@ func (state *ConsensusState) RollbackCancelOrder(cancelOrder CancelOrder, blockc
 		blockchains.RollbackToHeight(cancelOrder.OrderSymbol, blockchains.chains[cancelOrder.OrderSymbol].height, false)
 	}
 	tokenState.unclaimedFunds[deletedOrder.SellerAddress] -= deletedOrder.AmountToSell
-
-	state.matcher.AddOrder(deletedOrder, cancelOrder.OrderSymbol)
 }
 
 func (state *ConsensusState) AddCreateToken(createToken CreateToken, blockchains *Blockchains) bool {

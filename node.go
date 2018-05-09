@@ -430,7 +430,7 @@ type GetBookReply struct {
 
 func (node *Node) GetBook(args *GetBookArgs, reply *GetBookReply) error {
 	Log("Received GetBook for %v/%v", args.Symbol1, args.Symbol2)
-	serial := node.bcs.consensusState.matcher.SerializeOrderbook(args.Symbol1, args.Symbol2)
+	serial := node.bcs.matcher.SerializeOrderbook(args.Symbol1, args.Symbol2)
 	reply.Serial = serial
 	reply.Success = true
 	return nil
