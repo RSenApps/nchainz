@@ -18,8 +18,6 @@ func TestBasicTransfer(t *testing.T) {
 	rand.Seed(time.Now().UTC().UnixNano())
 	gob.RegisterName("main.Transfer", Transfer{})
 
-	time.Sleep(100 * time.Millisecond)
-
 	client, err := NewClient()
 	if err != nil {
 		t.Fatal("FAILED: basic transfers")
@@ -46,8 +44,6 @@ func TestSwapTransfer(t *testing.T) {
 	rand.Seed(time.Now().UTC().UnixNano())
 	gob.RegisterName("main.Transfer", Transfer{})
 
-	time.Sleep(100 * time.Millisecond)
-
 	client, err := NewClient()
 	if err != nil {
 		t.Fatal("FAILED: swap transfers")
@@ -72,12 +68,79 @@ func TestSwapTransfer(t *testing.T) {
 	fmt.Println()
 }
 
-/*func TestManyTransfers(t *testing.T) {
+// Transfer: Satoshi --10 NATIVE--> x
+func TestManyTransfers(t *testing.T) {
+	LogRed("Testing: many transfers")
 
-}*/
+	rand.Seed(time.Now().UTC().UnixNano())
+	gob.RegisterName("main.Transfer", Transfer{})
 
-// Multiple client
-// Lots of transfers
+	client, err := NewClient()
+	if err != nil {
+		t.Fatal("FAILED: many transfers")
+		return
+	}
+
+	for i := 0; i < 10000; i++ {
+		client.Transfer(10, "NATIVE", "Satoshi", "x")
+	}
+	success := checkBalance(client, []string{"Satoshi", "x"}, []uint64{99900000, 100000}, "NATIVE")
+
+	if success {
+		LogRed("Passed: many transfers")
+	} else {
+		t.Fatal("FAILED: many transfers")
+	}
+
+	fmt.Println()
+}
+
+func TestMultipleClients(t *testing.T) {
+	LogRed("Testing: multiple clients")
+
+	rand.Seed(time.Now().UTC().UnixNano())
+	gob.RegisterName("main.Transfer", Transfer{})
+
+	client1, err := NewClient()
+	if err != nil {
+		t.Fatal("FAILED: many transfers")
+		return
+	}
+
+	client2, err := NewClient()
+	if err != nil {
+		t.Fatal("FAILED: many transfers")
+		return
+	}
+
+	client3, err := NewClient()
+	if err != nil {
+		t.Fatal("FAILED: many transfers")
+		return
+	}
+
+	client1.Transfer(500, "NATIVE", "Satoshi", "x")
+	client2.Transfer(600, "NATIVE", "Satoshi", "x")
+	client3.Transfer(1, "NATIVE", "x", "Satoshi")
+
+	success := checkBalance(client1, []string{"Satoshi", "x"}, []uint64{99998901, 1099}, "NATIVE")
+	if !success {
+		t.Fatal("FAILED: multiple clients")
+	}
+	success = checkBalance(client1, []string{"Satoshi", "x"}, []uint64{99998901, 1099}, "NATIVE")
+	if !success {
+		t.Fatal("FAILED: multiple clients")
+	}
+	success = checkBalance(client1, []string{"Satoshi", "x"}, []uint64{99998901, 1099}, "NATIVE")
+	if !success {
+		t.Fatal("FAILED: multiple clients")
+	}
+
+	if success {
+		LogRed("Passed: multiple clients")
+	}
+}
+
 // Transfers that shouldn't work
 // Cyclic transfers
 
@@ -85,7 +148,6 @@ func TestSwapTransfer(t *testing.T) {
 // Helper method to check balances
 //
 func checkBalance(client *Client, users []string, amounts []uint64, symbol string) bool {
-	duration := 100
 	if len(users) != len(amounts) {
 		LogRed("ERROR: Length of users != length of amounts in checkBalance()")
 	}
@@ -110,10 +172,6 @@ func checkBalance(client *Client, users []string, amounts []uint64, symbol strin
 		}
 
 		time.Sleep(100 * time.Millisecond)
-		duration -= 1
-		if duration == 0 {
-			return false
-		}
 	}
 
 	return false
