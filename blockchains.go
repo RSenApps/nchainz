@@ -444,7 +444,7 @@ func (blockchains *Blockchains) ApplyLoop() {
 				blockchains.chainsLock.Unlock()
 				continue
 			}
-			blockchains.mempoolUncommitted[symbol].undoTransactions(symbol, blockchains, false)
+			blockchains.mempoolUncommitted[symbol].undoTransactions(symbol, blockchains, true)
 			blockchains.mempoolUncommitted[symbol] = &UncommittedTransactions{}
 			blockchains.mempoolsLock.Unlock()
 			blockchains.chainsLock.Unlock()
