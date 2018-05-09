@@ -371,14 +371,6 @@ func (node *Node) Tx(args *TxArgs, reply *bool) error {
 	return nil
 }
 
-func (node *Node) GetBalance(args *GetBalanceRequest, reply *GetBalanceResponse) error {
-	Log("Received GetBalance for address %v symbol %v", args.Address, args.Symbol)
-	amount, ok := node.bcs.GetBalance(args.Symbol, args.Address)
-	reply.Success = ok
-	reply.Amount = amount
-	return nil
-}
-
 func (node *Node) BroadcastTx(tx *GenericTransaction, symbol string) {
 	args := &TxArgs{*tx, symbol, node.myIp}
 
@@ -394,6 +386,30 @@ func (node *Node) callTx(peer *Peer, args *TxArgs) {
 	var reply bool
 	err := peer.client.Call("Node.Tx", args, &reply)
 	node.handleRpcReply(peer, err)
+}
+
+////////////////////////////////
+// GETBALANCE
+// Get an address balance
+// request: address and symbol
+// response: amount and success
+
+type GetBalanceArgs struct {
+	Address string
+	Symbol  string
+}
+
+type GetBalanceReply struct {
+	Amount  uint64
+	Success bool
+}
+
+func (node *Node) GetBalance(args *GetBalanceArgs, reply *GetBalanceReply) error {
+	Log("Received GetBalance for address %v symbol %v", args.Address, args.Symbol)
+	amount, ok := node.bcs.GetBalance(args.Symbol, args.Address)
+	reply.Success = ok
+	reply.Amount = amount
+	return nil
 }
 
 ////////////////////////////////
