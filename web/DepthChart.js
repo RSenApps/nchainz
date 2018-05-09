@@ -55,7 +55,7 @@ export default class DepthChart {
       cumAmt += order.quoteAmt
 
       if (order.price == lastPrice) {
-        data[chartData.length-1].y = cumAmt
+        data[data.length-1].y = cumAmt
       } else {
         data.push({x: order.price, y: cumAmt})
       }   
