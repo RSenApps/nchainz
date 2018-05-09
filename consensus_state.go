@@ -19,7 +19,6 @@ type ConsensusState struct {
 	tokenStates    map[string]*ConsensusStateToken
 	createdTokens  map[string]TokenInfo
 	usedMatchIDs   map[uint64]bool
-	orderMatchings map[uint64]Match
 	matcher        *Matcher
 }
 
@@ -38,7 +37,6 @@ func NewConsensusState(matcher *Matcher) ConsensusState {
 	state.tokenStates = make(map[string]*ConsensusStateToken)
 	state.createdTokens = make(map[string]TokenInfo)
 	state.usedMatchIDs = make(map[uint64]bool)
-	state.orderMatchings = make(map[uint64]Match)
 	state.tokenStates[MATCH_CHAIN] = NewConsensusStateToken()
 	state.matcher = matcher
 	return state
@@ -76,14 +74,21 @@ func (state *ConsensusState) AddOrder(symbol string, order Order) bool {
 	return true
 }
 
-func (state *ConsensusState) RollbackOrder(symbol string, order Order) {
-	match, matched := state.orderMatchings[order.ID]
-	if matched {
-		state.RollbackMatch(match)
-	}
-
+func (state *ConsensusState) RollbackOrder(symbol string, order Order, blockchains *Blockchains) {
 	Log("Order rolled back from consensus state %v", order)
 	tokenState := state.tokenStates[symbol]
+
+	//if rolling back order and not in openOrders then it must have been matched (cancels would be rolled back already)
+	//Rollback match chain until it works (start with current height to forget unmined)
+	if _, ok := tokenState.openOrders[order.ID]; !ok {
+		Log("Rolling back unmined matches as Order %v does not show up in open orders", order.ID)
+		blockchains.RollbackToHeight(MATCH_CHAIN, blockchains.chains[MATCH_CHAIN].height, false)
+	}
+
+	for  _, ok := tokenState.openOrders[order.ID]; !ok; _, ok = tokenState.openOrders[order.ID] {
+		Log("Rolling back match chain to height %v as Order %v does not show up in open orders", blockchains.chains[MATCH_CHAIN].height - 1, order.ID)
+		blockchains.RollbackToHeight(MATCH_CHAIN, blockchains.chains[MATCH_CHAIN].height - 1, false)
+	}
 
 	delete(tokenState.openOrders, order.ID)
 	tokenState.balances[order.SellerAddress] += order.AmountToSell
@@ -192,11 +197,19 @@ func (state *ConsensusState) AddMatch(match Match) bool {
 	if buyOrder.AmountToBuy > sellOrder.AmountToSell {
 		transferAmt = sellOrder.AmountToSell
 		sellerBaseGain = sellOrder.AmountToBuy
+		if buyPrice * float64(transferAmt) > float64(^uint64(0)) {
+			Log("Match failed due to buy overflow")
+			return false
+		}
 		buyerBaseLoss = uint64(math.Floor(buyPrice * float64(transferAmt)))
 
 	} else { // buyOrder.AmountToBuy <= sellOrder.AmountToSell
 		transferAmt = buyOrder.AmountToBuy
 		buyerBaseLoss = buyOrder.AmountToSell
+		if sellPrice * float64(transferAmt) > float64(^uint64(0)) {
+			Log("Match failed due to sell overflow")
+			return false
+		}
 		sellerBaseGain = uint64(math.Ceil(sellPrice * float64(transferAmt)))
 	}
 
@@ -214,6 +227,7 @@ func (state *ConsensusState) AddMatch(match Match) bool {
 	}
 
 	Log("Match added to chain %v", match)
+
 	buyTokenState.unclaimedFunds[sellOrder.SellerAddress] += sellerBaseGain
 	sellTokenState.unclaimedFunds[buyOrder.SellerAddress] += match.TransferAmt
 
@@ -249,14 +263,11 @@ func (state *ConsensusState) AddMatch(match Match) bool {
 	}
 
 	state.usedMatchIDs[match.MatchID] = true
-	state.orderMatchings[buyOrder.ID] = match
-	state.orderMatchings[sellOrder.ID] = match
-
 	state.matcher.AddMatch(match)
 	return true
 }
 
-func (state *ConsensusState) RollbackMatch(match Match) {
+func (state *ConsensusState) RollbackMatch(match Match, blockchains *Blockchains) {
 	Log("Rolling back match from consensus state %v", match)
 	buyTokenState := state.tokenStates[match.BuySymbol]
 	sellTokenState := state.tokenStates[match.SellSymbol]
@@ -282,7 +293,28 @@ func (state *ConsensusState) RollbackMatch(match Match) {
 		sellOrder, _ = sellTokenState.openOrders[match.SellOrderID]
 	}
 
+	//if rolling back match and unclaimed funds will become negative then it must rollback token chain until claim funds are removed
+	if buyTokenState.unclaimedFunds[sellOrder.SellerAddress] < match.SellerGain {
+		Log("Rolling back unmined token %v as rolling back match %v would result in a negative unclaimed funds", match.BuySymbol, match)
+		blockchains.RollbackToHeight(match.BuySymbol, blockchains.chains[match.BuySymbol].height, false)
+	}
+
+	for buyTokenState.unclaimedFunds[sellOrder.SellerAddress] < match.SellerGain {
+		Log("Rolling back token %v to height %v as rolling back match %v would result in a negative unclaimed funds", match.BuySymbol, blockchains.chains[match.SellSymbol].height, match)
+		blockchains.RollbackToHeight(match.BuySymbol, blockchains.chains[match.BuySymbol].height - 1, false)
+	}
 	buyTokenState.unclaimedFunds[sellOrder.SellerAddress] -= match.SellerGain
+
+	//if rolling back match and unclaimed funds will become negative then it must rollback token chain until claim funds are removed
+	if sellTokenState.unclaimedFunds[buyOrder.SellerAddress] < match.TransferAmt {
+		Log("Rolling back unmined token %v as rolling back match %v would result in a negative unclaimed funds", match.SellSymbol, match)
+		blockchains.RollbackToHeight(match.SellSymbol, blockchains.chains[match.SellSymbol].height, false)
+	}
+
+	for sellTokenState.unclaimedFunds[buyOrder.SellerAddress] < match.TransferAmt {
+		Log("Rolling back token %v to height %v as rolling back match %v would result in a negative unclaimed funds", match.SellSymbol, blockchains.chains[match.SellSymbol].height, match)
+		blockchains.RollbackToHeight(match.SellSymbol, blockchains.chains[match.SellSymbol].height - 1, false)
+	}
 	sellTokenState.unclaimedFunds[buyOrder.SellerAddress] -= match.TransferAmt
 
 	buyOrder.AmountToBuy += match.TransferAmt
@@ -294,8 +326,6 @@ func (state *ConsensusState) RollbackMatch(match Match) {
 	buyTokenState.openOrders[match.BuyOrderID] = buyOrder
 
 	delete(state.usedMatchIDs, match.MatchID)
-	delete(state.orderMatchings, sellOrder.ID)
-	delete(state.orderMatchings, buyOrder.ID)
 
 	state.matcher.RemoveMatch(match)
 }
@@ -320,13 +350,24 @@ func (state *ConsensusState) AddCancelOrder(cancelOrder CancelOrder) bool {
 	return true
 }
 
-func (state *ConsensusState) RollbackCancelOrder(cancelOrder CancelOrder) {
+func (state *ConsensusState) RollbackCancelOrder(cancelOrder CancelOrder, blockchains *Blockchains) {
 	tokenState := state.tokenStates[cancelOrder.OrderSymbol]
 	deletedOrder, _ := tokenState.deletedOrders[cancelOrder.OrderID]
 
 	delete(tokenState.deletedOrders, cancelOrder.OrderID)
 
 	tokenState.openOrders[cancelOrder.OrderID] = deletedOrder
+
+	//if rolling back cancel order and unclaimed funds will become negative then it must rollback token chain until claim funds are removed
+	if tokenState.unclaimedFunds[deletedOrder.SellerAddress] < deletedOrder.AmountToSell {
+		Log("Rolling back unmined token %v as rolling back cancel order %v would result in a negative unclaimed funds", cancelOrder.OrderSymbol, cancelOrder)
+		blockchains.RollbackToHeight(cancelOrder.OrderSymbol, blockchains.chains[cancelOrder.OrderSymbol].height, false)
+	}
+
+	for tokenState.unclaimedFunds[deletedOrder.SellerAddress] < deletedOrder.AmountToSell {
+		Log("Rolling back token %v to height %v as rolling back cancel order %v would result in a negative unclaimed funds", cancelOrder.OrderSymbol, blockchains.chains[cancelOrder.OrderSymbol].height, cancelOrder)
+		blockchains.RollbackToHeight(cancelOrder.OrderSymbol, blockchains.chains[cancelOrder.OrderSymbol].height, false)
+	}
 	tokenState.unclaimedFunds[deletedOrder.SellerAddress] -= deletedOrder.AmountToSell
 
 	state.matcher.AddOrder(deletedOrder, cancelOrder.OrderSymbol)

@@ -145,10 +145,13 @@ func (blockchains *Blockchains) AddBlocks(symbol string, blocks []Block, takeLoc
 	return true
 }
 
-func (blockchains *Blockchains) RollbackToHeight(symbol string, height uint64) {
-	blockchains.chainsLock.Lock()
+func (blockchains *Blockchains) RollbackToHeight(symbol string, height uint64, takeLock bool) {
+	if takeLock {
+		blockchains.chainsLock.Lock()
+		defer blockchains.chainsLock.Unlock()
+	}
 	Log("Rolling back %v block to height: %v \n", symbol, height)
-	defer blockchains.chainsLock.Unlock()
+
 
 	if _, ok := blockchains.chains[symbol]; !ok {
 		Log("RollbackToHeight failed as symbol not found: ", symbol)
@@ -156,12 +159,16 @@ func (blockchains *Blockchains) RollbackToHeight(symbol string, height uint64) {
 	}
 
 	if !blockchains.recovering {
-		go func() { blockchains.stopMiningCh <- symbol }()
-		blockchains.mempoolsLock.Lock()
+		if takeLock {
+			go func() { blockchains.stopMiningCh <- symbol }()
+			blockchains.mempoolsLock.Lock()
+		}
 		Log("RollbackToHeight undoing transactions for: %v", symbol)
 		blockchains.mempoolUncommitted[symbol].undoTransactions(symbol, blockchains)
 		blockchains.mempoolUncommitted[symbol] = &UncommittedTransactions{}
-		blockchains.mempoolsLock.Unlock()
+		if takeLock {
+			blockchains.mempoolsLock.Unlock()
+		}
 	}
 
 	if symbol == MATCH_CHAIN {
@@ -512,7 +519,7 @@ func (blockchains *Blockchains) rollbackTokenToHeight(symbol string, height uint
 	for i := uint64(0); i < blocksToRemove; i++ {
 		removedData := blockchains.chains[symbol].RemoveLastBlock().(TokenData)
 		for _, order := range removedData.Orders {
-			blockchains.consensusState.RollbackOrder(symbol, order)
+			blockchains.consensusState.RollbackOrder(symbol, order, blockchains)
 		}
 
 		for _, claimFunds := range removedData.ClaimFunds {
@@ -534,11 +541,11 @@ func (blockchains *Blockchains) rollbackMatchToHeight(height uint64) {
 	for i := uint64(0); i < blocksToRemove; i++ {
 		removedData := blockchains.chains[MATCH_CHAIN].RemoveLastBlock().(MatchData)
 		for _, match := range removedData.Matches {
-			blockchains.consensusState.RollbackMatch(match)
+			blockchains.consensusState.RollbackMatch(match, blockchains)
 		}
 
 		for _, cancelOrder := range removedData.CancelOrders {
-			blockchains.consensusState.RollbackCancelOrder(cancelOrder)
+			blockchains.consensusState.RollbackCancelOrder(cancelOrder, blockchains)
 		}
 
 		for _, createToken := range removedData.CreateTokens {
@@ -576,15 +583,15 @@ func (blockchains *Blockchains) addGenericTransaction(symbol string, transaction
 func (blockchains *Blockchains) rollbackGenericTransaction(symbol string, transaction GenericTransaction) {
 	switch transaction.TransactionType {
 	case ORDER:
-		blockchains.consensusState.RollbackOrder(symbol, transaction.Transaction.(Order))
+		blockchains.consensusState.RollbackOrder(symbol, transaction.Transaction.(Order), blockchains)
 	case CLAIM_FUNDS:
 		blockchains.consensusState.RollbackClaimFunds(symbol, transaction.Transaction.(ClaimFunds))
 	case TRANSFER:
 		blockchains.consensusState.RollbackTransfer(symbol, transaction.Transaction.(Transfer))
 	case MATCH:
-		blockchains.consensusState.RollbackMatch(transaction.Transaction.(Match))
+		blockchains.consensusState.RollbackMatch(transaction.Transaction.(Match), blockchains)
 	case CANCEL_ORDER:
-		blockchains.consensusState.RollbackCancelOrder(transaction.Transaction.(CancelOrder))
+		blockchains.consensusState.RollbackCancelOrder(transaction.Transaction.(CancelOrder), blockchains)
 	case CREATE_TOKEN:
 		blockchains.consensusState.RollbackCreateToken(transaction.Transaction.(CreateToken), blockchains)
 	}
@@ -648,15 +655,15 @@ func (uncommitted *UncommittedTransactions) undoTransactions(symbol string, bloc
 		transaction := uncommitted.transactions[i].Transaction
 		switch uncommitted.transactions[i].TransactionType {
 		case ORDER:
-			blockchains.consensusState.RollbackOrder(symbol, transaction.(Order))
+			blockchains.consensusState.RollbackOrder(symbol, transaction.(Order), blockchains)
 		case CANCEL_ORDER:
-			blockchains.consensusState.RollbackCancelOrder(transaction.(CancelOrder))
+			blockchains.consensusState.RollbackCancelOrder(transaction.(CancelOrder), blockchains)
 		case CLAIM_FUNDS:
 			blockchains.consensusState.RollbackClaimFunds(symbol, transaction.(ClaimFunds))
 		case TRANSFER:
 			blockchains.consensusState.RollbackTransfer(symbol, transaction.(Transfer))
 		case MATCH:
-			blockchains.consensusState.RollbackMatch(transaction.(Match))
+			blockchains.consensusState.RollbackMatch(transaction.(Match), blockchains)
 		case CREATE_TOKEN:
 			blockchains.consensusState.RollbackCreateToken(transaction.(CreateToken), blockchains)
 		}
