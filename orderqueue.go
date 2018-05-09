@@ -109,6 +109,29 @@ func (oq *OrderQueue) oqiString(oqi *OrderQueueItem) string {
 	}
 }
 
+func (oq *OrderQueue) Serial() string {
+	var buffer bytes.Buffer
+
+	for i, oqi := range oq.Items {
+		if i != 0 {
+			buffer.WriteString(",")
+		}
+
+		buffer.WriteString(oq.oqiSerial(oqi))
+	}
+
+	return buffer.String()
+}
+
+func (oq *OrderQueue) oqiSerial(oqi *OrderQueueItem) string {
+	if oq.Side == BASE {
+		return fmt.Sprintf("%f %v %v", oqi.price, oqi.order.AmountToSell, oqi.order.AmountToBuy)
+	} else {
+		return fmt.Sprintf("%f %v %v", oqi.price, oqi.order.AmountToBuy, oqi.order.AmountToSell)
+	}
+
+}
+
 func (oq *OrderQueue) setItemPrice(item *OrderQueueItem) {
 	if oq.Side == QUOTE {
 		item.price = float64(item.order.AmountToSell) / float64(item.order.AmountToBuy)

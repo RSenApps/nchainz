@@ -116,6 +116,13 @@ func (cli *CLI) Run() {
 		symbol := cli.getString(1)
 		cli.printChain(db, symbol)
 
+	case "book":
+		symbol1 := cli.getString(0)
+		symbol2 := cli.getString(1)
+
+		client := cli.getClient()
+		client.GetBook(symbol1, symbol2)
+
 	default:
 		cli.printHelpAndExit()
 	}

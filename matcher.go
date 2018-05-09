@@ -80,6 +80,11 @@ func (mr *Matcher) CheckMatch(orderbook *Orderbook) {
 	}
 }
 
+func (mr *Matcher) SerializeOrderbook(symbol1, symbol2 string) string {
+	orderbook := mr.getOrderbook(symbol1, symbol2)
+	return orderbook.Serial()
+}
+
 func (mr *Matcher) addSymbol(newSymbol string) {
 	Log("Adding symbol %s to matcher", newSymbol)
 

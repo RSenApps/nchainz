@@ -147,6 +147,21 @@ func (ob *Orderbook) UnapplyMatch(match *Match) {
 	Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.BaseQueue)
 }
 
+func (ob *Orderbook) Serial() string {
+	_, bid, bidErr := ob.QuoteQueue.Peek()
+	_, ask, askErr := ob.BaseQueue.Peek()
+
+	marketPrice := (bid + ask) / 2
+
+	if bidErr != nil {
+		marketPrice = ask
+	} else if askErr != nil {
+		marketPrice = bid
+	}
+
+	return fmt.Sprintf("%v\n%v\n%v\n%v\n%v", marketPrice, ob.QuoteSymbol, ob.BaseSymbol, ob.QuoteQueue.Serial(), ob.BaseQueue.Serial())
+}
+
 func GetBaseQuote(symbol1, symbol2 string) (base, quote string) {
 	if symbol1 > symbol2 {
 		return symbol1, symbol2

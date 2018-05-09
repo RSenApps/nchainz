@@ -412,6 +412,30 @@ func (node *Node) GetBalance(args *GetBalanceArgs, reply *GetBalanceReply) error
 	return nil
 }
 
+//////////////////////////////////
+// GETBOOK
+// Get an orderbook
+// request: orderbook sides
+// response: serialized orderbook
+
+type GetBookArgs struct {
+	Symbol1 string
+	Symbol2 string
+}
+
+type GetBookReply struct {
+	Serial  string
+	Success bool
+}
+
+func (node *Node) GetBook(args *GetBookArgs, reply *GetBookReply) error {
+	Log("Received GetBook for %v/%v", args.Symbol1, args.Symbol2)
+	serial := node.bcs.consensusState.matcher.SerializeOrderbook(args.Symbol1, args.Symbol2)
+	reply.Serial = serial
+	reply.Success = true
+	return nil
+}
+
 ////////////////////////////////
 // Utils: Connecting
 
