@@ -96,7 +96,7 @@ func (mr *Matcher) FindAllMatches() {
 func (mr *Matcher) returnMatch(match *Match) {
 	if mr.bcs != nil {
 		tx := GenericTransaction{*match, MATCH}
-		mr.bcs.AddTransactionToMempool(tx, MATCH_CHAIN, false)
+		mr.bcs.AddTransactionToMempool(tx, MATCH_CHAIN, true)
 	} else {
 		mr.AddMatch(*match)
 		mr.matchCh <- *match

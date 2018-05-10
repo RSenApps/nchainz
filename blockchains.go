@@ -89,6 +89,8 @@ func (blockchains *Blockchains) AddBlock(symbol string, block Block, takeLock bo
 }
 
 func (blockchains *Blockchains) AddBlocks(symbol string, blocks []Block, takeLock bool) bool {
+	defer blockchains.matcher.FindAllMatches()
+
 	if takeLock {
 		blockchains.chainsLock.Lock()
 		defer blockchains.chainsLock.Unlock()
@@ -152,6 +154,7 @@ func (blockchains *Blockchains) AddBlocks(symbol string, blocks []Block, takeLoc
 }
 
 func (blockchains *Blockchains) RollbackToHeight(symbol string, height uint64, takeLock bool) {
+	defer blockchains.matcher.FindAllMatches()
 	if takeLock {
 		blockchains.chainsLock.Lock()
 		defer blockchains.chainsLock.Unlock()
@@ -181,6 +184,7 @@ func (blockchains *Blockchains) RollbackToHeight(symbol string, height uint64, t
 	} else {
 		blockchains.rollbackTokenToHeight(symbol, height)
 	}
+
 }
 
 func (blockchains *Blockchains) AddTokenChain(createToken CreateToken) {
@@ -433,6 +437,8 @@ func (blockchains *Blockchains) ApplyLoop() {
 				blockchains.mempoolUncommitted[blockMsg.Symbol].transactions = newUncommitted
 				blockchains.mempoolsLock.Unlock()
 				blockchains.chainsLock.Unlock()
+
+				blockchains.matcher.FindAllMatches()
 			}
 
 		case symbol := <-blockchains.stopMiningCh:
