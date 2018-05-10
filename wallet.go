@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/gob"
+	"fmt"
 	"golang.org/x/crypto/ripemd160" // go get -u golang.org/x/crypto/ripemd160
 	"io/ioutil"
 	"log"
@@ -16,11 +17,13 @@ import (
 
 // Based on Jeiwan's tutorial
 // https://jeiwan.cc/posts/building-blockchain-in-go-part-5/
+// Source of Base58 code: https://github.com/Jeiwan/blockchain_go/blob/402b298d4f908d14df5d7e51e7ae917c0347da47/base58.go
 
 const checksumLength = 4
 const version = byte(0x00)
 const walletFile = "wallet.dat"
 const addressLength = 64
+const addressChecksumLen = 4
 
 type Wallet struct {
 	PublicKey  [addressLength]byte // public key (concatenated X, Y coordinates)
@@ -41,7 +44,7 @@ func generateKeys() ([addressLength]byte, ecdsa.PrivateKey) {
 	publicKeySlice := append(privateKey.PublicKey.X.Bytes(), privateKey.PublicKey.Y.Bytes()...)
 
 	var publicKeyArray [addressLength]byte
-	copy(publicKeyArray[:], publicKeySlice[:4])
+	copy(publicKeyArray[:], publicKeySlice)
 	return publicKeyArray, *privateKey
 }
 
@@ -60,10 +63,13 @@ func (w Wallet) GetAddress() [addressLength]byte {
 
 	// Get checksum
 	checksum := getChecksum(rawAddress)
+
+	fmt.Printf("original checksum %x, made up of version and %x\n", checksum, publicKeyHash)
 	// Apppend checksum
 	rawAddress = append(rawAddress, checksum...)
 
-	return encodeBase58(rawAddress)
+	// return encodeBase58(rawAddress)
+	return Base58Encode(rawAddress)
 }
 
 //
@@ -88,39 +94,35 @@ func getChecksum(data []byte) []byte {
 
 var b58Alphabet = []byte("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz")
 
-//
-// Helper method to encode byte array to base 58
-//
-func encodeBase58(data []byte) [addressLength]byte {
+// Base58Encode encodes a byte array to Base58
+func Base58Encode(input []byte) [addressLength]byte {
 	var result []byte
 
-	original := big.NewInt(0).SetBytes(data)
+	x := big.NewInt(0).SetBytes(input)
 
-	remainder := &big.Int{}
+	base := big.NewInt(int64(len(b58Alphabet)))
+	zero := big.NewInt(0)
+	mod := &big.Int{}
 
-	for original.Cmp(big.NewInt(0)) != 0 {
-		original.DivMod(original, big.NewInt(int64(58)), remainder)
-		result = append(result, b58Alphabet[remainder.Int64()])
+	for x.Cmp(zero) != 0 {
+		x.DivMod(x, base, mod)
+		result = append(result, b58Alphabet[mod.Int64()])
 	}
 
-	if data[0] == 0x00 {
+	// https://en.bitcoin.it/wiki/Base58Check_encoding#Version_bytes
+	if input[0] == 0x00 {
 		result = append(result, b58Alphabet[0])
 	}
 
-	// Reverse result
-	for i, j := 0, len(data)-1; i < j; i, j = i+1, j-1 {
-		data[i], data[j] = data[j], data[i]
-	}
+	ReverseBytes(result)
 
 	var resultArray [addressLength]byte
 	copy(resultArray[:], result)
 	return resultArray
 }
 
-//
-// Helper method to decode base 58-encoded byte array
-//
-func decodeBase58(input []byte) []byte {
+// Base58Decode decodes Base58-encoded data
+func Base58Decode(input []byte) []byte {
 	result := big.NewInt(0)
 
 	for _, b := range input {
@@ -136,6 +138,13 @@ func decodeBase58(input []byte) []byte {
 	}
 
 	return decoded
+}
+
+// ReverseBytes reverses a byte array
+func ReverseBytes(data []byte) {
+	for i, j := 0, len(data)-1; i < j; i, j = i+1, j-1 {
+		data[i], data[j] = data[j], data[i]
+	}
 }
 
 // Storage for group of wallets
@@ -218,24 +227,18 @@ func (ws *WalletStore) GetAddresses() []string {
 }
 
 //
-// Helper method for ValidateAddress
-//
-func checksum(data []byte) []byte {
-	first := sha256.Sum256(data)
-	second := sha256.Sum256(first[:])
-	return second[:checksumLength]
-}
-
-//
 // Check if an address is valid
 //
 func ValidateAddress(address string) bool {
-	publicKeyHash := decodeBase58([]byte(address))
+	// publicKeyHash := decodeBase58([]byte(address))
+	publicKeyHash := Base58Decode([]byte(address))
 	actualChecksum := publicKeyHash[len(publicKeyHash)-checksumLength:]
 	version := publicKeyHash[0]
 	publicKeyHash = publicKeyHash[1 : len(publicKeyHash)-checksumLength]
 
-	goalChecksum := checksum(append([]byte{version}, publicKeyHash...))
+	goalChecksum := getChecksum(append([]byte{version}, publicKeyHash...))
 
+	fmt.Printf("%x %x\n", actualChecksum, goalChecksum)
+	fmt.Printf("Goal checksum made up of version and %x\n", publicKeyHash)
 	return bytes.Compare(actualChecksum, goalChecksum) == 0
 }
