@@ -129,13 +129,17 @@ func GetBytes(key interface{}) []byte {
 }
 
 func NewGenesisBlock() *Block {
+	ws := NewWalletStore()
+	address := ws.AddWallet()
+	w := ws.GetWallet(address)
+
 	createToken := CreateToken{
 		TokenInfo: TokenInfo{
 			Symbol:      NATIVE_CHAIN,
 			TotalSupply: 100 * 1000 * 1000,
 			Decimals:    18,
 		},
-		CreatorAddress: "Satoshi",
+		CreatorAddress: w.PublicKey,
 		Signature:      nil,
 	}
 	matchData := MatchData{
