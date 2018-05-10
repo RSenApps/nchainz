@@ -102,7 +102,7 @@ func (blockchains *Blockchains) AddBlocks(symbol string, blocks []Block, takeLoc
 		go func() { blockchains.stopMiningCh <- symbol }()
 		blockchains.mempoolsLock.Lock()
 		Log("AddBlocks undoing transactions for: %v", symbol)
-		blockchains.mempoolUncommitted[symbol].undoTransactions(symbol, blockchains, true)
+		blockchains.mempoolUncommitted[symbol].undoTransactions(symbol, blockchains, false)
 		blockchains.mempoolUncommitted[symbol] = &UncommittedTransactions{}
 		blockchains.mempoolsLock.Unlock()
 	}
@@ -169,7 +169,7 @@ func (blockchains *Blockchains) RollbackToHeight(symbol string, height uint64, t
 			blockchains.mempoolsLock.Lock()
 		}
 		Log("RollbackToHeight undoing transactions for: %v", symbol)
-		blockchains.mempoolUncommitted[symbol].undoTransactions(symbol, blockchains, true)
+		blockchains.mempoolUncommitted[symbol].undoTransactions(symbol, blockchains, false)
 		blockchains.mempoolUncommitted[symbol] = &UncommittedTransactions{}
 		if takeLock {
 			blockchains.mempoolsLock.Unlock()
@@ -444,7 +444,7 @@ func (blockchains *Blockchains) ApplyLoop() {
 				blockchains.chainsLock.Unlock()
 				continue
 			}
-			blockchains.mempoolUncommitted[symbol].undoTransactions(symbol, blockchains, true)
+			blockchains.mempoolUncommitted[symbol].undoTransactions(symbol, blockchains, false)
 			blockchains.mempoolUncommitted[symbol] = &UncommittedTransactions{}
 			blockchains.mempoolsLock.Unlock()
 			blockchains.chainsLock.Unlock()
