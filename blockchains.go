@@ -319,7 +319,7 @@ func (blockchains *Blockchains) AddTransactionToMempool(tx GenericTransaction, s
 }
 
 func (blockchains *Blockchains) StartMining() {
-	blockchains.chainsLock.RLock()
+	blockchains.chainsLock.Lock()
 	blockchains.mempoolsLock.Lock()
 	Log("Start mining")
 	// Pick a random token to start mining
@@ -334,19 +334,22 @@ func (blockchains *Blockchains) StartMining() {
 		txInPool = append(txInPool, tx)
 	}
 
+	blockchains.mempoolUncommitted[newToken].undoTransactions(newToken, blockchains, false)
+	blockchains.mempoolUncommitted[newToken] = &UncommittedTransactions{}
+
 	// Send new block message
 	switch blockchains.minerChosenToken {
 	case MATCH_CHAIN:
 		Log("Starting match block")
 		msg := MinerMsg{NewBlockMsg{MATCH_BLOCK, blockchains.chains[blockchains.minerChosenToken].tipHash, blockchains.minerChosenToken}, true}
 		blockchains.mempoolsLock.Unlock()
-		blockchains.chainsLock.RUnlock()
+		blockchains.chainsLock.Unlock()
 		blockchains.miner.minerCh <- msg
 	default:
 		Log("Starting %v block", blockchains.minerChosenToken)
 		msg := MinerMsg{NewBlockMsg{TOKEN_BLOCK, blockchains.chains[blockchains.minerChosenToken].tipHash, blockchains.minerChosenToken}, true}
 		blockchains.mempoolsLock.Unlock()
-		blockchains.chainsLock.RUnlock()
+		blockchains.chainsLock.Unlock()
 		blockchains.miner.minerCh <- msg
 	}
 
@@ -439,17 +442,12 @@ func (blockchains *Blockchains) ApplyLoop() {
 			}
 
 		case symbol := <-blockchains.stopMiningCh:
-			Log("Restarting mining due to new block being added or removed")
 			blockchains.chainsLock.Lock()
-			blockchains.mempoolsLock.Lock()
 			if symbol != blockchains.minerChosenToken {
-				blockchains.mempoolsLock.Unlock()
 				blockchains.chainsLock.Unlock()
 				continue
 			}
-			blockchains.mempoolUncommitted[symbol].undoTransactions(symbol, blockchains, false)
-			blockchains.mempoolUncommitted[symbol] = &UncommittedTransactions{}
-			blockchains.mempoolsLock.Unlock()
+			Log("Restarting mining due to new block being added or removed")
 			blockchains.chainsLock.Unlock()
 		}
 
