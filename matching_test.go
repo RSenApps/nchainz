@@ -13,6 +13,7 @@ func TestBasicMatch(t *testing.T) {
 
 	matcher.AddOrder(makeOrder(1, "ETH", 1), "USD")
 	matcher.AddOrder(makeOrder(1, "USD", 1), "ETH")
+	matcher.FindAllMatches()
 
 	match := <-matchCh
 	LogRed("Got match %v", match)
@@ -28,6 +29,7 @@ func TestLargerBuyCleanSplit(t *testing.T) {
 
 	matcher.AddOrder(makeOrder(200, "ETH", 100), "USD")
 	matcher.AddOrder(makeOrder(4, "USD", 10), "ETH")
+	matcher.FindAllMatches()
 
 	match := <-matchCh
 	LogRed("Got match %v", match)
