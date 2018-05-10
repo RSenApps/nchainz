@@ -416,7 +416,6 @@ func (blockchains *Blockchains) ApplyLoop() {
 				var newUncommitted []GenericTransaction
 				for _, tx := range blockchains.mempoolUncommitted[blockMsg.Symbol].transactions {
 					if _, ok := txInBlock[tx.ID()]; !ok {
-						blockchains.rollbackGenericTransaction(blockMsg.Symbol, tx, false)
 						newUncommitted = append(newUncommitted, tx)
 					} else {
 						Log("%tx mined in block and deleted from mempool %v", tx)
