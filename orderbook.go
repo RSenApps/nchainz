@@ -75,20 +75,22 @@ func (ob *Orderbook) applyMatchUnlocked(match *Match) {
 	buyOrder, _ := ob.QuoteQueue.GetOrder(match.BuyOrderID)
 	sellOrder, _ := ob.BaseQueue.GetOrder(match.SellOrderID)
 
-	if match.TransferAmt < buyOrder.AmountToBuy && match.BuyerLoss < buyOrder.AmountToSell {
+	if match.TransferAmt == buyOrder.AmountToBuy {
+		Log("Removing buy order %v", buyOrder.ID)
+		ob.QuoteQueue.Remove(buyOrder.ID)
+	} else {
 		buyOrder.AmountToBuy -= match.TransferAmt
 		buyOrder.AmountToSell -= match.BuyerLoss
 		ob.QuoteQueue.FixPrice(buyOrder.ID)
-	} else {
-		ob.QuoteQueue.Remove(buyOrder.ID)
 	}
 
-	if match.TransferAmt < sellOrder.AmountToSell && match.SellerGain < sellOrder.AmountToBuy {
+	if match.SellerGain == sellOrder.AmountToBuy {
+		Log("Removing sell order %v", buyOrder.ID)
+		ob.BaseQueue.Remove(sellOrder.ID)
+	} else {
 		sellOrder.AmountToSell -= match.TransferAmt
 		sellOrder.AmountToBuy -= match.SellerGain
 		ob.BaseQueue.FixPrice(sellOrder.ID)
-	} else {
-		ob.BaseQueue.Remove(sellOrder.ID)
 	}
 
 	Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.QuoteQueue)
