@@ -10,7 +10,7 @@ import (
 )
 
 // Controls difficulty of mining
-const targetBits = 20
+const targetBits = 22
 
 // Maximum value of counter
 var maxNonce = math.MaxInt32
@@ -84,8 +84,8 @@ func (pow *ProofOfWork) Calculate(blockBytes []byte, nonce int) (bool, int, []by
 	var hash [32]byte
 
 	data := pow.prepareData(blockBytes, nonce) // prepare data
-	hash = sha256.Sum256(data)     // hash with SHA-256
-	hashInt.SetBytes(hash[:])      // convert hash to a big integer
+	hash = sha256.Sum256(data)                 // hash with SHA-256
+	hashInt.SetBytes(hash[:])                  // convert hash to a big integer
 
 	if hashInt.Cmp(pow.target) == -1 { // compare integer with target
 		return true, nonce, hash[:] // if hash < target, valid proof!
