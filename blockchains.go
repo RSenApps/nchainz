@@ -658,14 +658,17 @@ func (blockchains *Blockchains) restoreFromDatabase() {
 			}
 			block, err := iterator.Next()
 			for err == nil {
-				var uncommitted UncommittedTransactions
 				if symbol == MATCH_CHAIN {
+					var uncommitted UncommittedTransactions
 					if !blockchains.addMatchData(block.Data.(MatchData), &uncommitted) {
+						uncommitted.undoTransactions(MATCH_CHAIN, blockchains, true)
 						iterator.Undo()
 						break
 					}
 				} else {
+					var uncommitted UncommittedTransactions
 					if !blockchains.addTokenData(symbol, block.Data.(TokenData), &uncommitted) {
+						uncommitted.undoTransactions(symbol, blockchains, true)
 						iterator.Undo()
 						break
 					}
