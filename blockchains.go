@@ -154,8 +154,8 @@ func (blockchains *Blockchains) AddBlocks(symbol string, blocks []Block, takeLoc
 }
 
 func (blockchains *Blockchains) RollbackToHeight(symbol string, height uint64, takeLock bool) {
-	defer blockchains.matcher.FindAllMatches()
 	if takeLock {
+		defer blockchains.matcher.FindAllMatches()
 		blockchains.chainsLock.Lock()
 		defer blockchains.chainsLock.Unlock()
 	}
