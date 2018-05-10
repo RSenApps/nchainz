@@ -66,8 +66,6 @@ func (state *ConsensusState) AddOrder(symbol string, order Order) bool {
 	Log("Order added to consensus state %v", order)
 	tokenState.openOrders[order.ID] = order
 	tokenState.balances[order.SellerAddress] -= order.AmountToSell
-	Log("Actually added Order %v", order.ID)
-
 	return true
 }
 
@@ -87,7 +85,6 @@ func (state *ConsensusState) RollbackOrder(symbol string, order Order, blockchai
 		blockchains.RollbackToHeight(MATCH_CHAIN, blockchains.chains[MATCH_CHAIN].height - 1, false)
 	}
 
-	Log("Deleting order in Rollback Order %v", order.ID)
 	delete(tokenState.openOrders, order.ID)
 	tokenState.balances[order.SellerAddress] += order.AmountToSell
 }

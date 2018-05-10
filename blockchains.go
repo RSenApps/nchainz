@@ -327,7 +327,12 @@ func (blockchains *Blockchains) StartMining() {
 	for token := range blockchains.mempools {
 		tokens = append(tokens, token)
 	}
-	blockchains.minerChosenToken = tokens[rand.Intn(len(tokens))]
+	newToken := tokens[rand.Intn(len(tokens))]
+	blockchains.minerChosenToken = newToken
+	var txInPool []GenericTransaction
+	for _, tx := range blockchains.mempools[blockchains.minerChosenToken] {
+		txInPool = append(txInPool, tx)
+	}
 
 	// Send new block message
 	switch blockchains.minerChosenToken {
@@ -345,13 +350,7 @@ func (blockchains *Blockchains) StartMining() {
 		blockchains.miner.minerCh <- msg
 	}
 
-	blockchains.mempoolsLock.Lock()
-	var txInPool []GenericTransaction
-	for _, tx := range blockchains.mempools[blockchains.minerChosenToken] {
-		txInPool = append(txInPool, tx)
-	}
 	Log("%v TX in mempool to revalidate and send", len(txInPool))
-
 	//Send stuff currently in mem pool (re-validate too)
 	go func(currentToken string, transactions []GenericTransaction) {
 		for _, tx := range transactions {
@@ -378,8 +377,7 @@ func (blockchains *Blockchains) StartMining() {
 			Log("Sending from re-validated mempool")
 			blockchains.miner.minerCh <- MinerMsg{tx, false}
 		}
-	}(blockchains.minerChosenToken, txInPool)
-	blockchains.mempoolsLock.Unlock()
+	}(newToken, txInPool)
 }
 
 func (blockchains *Blockchains) ApplyLoop() {
