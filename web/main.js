@@ -3,8 +3,20 @@ import DepthChart from './DepthChart.js'
 import PriceChart from './PriceChart.js'
 
 const REFRESH_INTERVAL = 3000
+const DEFAULT_BOOK = "ETH/USD"
 
-let dl = new DataLoader("ETH/USD")
+let bookname
+let url = new URL(window.location)
+let chunks = url.hash.split("/")
+
+if (chunks.length != 3 || chunks[0] != '#') {
+  window.location = '/#/' + DEFAULT_BOOK
+  bookname = DEFAULT_BOOK
+} else {
+  bookname = chunks[1] + '/' + chunks[2]
+}
+
+let dl = new DataLoader(bookname)
 
 dl.getBook((orderbook) => {
   let depthChart = new DepthChart('depthChart', orderbook)
@@ -23,9 +35,3 @@ dl.getChains((chains) => {
   }), REFRESH_INTERVAL)
   */
 })
-
-/*
-var serialized = "707\nETH\nUSD\n"
-  + "706 2 1,705 10 1,703.5 10 1,703 50 1,701 30 1,700 10 1,699 20 1\n"
-  + "708 3 1,708.5 5 1,709.25 10 1,710 30 1,711 5 1,712 15 1,713 10 1,714 25 1"
-*/

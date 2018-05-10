@@ -53,6 +53,7 @@ func TestLargerSellMessySplit(t *testing.T) {
 
 	matcher.AddOrder(makeOrder(123, "ETH", 71), "USD")
 	matcher.AddOrder(makeOrder(367, "USD", 767), "ETH")
+	matcher.FindAllMatches()
 
 	match := <-matchCh
 	LogRed("Got match %v", match)
@@ -76,6 +77,7 @@ func TestVanishingOrders(t *testing.T) {
 
 	matcher.AddOrder(makeOrder(1, "ETH", 5), "USD")
 	matcher.AddOrder(makeOrder(1, "USD", 5), "ETH")
+	matcher.FindAllMatches()
 
 	match := <-matchCh
 	LogRed("Got match %v", match)
@@ -101,6 +103,7 @@ func TestSeveralOrders(t *testing.T) {
 	matcher.AddOrder(makeOrder(10, "USD", 100), "ETH")
 	matcher.AddOrder(makeOrder(20, "USD", 100), "ETH")
 	matcher.AddOrder(makeOrder(30, "USD", 100), "ETH")
+	matcher.FindAllMatches()
 
 	match1 := <-matchCh
 	LogRed("Got match %v", match1)
@@ -127,6 +130,7 @@ func TestMultifill(t *testing.T) {
 	matcher.AddOrder(makeOrder(75, "USD", 25), "ETH")
 	matcher.AddOrder(makeOrder(150, "USD", 30), "ETH")
 	matcher.AddOrder(makeOrder(440, "USD", 55), "ETH")
+	matcher.FindAllMatches()
 
 	match1 := <-matchCh
 	LogRed("Got match %v", match1)
@@ -162,6 +166,7 @@ func TestCancellation(t *testing.T) {
 
 	matcher.AddOrder(makeOrder(1, "ETH", 1), "USD")
 	matcher.AddOrder(makeOrder(1, "USD", 1), "ETH")
+	matcher.FindAllMatches()
 
 	match := <-matchCh
 	LogRed("Got match %v", match)

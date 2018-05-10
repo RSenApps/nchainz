@@ -12,9 +12,20 @@ type Client struct {
 }
 
 func NewClient() (*Client, error) {
+	client := &Client{}
+	err := client.findNode()
+
+	if err != nil {
+		panic(err)
+	}
+
+	return client, nil
+}
+
+func (client *Client) findNode() error {
 	seeds, err := GetSeeds()
 	if err != nil {
-		return nil, errors.New("Couldn't find seeds file. Run \"echo NODE_IP:NODE_PORT > seeds.txt\" and try again.")
+		return errors.New("Couldn't find seeds file. Run \"echo NODE_IP:NODE_PORT > seeds.txt\" and try again.")
 	}
 
 	for _, seed := range seeds {
@@ -22,13 +33,24 @@ func NewClient() (*Client, error) {
 
 		if err == nil {
 			Log("Connected to node %s", seed)
+			client.rpc = rpc
+			client.serverIp = seed
 
-			client := &Client{seed, rpc}
-			return client, nil
+			return nil
 		}
 	}
 
-	return nil, errors.New("No provided seed is online")
+	return errors.New("No provided seed is online")
+}
+
+func (client *Client) handleErr(err error) {
+	if err != nil {
+		findErr := client.findNode()
+
+		if findErr != nil {
+			panic(err)
+		}
+	}
 }
 
 func (client *Client) SendTx(tx *GenericTransaction, symbol string) error {
@@ -147,9 +169,7 @@ func (client *Client) GetBook(symbol1 string, symbol2 string) (string, error) {
 	var reply GetBookReply
 	err := client.rpc.Call("Node.GetBook", &request, &reply)
 
-	if err != nil {
-		return "", err
-	}
+	client.handleErr(err)
 
 	Log(reply.Serial)
 
@@ -164,9 +184,7 @@ func (client *Client) DumpChains(amt uint64) (string, error) {
 	var reply DumpChainsReply
 	err := client.rpc.Call("Node.DumpChains", &request, &reply)
 
-	if err != nil {
-		return "", err
-	}
+	client.handleErr(err)
 
 	Log(reply.Serial)
 
