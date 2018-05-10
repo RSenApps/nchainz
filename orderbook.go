@@ -12,21 +12,31 @@ type Orderbook struct {
 	BaseSymbol  string
 	QuoteQueue  *OrderQueue
 	QuoteSymbol string
+	Dirty       bool
 	mu          *sync.Mutex
+}
+
+type MatchDiscovery struct {
+	Match      *Match
+	QuoteOrder *Order
+	BaseOrder  *Order
 }
 
 func NewOrderbook(symbol1, symbol2 string) *Orderbook {
 	baseSymbol, quoteSymbol := GetBaseQuote(symbol1, symbol2)
 	baseQueue := NewOrderQueue(BASE)
 	quoteQueue := NewOrderQueue(QUOTE)
+	dirty := false
 	mu := &sync.Mutex{}
 
-	return &Orderbook{baseQueue, baseSymbol, quoteQueue, quoteSymbol, mu}
+	return &Orderbook{baseQueue, baseSymbol, quoteQueue, quoteSymbol, dirty, mu}
 }
 
 func (ob *Orderbook) Add(order *Order, sellSymbol string) {
 	ob.mu.Lock()
 	defer ob.mu.Unlock()
+
+	ob.Dirty = true
 
 	if sellSymbol == ob.BaseSymbol {
 		ob.QuoteQueue.Enq(order)
@@ -52,12 +62,91 @@ func (ob *Orderbook) Cancel(order *Order, sellSymbol string) {
 	Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.BaseQueue)
 }
 
+func (ob *Orderbook) ApplyMatch(match *Match) {
+	ob.mu.Lock()
+	defer ob.mu.Unlock()
+
+	ob.Dirty = true
+
+	ob.applyMatchUnlocked(match)
+}
+
+func (ob *Orderbook) applyMatchUnlocked(match *Match) {
+	buyOrder, _ := ob.QuoteQueue.GetOrder(match.BuyOrderID)
+	sellOrder, _ := ob.BaseQueue.GetOrder(match.SellOrderID)
+
+	if match.TransferAmt < buyOrder.AmountToBuy && match.BuyerLoss < buyOrder.AmountToSell {
+		buyOrder.AmountToBuy -= match.TransferAmt
+		buyOrder.AmountToSell -= match.BuyerLoss
+		ob.QuoteQueue.FixPrice(buyOrder.ID)
+	} else {
+		ob.QuoteQueue.Remove(buyOrder.ID)
+	}
+
+	if match.TransferAmt < sellOrder.AmountToSell && match.SellerGain < sellOrder.AmountToBuy {
+		sellOrder.AmountToSell -= match.TransferAmt
+		sellOrder.AmountToBuy -= match.SellerGain
+		ob.BaseQueue.FixPrice(sellOrder.ID)
+	} else {
+		ob.BaseQueue.Remove(sellOrder.ID)
+	}
+
+	Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.QuoteQueue)
+	Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.BaseQueue)
+}
+
+func (ob *Orderbook) UnapplyMatch(match *Match, order1 *Order, order2 *Order) {
+	ob.mu.Lock()
+	defer ob.mu.Unlock()
+
+	ob.Dirty = true
+
+	ob.unapplyMatchUnlocked(match, order1, order2)
+}
+
+func (ob *Orderbook) unapplyMatchUnlocked(match *Match, order1 *Order, order2 *Order) {
+	var backupBuy, backupSell *Order
+
+	if order1.BuySymbol == ob.QuoteSymbol {
+		backupBuy = order1
+		backupSell = order2
+	} else {
+		backupBuy = order2
+		backupSell = order1
+	}
+
+	buyOrder, buyExists := ob.QuoteQueue.GetOrder(match.BuyOrderID)
+	sellOrder, sellExists := ob.BaseQueue.GetOrder(match.SellOrderID)
+
+	if !buyExists {
+		buyOrder = backupBuy
+		ob.QuoteQueue.Enq(buyOrder)
+	}
+
+	if !sellExists {
+		sellOrder = backupSell
+		ob.BaseQueue.Enq(sellOrder)
+	}
+
+	buyOrder.AmountToBuy += match.TransferAmt
+	buyOrder.AmountToSell += match.BuyerLoss
+	sellOrder.AmountToBuy += match.SellerGain
+	sellOrder.AmountToSell += match.TransferAmt
+
+	Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.QuoteQueue)
+	Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.BaseQueue)
+}
+
 func (ob *Orderbook) FindMatch() (found bool, match *Match) {
 	ob.mu.Lock()
 	defer ob.mu.Unlock()
 
 	Log("Checking for matches on %s/%s", ob.QuoteSymbol, ob.BaseSymbol)
+	found, match, _, _ = ob.findMatchUnlocked()
+	return
+}
 
+func (ob *Orderbook) findMatchUnlocked() (found bool, match *Match, quoteOrder *Order, baseOrder *Order) {
 	buyOrder, buyPrice, buyErr := ob.QuoteQueue.Peek()
 	sellOrder, sellPrice, sellErr := ob.BaseQueue.Peek()
 
@@ -96,64 +185,40 @@ func (ob *Orderbook) FindMatch() (found bool, match *Match) {
 	found = true
 	id := rand.Uint64()
 	match = &Match{id, ob.QuoteSymbol, sellOrder.ID, sellerBaseGain, ob.BaseSymbol, buyOrder.ID, buyerBaseLoss, uint64(transferAmt)}
+	quoteOrder = buyOrder
+	baseOrder = sellOrder
 	return
 }
 
-func (ob *Orderbook) ApplyMatch(match *Match) {
-	buyOrder, _ := ob.QuoteQueue.GetOrder(match.BuyOrderID)
-	sellOrder, _ := ob.BaseQueue.GetOrder(match.SellOrderID)
+func (ob *Orderbook) FindAllMatches() []*Match {
+	ob.mu.Lock()
+	defer ob.mu.Unlock()
 
-	if match.TransferAmt < buyOrder.AmountToBuy && match.BuyerLoss < buyOrder.AmountToSell {
-		buyOrder.AmountToBuy -= match.TransferAmt
-		buyOrder.AmountToSell -= match.BuyerLoss
-		ob.QuoteQueue.FixPrice(buyOrder.ID)
-	} else {
-		ob.QuoteQueue.Remove(buyOrder.ID)
+	discoveries := make([]*MatchDiscovery, 0)
+	matches := make([]*Match, 0)
+
+	for {
+		found, match, quoteOrder, baseOrder := ob.findMatchUnlocked()
+
+		if found {
+			discovery := &MatchDiscovery{match, quoteOrder, baseOrder}
+			discoveries = append(discoveries, discovery)
+			matches = append(matches, match)
+
+			ob.applyMatchUnlocked(match)
+
+		} else {
+			break
+		}
 	}
 
-	if match.TransferAmt < sellOrder.AmountToSell && match.SellerGain < sellOrder.AmountToBuy {
-		sellOrder.AmountToSell -= match.TransferAmt
-		sellOrder.AmountToBuy -= match.SellerGain
-		ob.BaseQueue.FixPrice(sellOrder.ID)
-	} else {
-		ob.BaseQueue.Remove(sellOrder.ID)
+	for i := len(discoveries) - 1; i >= 0; i-- {
+		discovery := discoveries[i]
+		ob.unapplyMatchUnlocked(discovery.Match, discovery.QuoteOrder, discovery.BaseOrder)
 	}
 
-	Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.QuoteQueue)
-	Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.BaseQueue)
-}
-
-func (ob *Orderbook) UnapplyMatch(match *Match, order1 *Order, order2 *Order) {
-	var backupBuy, backupSell *Order
-
-	if order1.BuySymbol == ob.QuoteSymbol {
-		backupBuy = order1
-		backupSell = order2
-	} else {
-		backupBuy = order2
-		backupSell = order1
-	}
-
-	buyOrder, buyExists := ob.QuoteQueue.GetOrder(match.BuyOrderID)
-	sellOrder, sellExists := ob.BaseQueue.GetOrder(match.SellOrderID)
-
-	if !buyExists {
-		buyOrder = backupBuy
-		ob.QuoteQueue.Enq(buyOrder)
-	}
-
-	if !sellExists {
-		sellOrder = backupSell
-		ob.BaseQueue.Enq(sellOrder)
-	}
-
-	buyOrder.AmountToBuy += match.TransferAmt
-	buyOrder.AmountToSell += match.BuyerLoss
-	sellOrder.AmountToBuy += match.SellerGain
-	sellOrder.AmountToSell += match.TransferAmt
-
-	Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.QuoteQueue)
-	Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.BaseQueue)
+	Log("Found %v matches on %s", len(matches), GetBookName(ob.BaseSymbol, ob.QuoteSymbol))
+	return matches
 }
 
 func (ob *Orderbook) Serial() string {

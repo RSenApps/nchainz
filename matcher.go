@@ -30,8 +30,6 @@ func (mr *Matcher) AddOrder(order Order, sellSymbol string) {
 
 	orderbook := mr.getOrderbook(buySymbol, sellSymbol)
 	orderbook.Add(&order, sellSymbol)
-
-	mr.CheckMatch(orderbook)
 }
 
 func (mr *Matcher) AddCancelOrder(cancelOrder CancelOrder, sellSymbol string) {
@@ -51,8 +49,6 @@ func (mr *Matcher) AddMatch(match Match) {
 
 	orderbook := mr.getOrderbook(match.BuySymbol, match.SellSymbol)
 	orderbook.ApplyMatch(&match)
-
-	mr.CheckMatch(orderbook)
 }
 
 // TODO: vanish amt argument
@@ -62,8 +58,6 @@ func (mr *Matcher) RemoveMatch(match Match, buyOrder Order, sellOrder Order) {
 
 	orderbook := mr.getOrderbook(match.BuySymbol, match.SellSymbol)
 	orderbook.UnapplyMatch(&match, &buyOrder, &sellOrder)
-
-	mr.CheckMatch(orderbook)
 }
 
 func (mr *Matcher) RemoveCancelOrder(cancelOrder CancelOrder) {
@@ -75,13 +69,37 @@ func (mr *Matcher) CheckMatch(orderbook *Orderbook) {
 	if found {
 		Log("Found match on %s/%s: %v/%v", orderbook.QuoteSymbol, orderbook.BaseSymbol, match.BuyOrderID, match.SellOrderID)
 
-		if mr.bcs != nil {
-			tx := GenericTransaction{*match, MATCH}
-			mr.bcs.AddTransactionToMempool(tx, MATCH_CHAIN, false)
-		} else {
-			mr.AddMatch(*match)
-			mr.matchCh <- *match
+		mr.returnMatch(match)
+	}
+}
+
+func (mr *Matcher) FindAllMatches() {
+	Log("Finding all matches")
+
+	for baseSymbol, baseBooks := range mr.orderbooks {
+		for quoteSymbol, orderbook := range baseBooks {
+			if !orderbook.Dirty {
+				continue
+			}
+
+			Log("%s is dirty", GetBookName(baseSymbol, quoteSymbol))
+			orderbook.Dirty = false
+
+			matches := orderbook.FindAllMatches()
+			for _, match := range matches {
+				mr.returnMatch(match)
+			}
 		}
+	}
+}
+
+func (mr *Matcher) returnMatch(match *Match) {
+	if mr.bcs != nil {
+		tx := GenericTransaction{*match, MATCH}
+		mr.bcs.AddTransactionToMempool(tx, MATCH_CHAIN, false)
+	} else {
+		mr.AddMatch(*match)
+		mr.matchCh <- *match
 	}
 }
 
