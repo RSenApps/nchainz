@@ -13,7 +13,7 @@ type Orderbook struct {
 	QuoteQueue  *OrderQueue
 	QuoteSymbol string
 	Dirty       bool
-	mu          *sync.Mutex
+	mu          *sync.RWMutex
 }
 
 type MatchDiscovery struct {
@@ -27,7 +27,7 @@ func NewOrderbook(symbol1, symbol2 string) *Orderbook {
 	baseQueue := NewOrderQueue(BASE)
 	quoteQueue := NewOrderQueue(QUOTE)
 	dirty := false
-	mu := &sync.Mutex{}
+	mu := &sync.RWMutex{}
 
 	return &Orderbook{baseQueue, baseSymbol, quoteQueue, quoteSymbol, dirty, mu}
 }
@@ -140,8 +140,8 @@ func (ob *Orderbook) unapplyMatchUnlocked(match *Match, order1 *Order, order2 *O
 }
 
 func (ob *Orderbook) FindMatch() (found bool, match *Match) {
-	ob.mu.Lock()
-	defer ob.mu.Unlock()
+	ob.mu.RLock()
+	defer ob.mu.RUnlock()
 
 	Log("Checking for matches on %s/%s", ob.QuoteSymbol, ob.BaseSymbol)
 	found, match, _, _ = ob.findMatchUnlocked()
@@ -224,6 +224,9 @@ func (ob *Orderbook) FindAllMatches() []*Match {
 }
 
 func (ob *Orderbook) Serial() string {
+	ob.mu.Lock()
+	defer ob.mu.Unlock()
+
 	_, bid, bidErr := ob.QuoteQueue.Peek()
 	_, ask, askErr := ob.BaseQueue.Peek()
 
