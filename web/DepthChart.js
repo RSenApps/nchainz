@@ -24,7 +24,7 @@ export default class DepthChart {
     let minPrice = orderbook.quoteOrders[orderbook.quoteOrders.length-1].price
     let maxPrice = orderbook.baseOrders[orderbook.baseOrders.length-1].price
     let xMin, xMax
-    
+
     if (orderbook.marketPrice - minPrice > maxPrice - orderbook.marketPrice) {
       let buffer = 0.2 * (orderbook.marketPrice - minPrice)
       xMin = minPrice - buffer
@@ -48,7 +48,7 @@ export default class DepthChart {
 
   static cumulateOrders(orders) {
     var data = []
-    var cumAmt = 0 
+    var cumAmt = 0
     var lastPrice = -1
 
     for (let order of orders) {
@@ -58,10 +58,10 @@ export default class DepthChart {
         data[data.length-1].y = cumAmt
       } else {
         data.push({x: order.price, y: cumAmt})
-      }   
+      }
 
       lastPrice = order.price
-    }   
+    }
 
     return data
   }

@@ -155,3 +155,20 @@ func (client *Client) GetBook(symbol1 string, symbol2 string) (string, error) {
 
 	return reply.Serial, nil
 }
+
+func (client *Client) DumpChains(amt uint64) (string, error) {
+	Log("Client sending DUMPCHAINS")
+	defer Log("Client done sending DUMPCHAINS")
+
+	request := DumpChainsArgs{amt}
+	var reply DumpChainsReply
+	err := client.rpc.Call("Node.DumpChains", &request, &reply)
+
+	if err != nil {
+		return "", err
+	}
+
+	Log(reply.Serial)
+
+	return reply.Serial, nil
+}

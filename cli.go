@@ -123,6 +123,12 @@ func (cli *CLI) Run() {
 		client := cli.getClient()
 		client.GetBook(symbol1, symbol2)
 
+	case "dumpchains":
+		amt := cli.getUint(0)
+
+		client := cli.getClient()
+		client.DumpChains(amt)
+
 	case "webserver":
 		port := cli.getUint(0)
 

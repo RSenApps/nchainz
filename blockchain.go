@@ -237,3 +237,18 @@ func (bc *Blockchain) getTipHash() []byte {
 		return lastHash
 	}
 }
+
+func (bc *Blockchain) DumpChain(amtRequested uint64) (string, uint64) {
+	var buffer bytes.Buffer
+	var i uint64
+	bci := bc.Iterator()
+
+	block, err := bci.Prev()
+	for i = 0; i < amtRequested && err == nil; i++ {
+		buffer.WriteString(block.Dump())
+		buffer.WriteString("\n")
+		block, err = bci.Prev()
+	}
+
+	return buffer.String(), i
+}

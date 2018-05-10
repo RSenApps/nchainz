@@ -436,6 +436,29 @@ func (node *Node) GetBook(args *GetBookArgs, reply *GetBookReply) error {
 	return nil
 }
 
+//////////////////////////////////
+// DUMPCHAINS
+// Dump recent blocks on all chains
+// request: amount of recent blocks
+// response: serialized blocks
+
+type DumpChainsArgs struct {
+	Amount uint64
+}
+
+type DumpChainsReply struct {
+	Serial  string
+	Success bool
+}
+
+func (node *Node) DumpChains(args *DumpChainsArgs, reply *DumpChainsReply) error {
+	Log("Received DumpChains for %v", args.Amount)
+	serial := node.bcs.DumpChains(args.Amount)
+	reply.Serial = serial
+	reply.Success = true
+	return nil
+}
+
 ////////////////////////////////
 // Utils: Connecting
 

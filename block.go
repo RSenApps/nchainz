@@ -230,3 +230,18 @@ func DeserializeBlock(d []byte) *Block {
 
 	return &block
 }
+
+func (b *Block) Dump() string {
+	switch b.Type {
+	case TOKEN_BLOCK:
+		data := b.Data.(TokenData)
+		return fmt.Sprintf("%x %v %v %v", b.Hash, len(data.Orders), len(data.ClaimFunds), len(data.Transfers))
+
+	case MATCH_BLOCK:
+		data := b.Data.(MatchData)
+		return fmt.Sprintf("%x %v %v %v", b.Hash, len(data.Matches), len(data.CancelOrders), len(data.CreateTokens))
+
+	default:
+		return ""
+	}
+}

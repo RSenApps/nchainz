@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"github.com/boltdb/bolt"
 	"math/rand"
 	"os"
@@ -156,7 +157,6 @@ func (blockchains *Blockchains) RollbackToHeight(symbol string, height uint64, t
 		defer blockchains.chainsLock.Unlock()
 	}
 	Log("Rolling back %v block to height: %v \n", symbol, height)
-
 
 	if _, ok := blockchains.chains[symbol]; !ok {
 		Log("RollbackToHeight failed as symbol not found: ", symbol)
@@ -683,6 +683,24 @@ func (blockchains *Blockchains) restoreFromDatabase() {
 			}
 		}
 	}
+}
+
+func (blockchains *Blockchains) DumpChains(amt uint64) string {
+	blockchains.chainsLock.RLock()
+	defer blockchains.chainsLock.RUnlock()
+
+	var buffer bytes.Buffer
+	buffer.WriteString(fmt.Sprintf("%v\n", len(blockchains.chains)))
+
+	for symbol, chain := range blockchains.chains {
+		chainDump, numBlocks := chain.DumpChain(amt)
+		header := fmt.Sprintf("%s %v %v\n", symbol, chain.height, numBlocks)
+
+		buffer.WriteString(header)
+		buffer.WriteString(chainDump)
+	}
+
+	return buffer.String()
 }
 
 type UncommittedTransactions struct {

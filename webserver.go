@@ -21,6 +21,7 @@ func StartWebserver(port uint64) {
 
 	http.Handle("/", http.FileServer(http.Dir("./web")))
 	http.HandleFunc("/book/", webserver.book)
+	http.HandleFunc("/chains", webserver.chains)
 
 	localPath := fmt.Sprintf(":%v", port)
 	if err := http.ListenAndServe(localPath, nil); err != nil {
@@ -49,4 +50,16 @@ func (ws *Webserver) book(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Write([]byte(bookData))
+}
+
+func (ws *Webserver) chains(w http.ResponseWriter, r *http.Request) {
+	amt := uint64(10)
+	chainData, err := ws.client.DumpChains(amt)
+
+	if err != nil {
+		w.Write([]byte(err.Error()))
+		return
+	}
+
+	w.Write([]byte(chainData))
 }
