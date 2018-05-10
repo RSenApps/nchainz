@@ -701,6 +701,14 @@ func (blockchains *Blockchains) restoreFromDatabase() {
 	}
 }
 
+func (blockchains *Blockchains) Cleanup() {
+	blockchains.chainsLock.Lock()
+	blockchains.mempoolsLock.Lock()
+
+	close(blockchains.miner.minerCh)
+	blockchains.db.Close()
+}
+
 func (blockchains *Blockchains) DumpChains(amt uint64) string {
 	blockchains.chainsLock.RLock()
 	defer blockchains.chainsLock.RUnlock()
