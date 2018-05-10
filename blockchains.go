@@ -435,7 +435,7 @@ func (blockchains *Blockchains) ApplyLoop() {
 				blockchains.mempoolsLock.Unlock()
 				blockchains.chainsLock.Unlock()
 
-				blockchains.matcher.FindAllMatches()
+				go blockchains.matcher.FindAllMatches()
 			}
 
 		case symbol := <-blockchains.stopMiningCh:
