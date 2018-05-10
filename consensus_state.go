@@ -248,13 +248,11 @@ func (state *ConsensusState) AddMatch(match Match) bool {
 	buyTokenState.orderUpdatesCount[buyOrder.ID]++
 	sellTokenState.orderUpdatesCount[sellOrder.ID]++
 
-	var deletedOrders []Order
 	if sellOrder.AmountToBuy == 0 {
 		Log("Sell order depleted %v", sellOrder)
 		if sellOrder.AmountToSell > 0 {
 			sellTokenState.unclaimedFunds[sellOrder.SellerAddress] += sellOrder.AmountToSell
 		}
-		deletedOrders = append(deletedOrders, sellOrder)
 		sellTokenState.deletedOrders[sellOrder.ID] = sellOrder
 		delete(sellTokenState.openOrders, sellOrder.ID)
 	} else {
@@ -266,7 +264,6 @@ func (state *ConsensusState) AddMatch(match Match) bool {
 		if buyOrder.AmountToSell > 0 {
 			buyTokenState.unclaimedFunds[buyOrder.SellerAddress] += buyOrder.AmountToSell
 		}
-		deletedOrders = append(deletedOrders, buyOrder)
 		buyTokenState.deletedOrders[buyOrder.ID] = buyOrder
 		delete(buyTokenState.openOrders, buyOrder.ID)
 	} else {
@@ -286,7 +283,6 @@ func (state *ConsensusState) GetBuySellOrdersForMatch(match Match) (Order, Order
 		if buyOrder.AmountToSell > 0 {
 			buyTokenState.unclaimedFunds[buyOrder.SellerAddress] -= buyOrder.AmountToSell
 		}
-		delete(buyTokenState.deletedOrders, match.BuyOrderID)
 	} else {
 		buyOrder, ok = buyTokenState.openOrders[match.BuyOrderID]
 		if !ok {
@@ -299,7 +295,6 @@ func (state *ConsensusState) GetBuySellOrdersForMatch(match Match) (Order, Order
 		if sellOrder.AmountToSell > 0 {
 			sellTokenState.unclaimedFunds[sellOrder.SellerAddress] -= sellOrder.AmountToSell
 		}
-		delete(sellTokenState.deletedOrders, match.SellOrderID)
 	} else {
 		sellOrder, ok = sellTokenState.openOrders[match.SellOrderID]
 		if !ok {
@@ -316,6 +311,8 @@ func (state *ConsensusState) RollbackMatch(match Match, blockchains *Blockchains
 
 	// were orders deleted?
 	buyOrder, sellOrder := state.GetBuySellOrdersForMatch(match)
+	delete(buyTokenState.deletedOrders, match.BuyOrderID)
+	delete(sellTokenState.deletedOrders, match.SellOrderID)
 
 	//if rolling back match and unclaimed funds will become negative then it must rollback token chain until claim funds are removed
 	if buyTokenState.unclaimedFunds[sellOrder.SellerAddress] < match.SellerGain {
