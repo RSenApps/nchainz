@@ -619,7 +619,7 @@ func (blockchains *Blockchains) addGenericTransaction(symbol string, transaction
 
 func (blockchains *Blockchains) rollbackGenericTransaction(symbol string, transaction GenericTransaction, mined bool) {
 	var buyOrder, sellOrder Order
-	if mined {
+	if mined && transaction.TransactionType == MATCH {
 		buyOrder, sellOrder = blockchains.consensusState.GetBuySellOrdersForMatch(transaction.Transaction.(Match))
 	}
 

@@ -282,11 +282,7 @@ func (state *ConsensusState) GetBuySellOrdersForMatch(match Match) (Order, Order
 	sellTokenState := state.tokenStates[match.SellSymbol]
 
 	buyOrder, ok := buyTokenState.deletedOrders[match.BuyOrderID]
-	if ok {
-		if buyOrder.AmountToSell > 0 {
-			buyTokenState.unclaimedFunds[buyOrder.SellerAddress] -= buyOrder.AmountToSell
-		}
-	} else {
+	if !ok {
 		buyOrder, ok = buyTokenState.openOrders[match.BuyOrderID]
 		if !ok {
 			panic("error")
@@ -294,11 +290,7 @@ func (state *ConsensusState) GetBuySellOrdersForMatch(match Match) (Order, Order
 	}
 
 	sellOrder, ok := sellTokenState.deletedOrders[match.SellOrderID]
-	if ok {
-		if sellOrder.AmountToSell > 0 {
-			sellTokenState.unclaimedFunds[sellOrder.SellerAddress] -= sellOrder.AmountToSell
-		}
-	} else {
+	if !ok {
 		sellOrder, ok = sellTokenState.openOrders[match.SellOrderID]
 		if !ok {
 			panic("error")
@@ -345,8 +337,22 @@ func (state *ConsensusState) RollbackMatch(match Match) {
 	buyTokenState := state.tokenStates[match.BuySymbol]
 	sellTokenState := state.tokenStates[match.SellSymbol]
 	buyOrder, sellOrder := state.GetBuySellOrdersForMatch(match)
-	delete(buyTokenState.deletedOrders, match.BuyOrderID)
-	delete(sellTokenState.deletedOrders, match.SellOrderID)
+
+	_, ok := buyTokenState.deletedOrders[match.BuyOrderID]
+	if ok {
+		if buyOrder.AmountToSell > 0 {
+			buyTokenState.unclaimedFunds[buyOrder.SellerAddress] -= buyOrder.AmountToSell
+		}
+		delete(buyTokenState.deletedOrders, match.BuyOrderID)
+	}
+
+	_, ok = sellTokenState.deletedOrders[match.SellOrderID]
+	if ok {
+		if sellOrder.AmountToSell > 0 {
+			sellTokenState.unclaimedFunds[sellOrder.SellerAddress] -= sellOrder.AmountToSell
+		}
+		delete(sellTokenState.deletedOrders, match.SellOrderID)
+	}
 
 	sellTokenState.unclaimedFunds[buyOrder.SellerAddress] -= match.TransferAmt
 
