@@ -237,7 +237,7 @@ func (node *Node) Inv(args *InvArgs, reply *bool) error {
 		}
 	}
 
-	node.restartNode()
+	//node.restartNode()
 	*reply = true
 	return nil
 }
