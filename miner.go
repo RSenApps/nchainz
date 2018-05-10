@@ -9,12 +9,14 @@ type NewBlockMsg struct {
 type MinerMsg struct {
 	Msg        interface{}
 	IsNewBlock bool
+	MinerRound uint64
 }
 
 type Miner struct {
 	minerCh         chan MinerMsg
 	finishedBlockCh chan BlockMsg
 	transactions    []GenericTransaction
+	minerRound      uint64
 }
 
 type BlockMsg struct {
@@ -36,6 +38,8 @@ func (miner *Miner) mineLoop() {
 				miner.transactions = []GenericTransaction{}
 				newBlock := msg.Msg.(NewBlockMsg)
 				symbol = newBlock.Symbol
+				miner.minerRound++
+
 				switch symbol {
 				case MATCH_CHAIN:
 					matchData := MatchData{
@@ -55,7 +59,7 @@ func (miner *Miner) mineLoop() {
 					txInBlock = make(map[string]GenericTransaction)
 					Log("Mining new block: %s %v", newBlock.Symbol, newBlock.BlockType)
 				}
-			} else {
+			} else if msg.MinerRound == miner.minerRound {
 				transaction := msg.Msg.(GenericTransaction)
 
 				if block == nil {
@@ -106,7 +110,7 @@ func (miner *Miner) mineLoop() {
 func NewMiner(finishedBlockCh chan BlockMsg) *Miner {
 	minerCh := make(chan MinerMsg, 1000)
 	var transactions []GenericTransaction
-	miner := &Miner{minerCh, finishedBlockCh, transactions}
+	miner := &Miner{minerCh, finishedBlockCh, transactions, 0}
 	go miner.mineLoop()
 	return miner
 }
