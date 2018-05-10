@@ -9,7 +9,6 @@ import (
 	"net"
 	"net/rpc"
 	"os"
-	"os/exec"
 	"strconv"
 	"strings"
 	"sync"
@@ -20,7 +19,7 @@ type Node struct {
 	myIp        string
 	peers       map[string]*Peer
 	bcs         *Blockchains
-	inbound     *net.TCPListener
+	port        int
 	mu          sync.RWMutex
 	reconcileMu sync.Mutex
 }
@@ -75,7 +74,7 @@ func StartNode(myIp string) {
 	bcs := CreateNewBlockchains(dbName, true)
 	mu := sync.RWMutex{}
 	reconcileMu := sync.Mutex{}
-	node := &Node{myIp, peers, bcs, inbound, mu, reconcileMu}
+	node := &Node{myIp, peers, bcs, port, mu, reconcileMu}
 
 	log.SetOutput(ioutil.Discard)
 	rpc.Register(node)
@@ -218,6 +217,7 @@ type InvArgs struct {
 func (node *Node) Inv(args *InvArgs, reply *bool) error {
 	Log("Received INV from %s", args.From)
 	defer Log("Done handling INV from %s", args.From)
+	defer node.tolerateRetry()
 
 	peerState := node.getPeerState(args.From)
 	if peerState != ACTIVE && peerState != FOUND {
@@ -237,7 +237,6 @@ func (node *Node) Inv(args *InvArgs, reply *bool) error {
 		}
 	}
 
-	//node.restartNode()
 	*reply = true
 	return nil
 }
@@ -599,16 +598,14 @@ func (node *Node) handleRpcReply(peer *Peer, err error) {
 	}
 }
 
-func (node *Node) restartNode() {
-	Log("Restarting %v", os.Args)
-	node.inbound.Close()
-	time.Sleep(10 * time.Second)
-
-	cmd := exec.Command(os.Args[0], os.Args[1:]...)
-	cmd.Start()
-
-	time.Sleep(10 * time.Second)
-	os.Exit(1)
+func (node *Node) tolerateRetry() {
+	if r := recover(); r != nil {
+		Log("Recovering from %v", r)
+		Log("\nRestarting\n")
+		node.bcs.Cleanup()
+		dbName := fmt.Sprintf("db/%v.db", node.port)
+		node.bcs = CreateNewBlockchains(dbName, true)
+	}
 }
 
 ////////////////////////////////
