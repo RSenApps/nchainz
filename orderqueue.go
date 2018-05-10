@@ -38,7 +38,6 @@ func (oq *OrderQueue) Enq(order *Order) {
 	oq.setItemPrice(item)
 
 	heap.Push(oq, item)
-	oq.IdToItem[order.ID] = item
 }
 
 func (oq *OrderQueue) Deq() (order *Order, price float64, err error) {
@@ -47,7 +46,6 @@ func (oq *OrderQueue) Deq() (order *Order, price float64, err error) {
 	}
 
 	item := heap.Pop(oq).(*OrderQueueItem)
-	delete(oq.IdToItem, item.order.ID)
 	return item.order, item.price, nil
 }
 
@@ -63,11 +61,11 @@ func (oq *OrderQueue) Peek() (order *Order, price float64, err error) {
 func (oq *OrderQueue) Remove(id uint64) error {
 	item, exists := oq.IdToItem[id]
 	if !exists {
+		LogRed("Attempte to remove nonexistent order %v", id)
 		return errors.New("order does not exist in queue")
 	}
 
 	heap.Remove(oq, item.index)
-	delete(oq.IdToItem, id)
 	return nil
 }
 
@@ -163,13 +161,23 @@ func (oq *OrderQueue) Swap(i, j int) {
 
 func (oq *OrderQueue) Push(x interface{}) {
 	item := x.(*OrderQueueItem)
+
+	if old, exists := oq.IdToItem[item.order.ID]; exists {
+		msg := fmt.Sprintf("Duplicate order id %v, old %v, new %v\n%v", item.order.ID, oq.oqiString(old), oq.oqiString(item), oq)
+		LogRed(msg)
+		//panic(msg)
+		return
+	}
+
 	item.index = len(oq.Items)
 	oq.Items = append(oq.Items, item)
+	oq.IdToItem[item.order.ID] = item
 }
 
 func (oq *OrderQueue) Pop() interface{} {
 	item := oq.Items[len(oq.Items)-1]
 	item.index = -1
 	oq.Items = oq.Items[0 : len(oq.Items)-1]
+	delete(oq.IdToItem, item.order.ID)
 	return item
 }
