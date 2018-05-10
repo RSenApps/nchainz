@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/rpc"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"sync"
@@ -19,6 +20,7 @@ type Node struct {
 	myIp        string
 	peers       map[string]*Peer
 	bcs         *Blockchains
+	inbound     *net.TCPListener
 	mu          sync.RWMutex
 	reconcileMu sync.Mutex
 }
@@ -53,6 +55,8 @@ const (
 )
 
 func StartNode(myIp string) {
+	Log("Starting node")
+
 	port, _ := strconv.Atoi(strings.Split(myIp, ":")[1])
 	dbName := fmt.Sprintf("db/%v.db", port)
 	localIp := fmt.Sprintf(":%v", port)
@@ -71,7 +75,7 @@ func StartNode(myIp string) {
 	bcs := CreateNewBlockchains(dbName, true)
 	mu := sync.RWMutex{}
 	reconcileMu := sync.Mutex{}
-	node := &Node{myIp, peers, bcs, mu, reconcileMu}
+	node := &Node{myIp, peers, bcs, inbound, mu, reconcileMu}
 
 	log.SetOutput(ioutil.Discard)
 	rpc.Register(node)
@@ -233,6 +237,7 @@ func (node *Node) Inv(args *InvArgs, reply *bool) error {
 		}
 	}
 
+	node.restartNode()
 	*reply = true
 	return nil
 }
@@ -592,6 +597,18 @@ func (node *Node) handleRpcReply(peer *Peer, err error) {
 		Log(err.Error())
 		node.setPeerState(peer.ip, INVALID)
 	}
+}
+
+func (node *Node) restartNode() {
+	Log("Restarting %v", os.Args)
+	node.inbound.Close()
+	time.Sleep(10 * time.Second)
+
+	cmd := exec.Command(os.Args[0], os.Args[1:]...)
+	cmd.Start()
+
+	time.Sleep(10 * time.Second)
+	os.Exit(1)
 }
 
 ////////////////////////////////
