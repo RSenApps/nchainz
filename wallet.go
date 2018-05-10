@@ -20,10 +20,11 @@ import (
 const checksumLength = 4
 const version = byte(0x00)
 const walletFile = "wallet.dat"
+const addressLength = 64
 
 type Wallet struct {
-	PublicKey  []byte           // public key (concatenated X, Y coordinates)
-	PrivateKey ecdsa.PrivateKey // private key
+	PublicKey  [addressLength]byte // public key (concatenated X, Y coordinates)
+	PrivateKey ecdsa.PrivateKey    // private key
 }
 
 func NewWallet() *Wallet {
@@ -34,19 +35,21 @@ func NewWallet() *Wallet {
 //
 // Helper method to construct a new Wallet
 //
-func generateKeys() ([]byte, ecdsa.PrivateKey) {
+func generateKeys() ([addressLength]byte, ecdsa.PrivateKey) {
 	ellipticCurve := elliptic.P256() // get elliptic curve
 	privateKey, _ := ecdsa.GenerateKey(ellipticCurve, rand.Reader)
-	publicKey := append(privateKey.PublicKey.X.Bytes(), privateKey.PublicKey.Y.Bytes()...)
+	publicKeySlice := append(privateKey.PublicKey.X.Bytes(), privateKey.PublicKey.Y.Bytes()...)
 
-	return publicKey, *privateKey
+	var publicKeyArray [addressLength]byte
+	copy(publicKeyArray[:], publicKeySlice[:4])
+	return publicKeyArray, *privateKey
 }
 
 //
 // Convert public key into Base 58 address
 // encodeBase58(Version + Public key hash + Checksum)
 //
-func (w Wallet) GetAddress() []byte {
+func (w Wallet) GetAddress() [addressLength]byte {
 	// Get & append version
 	rawAddress := []byte{version}
 
@@ -66,8 +69,8 @@ func (w Wallet) GetAddress() []byte {
 //
 // Helper method to hash public key with RIPEMD160(SHA256(publicKey)) algorithm
 //
-func getPublicKeyHash(publicKey []byte) []byte {
-	shaResult := sha256.Sum256(publicKey)
+func getPublicKeyHash(publicKey [addressLength]byte) []byte {
+	shaResult := sha256.Sum256(publicKey[:])
 
 	ripHasher := ripemd160.New()
 	ripHasher.Write(shaResult[:])
@@ -88,7 +91,7 @@ var b58Alphabet = []byte("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuv
 //
 // Helper method to encode byte array to base 58
 //
-func encodeBase58(data []byte) []byte {
+func encodeBase58(data []byte) [addressLength]byte {
 	var result []byte
 
 	original := big.NewInt(0).SetBytes(data)
@@ -109,7 +112,9 @@ func encodeBase58(data []byte) []byte {
 		data[i], data[j] = data[j], data[i]
 	}
 
-	return result
+	var resultArray [addressLength]byte
+	copy(resultArray[:], result)
+	return resultArray
 }
 
 //
@@ -150,7 +155,8 @@ func NewWalletStore() *WalletStore {
 //
 func (ws *WalletStore) AddWallet() string {
 	wallet := NewWallet()
-	address := string(wallet.GetAddress()[:])
+	addressArray := wallet.GetAddress()
+	address := string(addressArray[:addressLength])
 	ws.Wallets[address] = wallet
 	return address
 }
@@ -173,6 +179,13 @@ func (ws *WalletStore) Download() {
 	}
 
 	ws.Wallets = newWS.Wallets
+}
+
+//
+// Get a Wallet from its address
+//
+func (ws *WalletStore) GetWallet(address string) *Wallet {
+	return ws.Wallets[address]
 }
 
 //

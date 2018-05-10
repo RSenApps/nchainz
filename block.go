@@ -79,7 +79,7 @@ func (gt *GenericTransaction) ID() string {
 
 type CreateToken struct {
 	TokenInfo      TokenInfo
-	CreatorAddress string //TODO: []byte
+	CreatorAddress [addressLength]byte
 	Signature      []byte
 }
 
@@ -100,15 +100,15 @@ type Order struct {
 	BuySymbol     string
 	AmountToSell  uint64
 	AmountToBuy   uint64
-	SellerAddress string //TODO: []byte
+	SellerAddress [addressLength]byte
 	Signature     []byte
 }
 
 type Transfer struct {
 	ID          uint64
 	Amount      uint64
-	FromAddress string //TODO: []byte
-	ToAddress   string //TODO: []byte
+	FromAddress [addressLength]byte
+	ToAddress   [addressLength]byte
 	Signature   []byte
 }
 
@@ -120,7 +120,7 @@ type CancelOrder struct { //goes on match chain
 
 type ClaimFunds struct {
 	ID      uint64
-	Address string
+	Address [addressLength]byte
 	Amount  uint64
 }
 

@@ -7,8 +7,8 @@ import (
 
 type ConsensusStateToken struct {
 	openOrders     map[uint64]Order
-	balances       map[string]uint64
-	unclaimedFunds map[string]uint64
+	balances       map[[addressLength]byte]uint64
+	unclaimedFunds map[[addressLength]byte]uint64
 	//unclaimedFundsLock sync.Mutex
 	deletedOrders map[uint64]Order
 	//deletedOrdersLock sync.Mutex
@@ -16,16 +16,16 @@ type ConsensusStateToken struct {
 }
 
 type ConsensusState struct {
-	tokenStates    map[string]*ConsensusStateToken
-	createdTokens  map[string]TokenInfo
-	usedMatchIDs   map[uint64]bool
+	tokenStates   map[string]*ConsensusStateToken
+	createdTokens map[string]TokenInfo
+	usedMatchIDs  map[uint64]bool
 }
 
 func NewConsensusStateToken() *ConsensusStateToken {
 	token := ConsensusStateToken{}
 	token.openOrders = make(map[uint64]Order)
-	token.balances = make(map[string]uint64)
-	token.unclaimedFunds = make(map[string]uint64)
+	token.balances = make(map[[addressLength]byte]uint64)
+	token.unclaimedFunds = make(map[[addressLength]byte]uint64)
 	token.deletedOrders = make(map[uint64]Order)
 	token.usedTransferIDs = make(map[uint64]bool)
 	return &token
@@ -81,9 +81,9 @@ func (state *ConsensusState) RollbackOrder(symbol string, order Order, blockchai
 		blockchains.RollbackToHeight(MATCH_CHAIN, blockchains.chains[MATCH_CHAIN].height, false)
 	}
 
-	for  _, ok := tokenState.openOrders[order.ID]; !ok; _, ok = tokenState.openOrders[order.ID] {
-		Log("Rolling back match chain to height %v as Order %v does not show up in open orders", blockchains.chains[MATCH_CHAIN].height - 1, order.ID)
-		blockchains.RollbackToHeight(MATCH_CHAIN, blockchains.chains[MATCH_CHAIN].height - 1, false)
+	for _, ok := tokenState.openOrders[order.ID]; !ok; _, ok = tokenState.openOrders[order.ID] {
+		Log("Rolling back match chain to height %v as Order %v does not show up in open orders", blockchains.chains[MATCH_CHAIN].height-1, order.ID)
+		blockchains.RollbackToHeight(MATCH_CHAIN, blockchains.chains[MATCH_CHAIN].height-1, false)
 	}
 
 	delete(tokenState.openOrders, order.ID)
@@ -191,7 +191,7 @@ func (state *ConsensusState) AddMatch(match Match) bool {
 	if buyOrder.AmountToBuy > sellOrder.AmountToSell {
 		transferAmt = sellOrder.AmountToSell
 		sellerBaseGain = sellOrder.AmountToBuy
-		if buyPrice * float64(transferAmt) > float64(^uint64(0)) {
+		if buyPrice*float64(transferAmt) > float64(^uint64(0)) {
 			Log("Match failed due to buy overflow")
 			return false
 		}
@@ -200,7 +200,7 @@ func (state *ConsensusState) AddMatch(match Match) bool {
 	} else { // buyOrder.AmountToBuy <= sellOrder.AmountToSell
 		transferAmt = buyOrder.AmountToBuy
 		buyerBaseLoss = buyOrder.AmountToSell
-		if sellPrice * float64(transferAmt) > float64(^uint64(0)) {
+		if sellPrice*float64(transferAmt) > float64(^uint64(0)) {
 			Log("Match failed due to sell overflow")
 			return false
 		}
@@ -302,7 +302,7 @@ func (state *ConsensusState) RollbackMatch(match Match, blockchains *Blockchains
 
 	for buyTokenState.unclaimedFunds[sellOrder.SellerAddress] < match.SellerGain {
 		Log("Rolling back token %v to height %v as rolling back match %v would result in a negative unclaimed funds", match.BuySymbol, blockchains.chains[match.SellSymbol].height, match)
-		blockchains.RollbackToHeight(match.BuySymbol, blockchains.chains[match.BuySymbol].height - 1, false)
+		blockchains.RollbackToHeight(match.BuySymbol, blockchains.chains[match.BuySymbol].height-1, false)
 	}
 	buyTokenState.unclaimedFunds[sellOrder.SellerAddress] -= match.SellerGain
 
@@ -314,7 +314,7 @@ func (state *ConsensusState) RollbackMatch(match Match, blockchains *Blockchains
 
 	for sellTokenState.unclaimedFunds[buyOrder.SellerAddress] < match.TransferAmt {
 		Log("Rolling back token %v to height %v as rolling back match %v would result in a negative unclaimed funds", match.SellSymbol, blockchains.chains[match.SellSymbol].height, match)
-		blockchains.RollbackToHeight(match.SellSymbol, blockchains.chains[match.SellSymbol].height - 1, false)
+		blockchains.RollbackToHeight(match.SellSymbol, blockchains.chains[match.SellSymbol].height-1, false)
 	}
 	sellTokenState.unclaimedFunds[buyOrder.SellerAddress] -= match.TransferAmt
 
