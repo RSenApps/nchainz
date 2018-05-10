@@ -618,13 +618,27 @@ func (blockchains *Blockchains) addGenericTransaction(symbol string, transaction
 }
 
 func (blockchains *Blockchains) rollbackGenericTransaction(symbol string, transaction GenericTransaction, mined bool) {
+	var buyOrder, sellOrder Order
+	if mined {
+		buyOrder, sellOrder = blockchains.consensusState.GetBuySellOrdersForMatch(transaction.Transaction.(Match))
+	}
+
 	switch transaction.TransactionType {
 	case ORDER:
 		blockchains.consensusState.RollbackUntilRollbackOrderSucceeds(symbol, transaction.Transaction.(Order), blockchains, mined)
+		blockchains.consensusState.RollbackOrder(symbol, transaction.Transaction.(Order))
+	case CLAIM_FUNDS:
+		blockchains.consensusState.RollbackClaimFunds(symbol, transaction.Transaction.(ClaimFunds))
+	case TRANSFER:
+		blockchains.consensusState.RollbackTransfer(symbol, transaction.Transaction.(Transfer))
 	case MATCH:
 		blockchains.consensusState.RollbackUntilRollbackMatchSucceeds(transaction.Transaction.(Match), blockchains, mined)
+		blockchains.consensusState.RollbackMatch(transaction.Transaction.(Match))
 	case CANCEL_ORDER:
 		blockchains.consensusState.RollbackUntilRollbackCancelOrderSucceeds(transaction.Transaction.(CancelOrder), blockchains, mined)
+		blockchains.consensusState.RollbackCancelOrder(transaction.Transaction.(CancelOrder))
+	case CREATE_TOKEN:
+		blockchains.consensusState.RollbackCreateToken(transaction.Transaction.(CreateToken), blockchains)
 	}
 
 	if mined {
@@ -632,26 +646,10 @@ func (blockchains *Blockchains) rollbackGenericTransaction(symbol string, transa
 		case ORDER:
 			blockchains.matcher.RemoveOrder(transaction.Transaction.(Order), symbol)
 		case MATCH:
-			buyOrder, sellOrder := blockchains.consensusState.GetBuySellOrdersForMatch(transaction.Transaction.(Match))
 			blockchains.matcher.RemoveMatch(transaction.Transaction.(Match), buyOrder, sellOrder)
 		case CANCEL_ORDER:
 			blockchains.matcher.RemoveCancelOrder(transaction.Transaction.(CancelOrder))
 		}
-	}
-
-	switch transaction.TransactionType {
-	case ORDER:
-		blockchains.consensusState.RollbackOrder(symbol, transaction.Transaction.(Order))
-	case CLAIM_FUNDS:
-		blockchains.consensusState.RollbackClaimFunds(symbol, transaction.Transaction.(ClaimFunds))
-	case TRANSFER:
-		blockchains.consensusState.RollbackTransfer(symbol, transaction.Transaction.(Transfer))
-	case MATCH:
-		blockchains.consensusState.RollbackMatch(transaction.Transaction.(Match))
-	case CANCEL_ORDER:
-		blockchains.consensusState.RollbackCancelOrder(transaction.Transaction.(CancelOrder))
-	case CREATE_TOKEN:
-		blockchains.consensusState.RollbackCreateToken(transaction.Transaction.(CreateToken), blockchains)
 	}
 }
 
