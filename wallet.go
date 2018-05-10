@@ -14,6 +14,9 @@ import (
 	"os"
 )
 
+// Based on Jeiwan's tutorial
+// https://jeiwan.cc/posts/building-blockchain-in-go-part-5/
+
 const checksumLength = 4
 const version = byte(0x00)
 const walletFile = "wallet.dat"
@@ -109,6 +112,27 @@ func encodeBase58(data []byte) []byte {
 	return result
 }
 
+//
+// Helper method to decode base 58-encoded byte array
+//
+func decodeBase58(input []byte) []byte {
+	result := big.NewInt(0)
+
+	for _, b := range input {
+		charIndex := bytes.IndexByte(b58Alphabet, b)
+		result.Mul(result, big.NewInt(58))
+		result.Add(result, big.NewInt(int64(charIndex)))
+	}
+
+	decoded := result.Bytes()
+
+	if input[0] == b58Alphabet[0] {
+		decoded = append([]byte{0x00}, decoded...)
+	}
+
+	return decoded
+}
+
 // Storage for group of wallets
 type WalletStore struct {
 	Wallets map[string]*Wallet
@@ -178,4 +202,27 @@ func (ws *WalletStore) GetAddresses() []string {
 	}
 
 	return addresses
+}
+
+//
+// Helper method for ValidateAddress
+//
+func checksum(data []byte) []byte {
+	first := sha256.Sum256(data)
+	second := sha256.Sum256(first[:])
+	return second[:checksumLength]
+}
+
+//
+// Check if an address is valid
+//
+func ValidateAddress(address string) bool {
+	publicKeyHash := decodeBase58([]byte(address))
+	actualChecksum := publicKeyHash[len(publicKeyHash)-checksumLength:]
+	version := publicKeyHash[0]
+	publicKeyHash = publicKeyHash[1 : len(publicKeyHash)-checksumLength]
+
+	goalChecksum := checksum(append([]byte{version}, publicKeyHash...))
+
+	return bytes.Compare(actualChecksum, goalChecksum) == 0
 }
