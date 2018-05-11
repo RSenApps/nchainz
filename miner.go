@@ -1,5 +1,7 @@
 package main
 
+const MAX_BLOCK_SIZE = 20
+
 type NewBlockMsg struct {
 	BlockType BlockType // type of block we are adding transactions to
 	LastHash  []byte    // hash of previous block
@@ -59,7 +61,7 @@ func (miner *Miner) mineLoop() {
 					txInBlock = make(map[string]GenericTransaction)
 					Log("Mining new block: %s %v", newBlock.Symbol, newBlock.BlockType)
 				}
-			} else if msg.MinerRound == miner.minerRound {
+			} else if msg.MinerRound == miner.minerRound && len(txInBlock) < MAX_BLOCK_SIZE {
 				transaction := msg.Msg.(GenericTransaction)
 
 				if block == nil {
@@ -85,7 +87,7 @@ func (miner *Miner) mineLoop() {
 		default:
 			// Try to mine
 			if block != nil {
-				if len(miner.transactions) > 0 {
+				if len(miner.transactions) > 0 && len(txInBlock) < MAX_BLOCK_SIZE {
 					for t := range miner.transactions {
 						block.AddTransaction(miner.transactions[t])
 						txInBlock[miner.transactions[t].ID()] = miner.transactions[t]
