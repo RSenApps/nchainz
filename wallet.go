@@ -13,6 +13,7 @@ import (
 	"log"
 	"math/big"
 	"os"
+	"strings"
 )
 
 // Based on Jeiwan's tutorial
@@ -165,8 +166,11 @@ func NewWalletStore() *WalletStore {
 func (ws *WalletStore) AddWallet() string {
 	wallet := NewWallet()
 	addressArray := wallet.GetAddress()
-	address := string(addressArray[:addressLength])
+	address := fmt.Sprintf("%s", addressArray)
+
+	fmt.Printf("Adding wallet with address %v\n", address)
 	ws.Wallets[address] = wallet
+	fmt.Println("Walletstore is now", ws.Wallets)
 	return address
 }
 
@@ -193,8 +197,17 @@ func (ws *WalletStore) Download() {
 //
 // Get a Wallet from its address
 //
-func (ws *WalletStore) GetWallet(address string) *Wallet {
-	return ws.Wallets[address]
+func (ws *WalletStore) GetWallet(address string) Wallet {
+	fmt.Println("Walletstore is now", ws.Wallets)
+
+	for w := range ws.Wallets {
+		fmt.Println("w in wallet is the same", strings.TrimSpace(w) == strings.TrimSpace(address))
+		fmt.Println(".........", w, "........", address, ".........")
+	}
+
+	fmt.Println("The wallet we want to get is", *ws.Wallets[address])
+	fmt.Println("The wallet's public key is", (*ws.Wallets[address]).PublicKey)
+	return *ws.Wallets[address]
 }
 
 //

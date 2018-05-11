@@ -258,6 +258,8 @@ func (blockchains *Blockchains) GetBalance(symbol string, address string) (uint6
 	ws := NewWalletStore()
 	w := ws.GetWallet(address)
 
+	fmt.Println(w)
+
 	balance, ok := state.balances[w.PublicKey]
 	return balance, ok
 }
