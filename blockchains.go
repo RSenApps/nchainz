@@ -71,7 +71,7 @@ func CreateNewBlockchains(dbName string, startMining bool) *Blockchains {
 		blockchains.recovering = false
 	}
 	if startMining {
-		go blockchains.StartMining()
+		go blockchains.StartMining(true)
 		go blockchains.ApplyLoop()
 	}
 	return blockchains
@@ -319,17 +319,21 @@ func (blockchains *Blockchains) AddTransactionToMempool(tx GenericTransaction, s
 	return true
 }
 
-func (blockchains *Blockchains) StartMining() {
+func (blockchains *Blockchains) StartMining(chooseNewToken bool) {
 	blockchains.chainsLock.Lock()
 	blockchains.mempoolsLock.Lock()
 	Log("Start mining")
 	// Pick a random token to start mining
-	var tokens []string
-	for token := range blockchains.mempools {
-		tokens = append(tokens, token)
+	if chooseNewToken {
+		var tokens []string
+		for token := range blockchains.mempools {
+			tokens = append(tokens, token)
+		}
+		blockchains.minerChosenToken = tokens[rand.Intn(len(tokens))]
 	}
-	newToken := tokens[rand.Intn(len(tokens))]
-	blockchains.minerChosenToken = newToken
+
+	newToken := blockchains.minerChosenToken
+
 	var txInPool []GenericTransaction
 	for _, tx := range blockchains.mempools[blockchains.minerChosenToken] {
 		txInPool = append(txInPool, tx)
@@ -410,7 +414,7 @@ func (blockchains *Blockchains) ApplyLoop() {
 				//WARNING taking both locks always take chain lock first
 				blockchains.mempoolsLock.Unlock()
 				blockchains.chainsLock.Unlock()
-
+				blockchains.StartMining(false)
 			} else {
 				blockchains.chains[blockMsg.Symbol].AddBlock(blockMsg.Block)
 
@@ -442,6 +446,8 @@ func (blockchains *Blockchains) ApplyLoop() {
 				blockchains.chainsLock.Unlock()
 
 				blockchains.matcher.FindAllMatches()
+				blockchains.StartMining(true)
+
 			}
 
 		case symbol := <-blockchains.stopMiningCh:
@@ -452,9 +458,8 @@ func (blockchains *Blockchains) ApplyLoop() {
 			}
 			Log("Restarting mining due to new block being added or removed")
 			blockchains.chainsLock.Unlock()
+			blockchains.StartMining(false)
 		}
-
-		blockchains.StartMining()
 
 	}
 }
