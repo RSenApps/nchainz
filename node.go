@@ -217,7 +217,6 @@ type InvArgs struct {
 func (node *Node) Inv(args *InvArgs, reply *bool) error {
 	Log("Received INV from %s", args.From)
 	defer Log("Done handling INV from %s", args.From)
-	defer node.tolerateRetry()
 
 	peerState := node.getPeerState(args.From)
 	if peerState != ACTIVE && peerState != FOUND {
@@ -512,6 +511,7 @@ func (node *Node) connectPeerIfNew(peerIp string) (isNew bool, peer *Peer, err e
 func (node *Node) reconcileChain(peerIp string, symbol string, theirBlockhashes [][]byte, theirHeight uint64) error {
 	node.reconcileMu.Lock()
 	defer node.reconcileMu.Unlock()
+	defer node.tolerateRetry()
 
 	node.bcs.chainsLock.RLock()
 
