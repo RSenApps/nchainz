@@ -7,13 +7,11 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/gob"
-	"fmt"
 	"golang.org/x/crypto/ripemd160" // go get -u golang.org/x/crypto/ripemd160
 	"io/ioutil"
 	"log"
 	"math/big"
 	"os"
-	"strings"
 )
 
 // Based on Jeiwan's tutorial
@@ -23,7 +21,7 @@ import (
 const checksumLength = 4
 const version = byte(0x00)
 const walletFile = "wallet.dat"
-const addressLength = 64
+const addressLength = 34
 const addressChecksumLen = 4
 
 type Wallet struct {
@@ -65,7 +63,6 @@ func (w Wallet) GetAddress() [addressLength]byte {
 	// Get checksum
 	checksum := getChecksum(rawAddress)
 
-	fmt.Printf("original checksum %x, made up of version and %x\n", checksum, publicKeyHash)
 	// Apppend checksum
 	rawAddress = append(rawAddress, checksum...)
 
@@ -166,11 +163,9 @@ func NewWalletStore() *WalletStore {
 func (ws *WalletStore) AddWallet() string {
 	wallet := NewWallet()
 	addressArray := wallet.GetAddress()
-	address := fmt.Sprintf("%s", addressArray)
+	address := string(addressArray[:addressLength])
 
-	fmt.Printf("Adding wallet with address %v\n", address)
 	ws.Wallets[address] = wallet
-	fmt.Println("Walletstore is now", ws.Wallets)
 	return address
 }
 
@@ -198,15 +193,6 @@ func (ws *WalletStore) Download() {
 // Get a Wallet from its address
 //
 func (ws *WalletStore) GetWallet(address string) Wallet {
-	fmt.Println("Walletstore is now", ws.Wallets)
-
-	for w := range ws.Wallets {
-		fmt.Println("w in wallet is the same", strings.TrimSpace(w) == strings.TrimSpace(address))
-		fmt.Println(".........", w, "........", address, ".........")
-	}
-
-	fmt.Println("The wallet we want to get is", *ws.Wallets[address])
-	fmt.Println("The wallet's public key is", (*ws.Wallets[address]).PublicKey)
 	return *ws.Wallets[address]
 }
 
@@ -251,7 +237,5 @@ func ValidateAddress(address string) bool {
 
 	goalChecksum := getChecksum(append([]byte{version}, publicKeyHash...))
 
-	fmt.Printf("%x %x\n", actualChecksum, goalChecksum)
-	fmt.Printf("Goal checksum made up of version and %x\n", publicKeyHash)
 	return bytes.Compare(actualChecksum, goalChecksum) == 0
 }

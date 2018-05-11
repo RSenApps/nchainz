@@ -214,7 +214,7 @@ func (cli *CLI) printChain(db string, symbol string) {
 	isGenesis := true
 	for err == nil {
 		fmt.Printf("Prev Hash: %x\n", block.PrevBlockHash)
-		fmt.Printf("Data: %s\n", block.Data)
+		fmt.Printf("Data: %x\n", block.Data)
 		fmt.Printf("Hash: %x\n", block.Hash)
 		pow := NewProofOfWork(block)
 		if !isGenesis {
