@@ -87,8 +87,11 @@ func (miner *Miner) mineLoop() {
 		default:
 			// Try to mine
 			if block != nil {
-				if len(miner.transactions) > 0 && len(txInBlock) < MAX_BLOCK_SIZE {
+				if len(miner.transactions) > 0 {
 					for t := range miner.transactions {
+						if len(txInBlock) >= MAX_BLOCK_SIZE {
+							break
+						}
 						block.AddTransaction(miner.transactions[t])
 						txInBlock[miner.transactions[t].ID()] = miner.transactions[t]
 					}
