@@ -24,9 +24,13 @@ func TestBasicTransfer(t *testing.T) {
 		return
 	}
 
-	client.Transfer(500, "NATIVE", "Satoshi", "x")
+	ws := NewWalletStore(false)
+	address := ws.AddWallet()
+	client.Transfer(500, "NATIVE", "1Q7dtsdKSy5dzMbnThuf9EF596qumH69gA", address)
 
-	success := checkBalance(client, []string{"Satoshi", "x"}, []uint64{99999500, 500}, "NATIVE")
+	success := checkBalance(client, []string{"1Q7dtsdKSy5dzMbnThuf9EF596qumH69gA", address}, []uint64{99999500, 500}, "NATIVE")
+
+	client.Transfer(500, "NATIVE", address, "1Q7dtsdKSy5dzMbnThuf9EF596qumH69gA")
 
 	if success {
 		LogRed("Passed: basic transfers")
@@ -50,14 +54,18 @@ func TestSwapTransfer(t *testing.T) {
 		return
 	}
 
-	client.Transfer(500, "NATIVE", "Satoshi", "x")
-	success := checkBalance(client, []string{"Satoshi", "x"}, []uint64{99999500, 500}, "NATIVE")
+	ws := NewWalletStore(false)
+	address := ws.AddWallet()
+
+	client.Transfer(500, "NATIVE", "1Q7dtsdKSy5dzMbnThuf9EF596qumH69gA", address)
+	success := checkBalance(client, []string{"1Q7dtsdKSy5dzMbnThuf9EF596qumH69gA", address}, []uint64{99999500, 500}, "NATIVE")
+
 	if !success {
 		t.Fatal("FAILED: swap transfers")
 	}
 
-	client.Transfer(500, "NATIVE", "x", "Satoshi")
-	success = checkBalance(client, []string{"Satoshi", "x"}, []uint64{100000000, 0}, "NATIVE")
+	client.Transfer(500, "NATIVE", "1Q7dtsdKSy5dzMbnThuf9EF596qumH69gA", "Satoshi")
+	success = checkBalance(client, []string{"1Q7dtsdKSy5dzMbnThuf9EF596qumH69gA", "x"}, []uint64{100000000, 0}, "NATIVE")
 
 	if success {
 		LogRed("Passed: swap transfers")
@@ -81,16 +89,21 @@ func TestManyTransfers(t *testing.T) {
 		return
 	}
 
+	ws := NewWalletStore(false)
+	address := ws.AddWallet()
+
 	for i := 0; i < 10000; i++ {
-		client.Transfer(10, "NATIVE", "Satoshi", "x")
+		client.Transfer(10, "NATIVE", "1Q7dtsdKSy5dzMbnThuf9EF596qumH69gA", address)
 	}
-	success := checkBalance(client, []string{"Satoshi", "x"}, []uint64{99900000, 100000}, "NATIVE")
+	success := checkBalance(client, []string{"1Q7dtsdKSy5dzMbnThuf9EF596qumH69gA", address}, []uint64{99900000, 100000}, "NATIVE")
 
 	if success {
 		LogRed("Passed: many transfers")
 	} else {
 		t.Fatal("FAILED: many transfers")
 	}
+
+	client.Transfer(100000, "NATIVE", address, "1Q7dtsdKSy5dzMbnThuf9EF596qumH69gA")
 
 	fmt.Println()
 }
@@ -119,23 +132,26 @@ func TestMultipleClients(t *testing.T) {
 		return
 	}
 
+	ws := NewWalletStore(false)
+	address := ws.AddWallet()
+
 	amounts := []uint64{100, 300, 200, 400}
 
 	for i := 0; i < len(amounts); i++ {
-		client1.Transfer(amounts[i], "NATIVE", "Satoshi", "x")
-		client2.Transfer(amounts[i], "NATIVE", "Satoshi", "x")
-		client3.Transfer(amounts[i], "NATIVE", "Satoshi", "x")
+		client1.Transfer(amounts[i], "NATIVE", "1Q7dtsdKSy5dzMbnThuf9EF596qumH69gA", address)
+		client2.Transfer(amounts[i], "NATIVE", "1Q7dtsdKSy5dzMbnThuf9EF596qumH69gA", address)
+		client3.Transfer(amounts[i], "NATIVE", "1Q7dtsdKSy5dzMbnThuf9EF596qumH69gA", address)
 	}
 
-	success := checkBalance(client1, []string{"Satoshi", "x"}, []uint64{99997000, 3000}, "NATIVE")
+	success := checkBalance(client1, []string{"1Q7dtsdKSy5dzMbnThuf9EF596qumH69gA", address}, []uint64{99997000, 3000}, "NATIVE")
 	if !success {
 		t.Fatal("FAILED: multiple clients")
 	}
-	success = checkBalance(client1, []string{"Satoshi", "x"}, []uint64{99997000, 3000}, "NATIVE")
+	success = checkBalance(client1, []string{"1Q7dtsdKSy5dzMbnThuf9EF596qumH69gA", address}, []uint64{99997000, 3000}, "NATIVE")
 	if !success {
 		t.Fatal("FAILED: multiple clients")
 	}
-	success = checkBalance(client1, []string{"Satoshi", "x"}, []uint64{99997000, 3000}, "NATIVE")
+	success = checkBalance(client1, []string{"1Q7dtsdKSy5dzMbnThuf9EF596qumH69gA", address}, []uint64{99997000, 3000}, "NATIVE")
 	if !success {
 		t.Fatal("FAILED: multiple clients")
 	}
