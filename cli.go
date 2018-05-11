@@ -227,7 +227,7 @@ func (cli *CLI) printChain(db string, symbol string) {
 }
 
 func (cli *CLI) printAddresses() {
-	ws := NewWalletStore()
+	ws := NewWalletStore(false)
 	addresses := ws.GetAddresses()
 
 	for _, address := range addresses {
@@ -236,7 +236,7 @@ func (cli *CLI) printAddresses() {
 }
 
 func (cli *CLI) createWallet() {
-	ws := NewWalletStore()
+	ws := NewWalletStore(false)
 	address := ws.AddWallet()
 	ws.Persist()
 

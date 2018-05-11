@@ -129,9 +129,9 @@ func GetBytes(key interface{}) []byte {
 }
 
 func NewGenesisBlock() *Block {
-	ws := NewWalletStore()
-	address := ws.AddWallet()
-	w := ws.GetWallet(address)
+	ws := NewWalletStore(true)
+	addresses := ws.GetAddresses()
+	w := ws.GetWallet(addresses[0])
 
 	createToken := CreateToken{
 		TokenInfo: TokenInfo{

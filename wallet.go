@@ -152,10 +152,15 @@ type WalletStore struct {
 	Wallets map[string]*Wallet
 }
 
-func NewWalletStore() *WalletStore {
+func NewWalletStore(isGenesis bool) *WalletStore {
 	ws := WalletStore{}
 	ws.Wallets = make(map[string]*Wallet)
-	ws.Download()
+
+	ws.Download(genesisFile)
+	if !isGenesis {
+		ws.Download(walletFile)
+	}
+
 	return &ws
 }
 
@@ -172,11 +177,11 @@ func (ws *WalletStore) AddWallet() string {
 	return address
 }
 
-func (ws *WalletStore) Download() {
-	if _, err := os.Stat(walletFile); os.IsNotExist(err) {
+func (ws *WalletStore) Download(file string) {
+	if _, err := os.Stat(file); os.IsNotExist(err) {
 		return
 	}
-	fileContent, err := ioutil.ReadFile(walletFile)
+	fileContent, err := ioutil.ReadFile(file)
 	if err != nil {
 		log.Panic(err)
 	}
@@ -189,7 +194,10 @@ func (ws *WalletStore) Download() {
 		log.Panic(err)
 	}
 
-	ws.Wallets = newWS.Wallets
+	// Take union of two wallets so we can get genesis block
+	for k, v := range newWS.Wallets {
+		ws.Wallets[k] = v
+	}
 }
 
 //

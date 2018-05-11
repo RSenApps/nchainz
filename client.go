@@ -58,7 +58,7 @@ func (client *Client) Order(buyAmt uint64, buySymbol string, sellAmt uint64, sel
 	var empty []byte
 	id := rand.Uint64()
 
-	ws := NewWalletStore()
+	ws := NewWalletStore(false)
 	w := ws.GetWallet(seller)
 
 	order := Order{id, buySymbol, sellAmt, buyAmt, w.PublicKey, empty}
@@ -77,7 +77,7 @@ func (client *Client) Transfer(amount uint64, symbol string, from string, to str
 	var empty []byte
 	id := rand.Uint64()
 
-	ws := NewWalletStore()
+	ws := NewWalletStore(false)
 	wfrom := ws.GetWallet(from)
 	wto := ws.GetWallet(to)
 
@@ -107,7 +107,7 @@ func (client *Client) Claim(amount uint64, symbol string, address string) {
 
 	id := rand.Uint64()
 
-	ws := NewWalletStore()
+	ws := NewWalletStore(false)
 	w := ws.GetWallet(address)
 
 	claim := ClaimFunds{id, w.PublicKey, amount}
@@ -126,7 +126,7 @@ func (client *Client) Create(symbol string, supply uint64, decimals uint8, addre
 	var empty []byte
 	tokenInfo := TokenInfo{symbol, supply, decimals}
 
-	ws := NewWalletStore()
+	ws := NewWalletStore(false)
 	w := ws.GetWallet(address)
 
 	create := CreateToken{tokenInfo, w.PublicKey, empty}
