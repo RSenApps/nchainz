@@ -44,8 +44,8 @@ func (ob *Orderbook) Add(order *Order, sellSymbol string) {
 		ob.BaseQueue.Enq(order)
 	}
 
-	Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.QuoteQueue)
-	Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.BaseQueue)
+	//Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.QuoteQueue)
+	//Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.BaseQueue)
 }
 
 func (ob *Orderbook) Cancel(order *Order, sellSymbol string) {
@@ -58,8 +58,8 @@ func (ob *Orderbook) Cancel(order *Order, sellSymbol string) {
 		ob.BaseQueue.Remove(order.ID)
 	}
 
-	Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.QuoteQueue)
-	Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.BaseQueue)
+	//Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.QuoteQueue)
+	//Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.BaseQueue)
 }
 
 func (ob *Orderbook) ApplyMatch(match *Match) {
@@ -72,8 +72,16 @@ func (ob *Orderbook) ApplyMatch(match *Match) {
 }
 
 func (ob *Orderbook) applyMatchUnlocked(match *Match) {
-	buyOrder, _ := ob.QuoteQueue.GetOrder(match.BuyOrderID)
-	sellOrder, _ := ob.BaseQueue.GetOrder(match.SellOrderID)
+	buyOrder, ok := ob.QuoteQueue.GetOrder(match.BuyOrderID)
+	if !ok {
+		Log("Buy Order %v does not exist for match %v", match.BuyOrderID, match)
+		panic("error")
+	}
+	sellOrder, ok := ob.BaseQueue.GetOrder(match.SellOrderID)
+	if !ok {
+		Log("Sell Order %v does not exist for match %v", match.SellOrderID, match)
+		panic("error")
+	}
 
 	buyOrder.AmountToBuy -= match.TransferAmt
 	buyOrder.AmountToSell -= match.BuyerLoss
@@ -95,8 +103,8 @@ func (ob *Orderbook) applyMatchUnlocked(match *Match) {
 
 	Log("Result of applying match buy order %v sell order %v", buyOrder, sellOrder)
 
-	Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.QuoteQueue)
-	Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.BaseQueue)
+	//Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.QuoteQueue)
+	//Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.BaseQueue)
 }
 
 func (ob *Orderbook) UnapplyMatch(match *Match, order1 *Order, order2 *Order) {
@@ -140,8 +148,8 @@ func (ob *Orderbook) unapplyMatchUnlocked(match *Match, order1 *Order, order2 *O
 	ob.QuoteQueue.FixPrice(buyOrder.ID)
 	ob.BaseQueue.FixPrice(sellOrder.ID)
 
-	Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.QuoteQueue)
-	Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.BaseQueue)
+	//Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.QuoteQueue)
+	//Log("%s %v", GetBookName(ob.BaseSymbol, ob.QuoteSymbol), ob.BaseQueue)
 }
 
 func (ob *Orderbook) FindMatch() (found bool, match *Match) {
