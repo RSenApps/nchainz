@@ -262,6 +262,18 @@ func (blockchains *Blockchains) GetBalance(symbol string, address string) (uint6
 	return balance, ok
 }
 
+func (blockchains *Blockchains) GetUnclaimedBalance(symbol string, address string) (uint64, bool) {
+	blockchains.chainsLock.RLock()
+	defer blockchains.chainsLock.RUnlock()
+	state, ok := blockchains.consensusState.tokenStates[symbol]
+	if !ok {
+		Log("GetBalance failed symbol %v does not exist", symbol)
+		return 0, false
+	}
+	balance, ok := state.unclaimedFunds[address]
+	return balance, ok
+}
+
 func (blockchains *Blockchains) GetOpenOrders(symbol string) map[uint64]Order {
 	blockchains.chainsLock.RLock()
 	defer blockchains.chainsLock.RUnlock()

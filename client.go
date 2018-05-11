@@ -152,12 +152,7 @@ func (client *Client) GetBalance(address string, symbol string) GetBalanceReply 
 		Log("Error communicating with node")
 		Log(err.Error())
 	}
-	if !reply.Success {
-		Log("Node rejected GetBalance")
-	} else {
-		Log("Adddress %v has amount: %v %v", address, reply.Amount, symbol)
-	}
-
+	Log("Address %v has Total Balance: %v (Available: %v, Unclaimed: %v)", address, reply.Amount+reply.Unclaimed, reply.Amount, reply.Unclaimed)
 	return reply
 }
 

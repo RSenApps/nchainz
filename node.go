@@ -403,15 +403,25 @@ type GetBalanceArgs struct {
 }
 
 type GetBalanceReply struct {
-	Amount  uint64
-	Success bool
+	Amount    uint64
+	Unclaimed uint64
 }
 
 func (node *Node) GetBalance(args *GetBalanceArgs, reply *GetBalanceReply) error {
 	Log("Received GetBalance for address %v symbol %v", args.Address, args.Symbol)
 	amount, ok := node.bcs.GetBalance(args.Symbol, args.Address)
-	reply.Success = ok
-	reply.Amount = amount
+	if ok {
+		reply.Amount = amount
+	} else {
+		reply.Amount = 0
+	}
+
+	unclaimed, ok := node.bcs.GetUnclaimedBalance(args.Symbol, args.Address)
+	if !ok {
+		reply.Unclaimed = unclaimed
+	} else {
+		reply.Unclaimed = 0
+	}
 	return nil
 }
 
