@@ -258,10 +258,12 @@ func (blockchains *Blockchains) GetBalance(symbol string, address string) (uint6
 	ws := NewWalletStore()
 	w := ws.GetWallet(address)
 
-	fmt.Println(w)
-
 	balance, ok := state.balances[w.PublicKey]
-	return balance, ok
+	if !ok {
+		return 0, true
+	} else {
+		return balance, ok
+	}
 }
 
 func (blockchains *Blockchains) GetOpenOrders(symbol string) map[uint64]Order {
