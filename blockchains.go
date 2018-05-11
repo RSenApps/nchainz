@@ -418,10 +418,10 @@ func (blockchains *Blockchains) ApplyLoop() {
 				txInBlock := blockMsg.TxInBlock
 				Log("%v tx mined in block and added to chain %v", len(txInBlock), blockMsg.Symbol)
 
-				var newUncommitted []GenericTransaction
+				var stillUncommitted UncommittedTransactions
 				for _, tx := range blockchains.mempoolUncommitted[blockMsg.Symbol].transactions {
 					if _, ok := txInBlock[tx.ID()]; !ok {
-						newUncommitted = append(newUncommitted, tx)
+						stillUncommitted.transactions = append(stillUncommitted.transactions, tx)
 					} else {
 						Log("%tx mined in block and deleted from mempool %v", tx)
 						switch tx.TransactionType {
@@ -436,7 +436,8 @@ func (blockchains *Blockchains) ApplyLoop() {
 					}
 				}
 
-				blockchains.mempoolUncommitted[blockMsg.Symbol].transactions = newUncommitted
+				stillUncommitted.undoTransactions(blockMsg.Symbol, blockchains, false)
+				blockchains.mempoolUncommitted[blockMsg.Symbol] = &UncommittedTransactions{}
 				blockchains.mempoolsLock.Unlock()
 				blockchains.chainsLock.Unlock()
 
