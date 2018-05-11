@@ -20,7 +20,9 @@ import (
 
 const checksumLength = 4
 const version = byte(0x00)
+
 const walletFile = "wallet.dat"
+const genesisFile = "genesis.dat"
 const addressLength = 34
 const addressChecksumLen = 4
 
@@ -166,6 +168,7 @@ func (ws *WalletStore) AddWallet() string {
 	address := string(addressArray[:addressLength])
 
 	ws.Wallets[address] = wallet
+	ws.Persist()
 	return address
 }
 

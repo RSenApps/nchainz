@@ -3,7 +3,7 @@ case $1 in
     rm -rf db
     mkdir db
     go install
-    rm *.dat
+    rm wallet.dat
     ;;
   "STOP")    
     pkill -f "dex"
