@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"crypto/ecdsa"
+	"crypto/rand"
 	"encoding/gob"
 	"fmt"
 )
@@ -83,6 +85,11 @@ type CreateToken struct {
 	Signature      []byte
 }
 
+type UnsignedCreateToken struct {
+	TokenInfo      TokenInfo
+	CreatorAddress [addressLength]byte
+}
+
 //surplus goes to miner
 type Match struct {
 	MatchID     uint64
@@ -104,6 +111,14 @@ type Order struct {
 	Signature     []byte
 }
 
+type UnsignedOrder struct {
+	ID            uint64
+	BuySymbol     string
+	AmountToSell  uint64
+	AmountToBuy   uint64
+	SellerAddress [addressLength]byte
+}
+
 type Transfer struct {
 	ID          uint64
 	Amount      uint64
@@ -112,10 +127,22 @@ type Transfer struct {
 	Signature   []byte
 }
 
+type UnsignedTransfer struct {
+	ID          uint64
+	Amount      uint64
+	FromAddress [addressLength]byte
+	ToAddress   [addressLength]byte
+}
+
 type CancelOrder struct { //goes on match chain
 	OrderSymbol string
 	OrderID     uint64
 	Signature   []byte
+}
+
+type UnsignedCancelOrder struct { //goes on match chain
+	OrderSymbol string
+	OrderID     uint64
 }
 
 type ClaimFunds struct {
@@ -248,4 +275,47 @@ func (b *Block) Dump() string {
 	default:
 		return ""
 	}
+}
+
+//
+// Serialize a transaction (minus the signature) so we can hash and sign it
+//
+func (tx GenericTransaction) Serialize() []byte {
+	switch tx.TransactionType {
+	case MATCH:
+		LogPanic("ERROR: should not sign match transaction")
+	case ORDER:
+		order := tx.Transaction.(Order)
+		unsignedTx := UnsignedOrder{order.ID, order.BuySymbol, order.AmountToSell, order.AmountToBuy, order.SellerAddress}
+		return GetBytes(unsignedTx)
+	case TRANSFER:
+		transfer := tx.Transaction.(Transfer)
+		unsignedTx := UnsignedTransfer{transfer.ID, transfer.Amount, transfer.FromAddress, transfer.ToAddress}
+		return GetBytes(unsignedTx)
+	case CANCEL_ORDER:
+		cancel := tx.Transaction.(CancelOrder)
+		unsignedTx := UnsignedCancelOrder{cancel.OrderSymbol, cancel.OrderID}
+		return GetBytes(unsignedTx)
+	case CLAIM_FUNDS:
+		LogPanic("ERROR: should not sign claim funds transaction")
+	case CREATE_TOKEN:
+		create := tx.Transaction.(CreateToken)
+		unsignedTx := UnsignedCreateToken{create.TokenInfo, create.CreatorAddress}
+		return GetBytes(unsignedTx)
+	default:
+		LogPanic("ERROR: unknown transaction type")
+	}
+
+	return nil
+}
+
+//
+// Sign a transaction
+// Input: private key
+// Output: signature
+//
+func Sign(privateKey ecdsa.PrivateKey, tx GenericTransaction) []byte {
+	r, s, _ := ecdsa.Sign(rand.Reader, &privateKey, tx.Serialize())
+	signature := append(r.Bytes(), s.Bytes()...)
+	return signature
 }

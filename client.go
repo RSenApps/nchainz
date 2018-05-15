@@ -83,10 +83,14 @@ func (client *Client) Order(buyAmt uint64, buySymbol string, sellAmt uint64, sel
 	ws := NewWalletStore(false)
 	w := ws.GetWallet(seller)
 
-	order := Order{id, buySymbol, sellAmt, buyAmt, w.PublicKey, empty}
-	tx := &GenericTransaction{order, ORDER}
+	unsignedOrder := Order{id, buySymbol, sellAmt, buyAmt, w.PublicKey, empty}
+	unsignedTx := &GenericTransaction{unsignedOrder, ORDER}
 
-	err := client.SendTx(tx, sellSymbol)
+	signature := Sign(w.PrivateKey, *unsignedTx)
+	signedOrder := Order{id, buySymbol, sellAmt, buyAmt, w.PublicKey, signature}
+	signedTx := &GenericTransaction{signedOrder, ORDER}
+
+	err := client.SendTx(signedTx, sellSymbol)
 	if err == nil {
 		Log("transaction id: %v", id)
 	}
@@ -103,10 +107,14 @@ func (client *Client) Transfer(amount uint64, symbol string, from string, to str
 	wfrom := ws.GetWallet(from)
 	wto := ws.GetWallet(to)
 
-	transfer := Transfer{id, amount, wfrom.PublicKey, wto.PublicKey, empty}
-	tx := &GenericTransaction{transfer, TRANSFER}
+	unsignedTransfer := Transfer{id, amount, wfrom.PublicKey, wto.PublicKey, empty}
+	unsignedTx := &GenericTransaction{unsignedTransfer, TRANSFER}
 
-	err := client.SendTx(tx, symbol)
+	signature := Sign(wfrom.PrivateKey, *unsignedTx)
+	signedTransfer := Transfer{id, amount, wfrom.PublicKey, wto.PublicKey, signature}
+	signedTx := &GenericTransaction{signedTransfer, TRANSFER}
+
+	err := client.SendTx(signedTx, symbol)
 	if err == nil {
 		Log("transaction id: %v", id)
 	}
@@ -116,11 +124,12 @@ func (client *Client) Cancel(symbol string, orderId uint64) {
 	Log("Client sending CANCEL_ORDER")
 	defer Log("Client done sending CANCEL_ORDER")
 
+	// Special case: sign cancel transaction in node.Tx()
 	var empty []byte
-	cancel := CancelOrder{symbol, orderId, empty}
-	tx := &GenericTransaction{cancel, CANCEL_ORDER}
+	unsignedCancel := CancelOrder{symbol, orderId, empty}
+	unsignedTx := &GenericTransaction{unsignedCancel, CANCEL_ORDER}
 
-	client.SendTx(tx, MATCH_CHAIN)
+	client.SendTx(unsignedTx, MATCH_CHAIN)
 }
 
 func (client *Client) Claim(amount uint64, symbol string, address string) {
@@ -151,10 +160,14 @@ func (client *Client) Create(symbol string, supply uint64, decimals uint8, addre
 	ws := NewWalletStore(false)
 	w := ws.GetWallet(address)
 
-	create := CreateToken{tokenInfo, w.PublicKey, empty}
-	tx := &GenericTransaction{create, CREATE_TOKEN}
+	unsignedCreate := CreateToken{tokenInfo, w.PublicKey, empty}
+	unsignedTx := &GenericTransaction{unsignedCreate, CREATE_TOKEN}
 
-	client.SendTx(tx, MATCH_CHAIN)
+	signature := Sign(w.PrivateKey, *unsignedTx)
+	signedCreate := CreateToken{tokenInfo, w.PublicKey, signature}
+	signedTx := &GenericTransaction{signedCreate, CREATE_TOKEN}
+
+	client.SendTx(signedTx, MATCH_CHAIN)
 }
 
 func (client *Client) GetBalance(address string, symbol string) GetBalanceReply {

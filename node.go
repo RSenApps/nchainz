@@ -362,13 +362,39 @@ func (node *Node) Tx(args *TxArgs, reply *bool) error {
 	Log("Received TX from %s %v", from, args.Tx)
 	defer Log("Done handling TX from %s", from)
 
-	new := node.bcs.AddTransactionToMempool(args.Tx, args.Symbol, true)
+	// Special case: sign cancel transactions here
+	if args.Tx.TransactionType == CANCEL_ORDER { // Is a cancel transaction
+		unsignedCancel := args.Tx.Transaction.(CancelOrder)
+		unsignedTx := args.Tx
+		success, addressArray := node.bcs.consensusState.GetCancelAddress(unsignedCancel)
+		if success {
+			// Sign the cancel transaction
+			address := string(addressArray[:addressLength])
+			ws := NewWalletStore(false)
+			w := ws.GetWallet(address)
+			signature := Sign(w.PrivateKey, unsignedTx)
+			signedCancel := CancelOrder{unsignedCancel.OrderSymbol, unsignedCancel.OrderID, signature}
+			signedTx := GenericTransaction{signedCancel, CANCEL_ORDER}
 
-	if new {
-		node.BroadcastTx(&args.Tx, args.Symbol)
-		*reply = true
-	} else {
-		*reply = false
+			// Add cancel transaction to mempool & broadcast
+			valid := node.bcs.AddTransactionToMempool(signedTx, args.Symbol, true)
+			if valid {
+				node.BroadcastTx(&signedTx, args.Symbol)
+				*reply = true
+			} else {
+				*reply = false
+			}
+		} else {
+			*reply = false
+		}
+	} else { // Not a cancel transaction
+		valid := node.bcs.AddTransactionToMempool(args.Tx, args.Symbol, true)
+		if valid {
+			node.BroadcastTx(&args.Tx, args.Symbol)
+			*reply = true
+		} else {
+			*reply = false
+		}
 	}
 
 	return nil

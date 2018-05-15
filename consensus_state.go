@@ -389,6 +389,22 @@ func (state *ConsensusState) AddCancelOrder(cancelOrder CancelOrder) bool {
 	return true
 }
 
+func (state *ConsensusState) GetCancelAddress(cancelOrder CancelOrder) (bool, [addressLength]byte) {
+	tokenState, symbolExists := state.tokenStates[cancelOrder.OrderSymbol]
+	if !symbolExists {
+		Log("Get Cancel Address failed as %v chain does not exist", cancelOrder.OrderSymbol)
+		return false, [addressLength]byte{}
+	}
+	order, ok := tokenState.openOrders[cancelOrder.OrderID]
+	if !ok {
+		Log("Get Cancel Address failed as order %v is not open", cancelOrder.OrderID)
+		return false, [addressLength]byte{}
+	}
+	Log("Cancel Order added to consensus state %v", cancelOrder)
+
+	return true, order.SellerAddress
+}
+
 func (state *ConsensusState) RollbackUntilRollbackCancelOrderSucceeds(cancelOrder CancelOrder, blockchains *Blockchains, takeMempoolLock bool) {
 	tokenState := state.tokenStates[cancelOrder.OrderSymbol]
 	deletedOrder, _ := tokenState.deletedOrders[cancelOrder.OrderID]
