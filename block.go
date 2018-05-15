@@ -79,7 +79,7 @@ func (gt *GenericTransaction) ID() string {
 
 type CreateToken struct {
 	TokenInfo      TokenInfo
-	CreatorAddress string //TODO: []byte
+	CreatorAddress [addressLength]byte
 	Signature      []byte
 }
 
@@ -100,15 +100,15 @@ type Order struct {
 	BuySymbol     string
 	AmountToSell  uint64
 	AmountToBuy   uint64
-	SellerAddress string //TODO: []byte
+	SellerAddress [addressLength]byte
 	Signature     []byte
 }
 
 type Transfer struct {
 	ID          uint64
 	Amount      uint64
-	FromAddress string //TODO: []byte
-	ToAddress   string //TODO: []byte
+	FromAddress [addressLength]byte
+	ToAddress   [addressLength]byte
 	Signature   []byte
 }
 
@@ -120,7 +120,7 @@ type CancelOrder struct { //goes on match chain
 
 type ClaimFunds struct {
 	ID      uint64
-	Address string
+	Address [addressLength]byte
 	Amount  uint64
 }
 
@@ -129,13 +129,17 @@ func GetBytes(key interface{}) []byte {
 }
 
 func NewGenesisBlock() *Block {
+	ws := NewWalletStore(true)
+	addresses := ws.GetAddresses()
+	w := ws.GetWallet(addresses[0])
+
 	createToken := CreateToken{
 		TokenInfo: TokenInfo{
 			Symbol:      NATIVE_CHAIN,
 			TotalSupply: 100 * 1000 * 1000,
 			Decimals:    18,
 		},
-		CreatorAddress: "Satoshi",
+		CreatorAddress: w.PublicKey,
 		Signature:      nil,
 	}
 	matchData := MatchData{

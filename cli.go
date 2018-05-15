@@ -58,6 +58,12 @@ func (cli *CLI) Run() {
 		address := cli.getString(0)
 		symbol := cli.getString(1)
 		client := cli.getClient()
+
+		if !ValidateAddress(address) {
+			LogRed("ERROR: Address %s is not valid. Please try again.", address)
+			os.Exit(1)
+		}
+
 		client.GetBalance(address, symbol)
 
 	case "printaddresses":
@@ -69,6 +75,10 @@ func (cli *CLI) Run() {
 		sellAmt := cli.getUint(2)
 		sellSymbol := cli.getString(3)
 		seller := cli.getString(4)
+		if !ValidateAddress(seller) {
+			LogRed("ERROR: Address %s is not valid. Please try again.", seller)
+			os.Exit(1)
+		}
 
 		client := cli.getClient()
 		client.Order(buyAmt, buySymbol, sellAmt, sellSymbol, seller)
@@ -93,6 +103,10 @@ func (cli *CLI) Run() {
 		amt := cli.getUint(0)
 		symbol := cli.getString(1)
 		address := cli.getString(2)
+		if !ValidateAddress(address) {
+			LogRed("ERROR: Address %s is not valid. Please try again.", address)
+			os.Exit(1)
+		}
 
 		client := cli.getClient()
 		client.Claim(amt, symbol, address)
@@ -102,6 +116,10 @@ func (cli *CLI) Run() {
 		supply := cli.getUint(1)
 		decimals := uint8(cli.getUint(2))
 		address := cli.getString(3)
+		if !ValidateAddress(address) {
+			LogRed("ERROR: Address %s is not valid. Please try again.", address)
+			os.Exit(1)
+		}
 
 		client := cli.getClient()
 		client.Create(symbol, supply, decimals, address)
@@ -196,7 +214,7 @@ func (cli *CLI) printChain(db string, symbol string) {
 	isGenesis := true
 	for err == nil {
 		fmt.Printf("Prev Hash: %x\n", block.PrevBlockHash)
-		fmt.Printf("Data: %s\n", block.Data)
+		fmt.Printf("Data: %x\n", block.Data)
 		fmt.Printf("Hash: %x\n", block.Hash)
 		pow := NewProofOfWork(block)
 		if !isGenesis {
@@ -209,7 +227,7 @@ func (cli *CLI) printChain(db string, symbol string) {
 }
 
 func (cli *CLI) printAddresses() {
-	ws := NewWalletStore()
+	ws := NewWalletStore(false)
 	addresses := ws.GetAddresses()
 
 	for _, address := range addresses {
@@ -218,7 +236,7 @@ func (cli *CLI) printAddresses() {
 }
 
 func (cli *CLI) createWallet() {
-	ws := NewWalletStore()
+	ws := NewWalletStore(false)
 	address := ws.AddWallet()
 	ws.Persist()
 

@@ -79,7 +79,11 @@ func (client *Client) Order(buyAmt uint64, buySymbol string, sellAmt uint64, sel
 
 	var empty []byte
 	id := rand.Uint64()
-	order := Order{id, buySymbol, sellAmt, buyAmt, seller, empty}
+
+	ws := NewWalletStore(false)
+	w := ws.GetWallet(seller)
+
+	order := Order{id, buySymbol, sellAmt, buyAmt, w.PublicKey, empty}
 	tx := &GenericTransaction{order, ORDER}
 
 	err := client.SendTx(tx, sellSymbol)
@@ -94,7 +98,12 @@ func (client *Client) Transfer(amount uint64, symbol string, from string, to str
 
 	var empty []byte
 	id := rand.Uint64()
-	transfer := Transfer{id, amount, from, to, empty}
+
+	ws := NewWalletStore(false)
+	wfrom := ws.GetWallet(from)
+	wto := ws.GetWallet(to)
+
+	transfer := Transfer{id, amount, wfrom.PublicKey, wto.PublicKey, empty}
 	tx := &GenericTransaction{transfer, TRANSFER}
 
 	err := client.SendTx(tx, symbol)
@@ -119,7 +128,11 @@ func (client *Client) Claim(amount uint64, symbol string, address string) {
 	defer Log("Client done sending CLAIM_FUNDS")
 
 	id := rand.Uint64()
-	claim := ClaimFunds{id, address, amount}
+
+	ws := NewWalletStore(false)
+	w := ws.GetWallet(address)
+
+	claim := ClaimFunds{id, w.PublicKey, amount}
 	tx := &GenericTransaction{claim, CLAIM_FUNDS}
 
 	err := client.SendTx(tx, symbol)
@@ -134,7 +147,11 @@ func (client *Client) Create(symbol string, supply uint64, decimals uint8, addre
 
 	var empty []byte
 	tokenInfo := TokenInfo{symbol, supply, decimals}
-	create := CreateToken{tokenInfo, address, empty}
+
+	ws := NewWalletStore(false)
+	w := ws.GetWallet(address)
+
+	create := CreateToken{tokenInfo, w.PublicKey, empty}
 	tx := &GenericTransaction{create, CREATE_TOKEN}
 
 	client.SendTx(tx, MATCH_CHAIN)

@@ -258,8 +258,16 @@ func (blockchains *Blockchains) GetBalance(symbol string, address string) (uint6
 		Log("GetBalance failed symbol %v does not exist", symbol)
 		return 0, false
 	}
-	balance, ok := state.balances[address]
-	return balance, ok
+
+	ws := NewWalletStore(false)
+	w := ws.GetWallet(address)
+
+	balance, ok := state.balances[w.PublicKey]
+	if !ok {
+		return 0, true
+	} else {
+		return balance, ok
+	}
 }
 
 func (blockchains *Blockchains) GetUnclaimedBalance(symbol string, address string) (uint64, bool) {
@@ -270,7 +278,11 @@ func (blockchains *Blockchains) GetUnclaimedBalance(symbol string, address strin
 		Log("GetBalance failed symbol %v does not exist", symbol)
 		return 0, false
 	}
-	balance, ok := state.unclaimedFunds[address]
+
+	ws := NewWalletStore(false)
+	w := ws.GetWallet(address)
+
+	balance, ok := state.unclaimedFunds[w.PublicKey]
 	return balance, ok
 }
 

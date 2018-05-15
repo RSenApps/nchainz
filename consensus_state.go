@@ -8,8 +8,8 @@ import (
 type ConsensusStateToken struct {
 	openOrders        map[uint64]Order
 	orderUpdatesCount map[uint64]uint32 //count partial matches and cancels to determine when order can be rolled back
-	balances          map[string]uint64
-	unclaimedFunds    map[string]uint64
+	balances          map[[addressLength]byte]uint64
+	unclaimedFunds    map[[addressLength]byte]uint64
 	//unclaimedFundsLock sync.Mutex
 	deletedOrders map[uint64]Order
 	//deletedOrdersLock sync.Mutex
@@ -25,8 +25,8 @@ type ConsensusState struct {
 func NewConsensusStateToken() *ConsensusStateToken {
 	token := ConsensusStateToken{}
 	token.openOrders = make(map[uint64]Order)
-	token.balances = make(map[string]uint64)
-	token.unclaimedFunds = make(map[string]uint64)
+	token.balances = make(map[[addressLength]byte]uint64)
+	token.unclaimedFunds = make(map[[addressLength]byte]uint64)
 	token.deletedOrders = make(map[uint64]Order)
 	token.usedTransferIDs = make(map[uint64]bool)
 	token.orderUpdatesCount = make(map[uint64]uint32)
