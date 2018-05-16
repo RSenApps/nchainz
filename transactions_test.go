@@ -11,6 +11,8 @@ import (
 // Example: `go test -run "TestBasicTransfer"`
 // Run `sh config.sh RESET` between tests to reset dbs
 
+const genesisAddress = "1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K"
+
 // Transfer: Satoshi --500 NATIVE--> x
 func TestBasicTransfer(t *testing.T) {
 	LogRed("Testing: basic transfers")
@@ -26,11 +28,11 @@ func TestBasicTransfer(t *testing.T) {
 
 	ws := NewWalletStore(false)
 	address := ws.AddWallet()
-	client.Transfer(500, "NATIVE", "1Q7dtsdKSy5dzMbnThuf9EF596qumH69gA", address)
+	client.Transfer(500, "NATIVE", genesisAddress, address)
 
-	success := checkBalance(client, []string{"1Q7dtsdKSy5dzMbnThuf9EF596qumH69gA", address}, []uint64{99999500, 500}, "NATIVE")
+	success := checkBalance(client, []string{genesisAddress, address}, []uint64{99999500, 500}, "NATIVE")
 
-	client.Transfer(500, "NATIVE", address, "1Q7dtsdKSy5dzMbnThuf9EF596qumH69gA")
+	client.Transfer(500, "NATIVE", address, genesisAddress)
 
 	if success {
 		LogRed("Passed: basic transfers")
@@ -57,15 +59,15 @@ func TestSwapTransfer(t *testing.T) {
 	ws := NewWalletStore(false)
 	address := ws.AddWallet()
 
-	client.Transfer(500, "NATIVE", "1Q7dtsdKSy5dzMbnThuf9EF596qumH69gA", address)
-	success := checkBalance(client, []string{"1Q7dtsdKSy5dzMbnThuf9EF596qumH69gA", address}, []uint64{99999500, 500}, "NATIVE")
+	client.Transfer(500, "NATIVE", genesisAddress, address)
+	success := checkBalance(client, []string{genesisAddress, address}, []uint64{99999500, 500}, "NATIVE")
 
 	if !success {
 		t.Fatal("FAILED: swap transfers")
 	}
 
-	client.Transfer(500, "NATIVE", address, "1Q7dtsdKSy5dzMbnThuf9EF596qumH69gA")
-	success = checkBalance(client, []string{"1Q7dtsdKSy5dzMbnThuf9EF596qumH69gA", address}, []uint64{100000000, 0}, "NATIVE")
+	client.Transfer(500, "NATIVE", address, genesisAddress)
+	success = checkBalance(client, []string{genesisAddress, address}, []uint64{100000000, 0}, "NATIVE")
 
 	if success {
 		LogRed("Passed: swap transfers")
@@ -93,9 +95,9 @@ func TestManyTransfers(t *testing.T) {
 	address := ws.AddWallet()
 
 	for i := 0; i < 10000; i++ {
-		client.Transfer(10, "NATIVE", "1Q7dtsdKSy5dzMbnThuf9EF596qumH69gA", address)
+		client.Transfer(10, "NATIVE", genesisAddress, address)
 	}
-	success := checkBalance(client, []string{"1Q7dtsdKSy5dzMbnThuf9EF596qumH69gA", address}, []uint64{99900000, 100000}, "NATIVE")
+	success := checkBalance(client, []string{genesisAddress, address}, []uint64{99900000, 100000}, "NATIVE")
 
 	if success {
 		LogRed("Passed: many transfers")
@@ -103,7 +105,7 @@ func TestManyTransfers(t *testing.T) {
 		t.Fatal("FAILED: many transfers")
 	}
 
-	client.Transfer(100000, "NATIVE", address, "1Q7dtsdKSy5dzMbnThuf9EF596qumH69gA")
+	client.Transfer(100000, "NATIVE", address, genesisAddress)
 
 	fmt.Println()
 }
@@ -138,20 +140,20 @@ func TestMultipleClients(t *testing.T) {
 	amounts := []uint64{100, 300, 200, 400}
 
 	for i := 0; i < len(amounts); i++ {
-		client1.Transfer(amounts[i], "NATIVE", "1Q7dtsdKSy5dzMbnThuf9EF596qumH69gA", address)
-		client2.Transfer(amounts[i], "NATIVE", "1Q7dtsdKSy5dzMbnThuf9EF596qumH69gA", address)
-		client3.Transfer(amounts[i], "NATIVE", "1Q7dtsdKSy5dzMbnThuf9EF596qumH69gA", address)
+		client1.Transfer(amounts[i], "NATIVE", genesisAddress, address)
+		client2.Transfer(amounts[i], "NATIVE", genesisAddress, address)
+		client3.Transfer(amounts[i], "NATIVE", genesisAddress, address)
 	}
 
-	success := checkBalance(client1, []string{"1Q7dtsdKSy5dzMbnThuf9EF596qumH69gA", address}, []uint64{99997000, 3000}, "NATIVE")
+	success := checkBalance(client1, []string{genesisAddress, address}, []uint64{99997000, 3000}, "NATIVE")
 	if !success {
 		t.Fatal("FAILED: multiple clients")
 	}
-	success = checkBalance(client1, []string{"1Q7dtsdKSy5dzMbnThuf9EF596qumH69gA", address}, []uint64{99997000, 3000}, "NATIVE")
+	success = checkBalance(client1, []string{genesisAddress, address}, []uint64{99997000, 3000}, "NATIVE")
 	if !success {
 		t.Fatal("FAILED: multiple clients")
 	}
-	success = checkBalance(client1, []string{"1Q7dtsdKSy5dzMbnThuf9EF596qumH69gA", address}, []uint64{99997000, 3000}, "NATIVE")
+	success = checkBalance(client1, []string{genesisAddress, address}, []uint64{99997000, 3000}, "NATIVE")
 	if !success {
 		t.Fatal("FAILED: multiple clients")
 	}

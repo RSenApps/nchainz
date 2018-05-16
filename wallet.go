@@ -22,8 +22,11 @@ const checksumLength = 4
 const version = byte(0x00)
 
 const walletFile = "wallet.dat"
+
 const genesisFile = "genesis.dat"
-const addressLength = 34
+
+const addressLength = 64
+const addressStringLength = 34
 const addressChecksumLen = 4
 
 type Wallet struct {
@@ -196,6 +199,7 @@ func (ws *WalletStore) Download(file string) {
 
 	// Take union of two wallets so we can get genesis block
 	for k, v := range newWS.Wallets {
+		k = k[:addressStringLength]
 		ws.Wallets[k] = v
 	}
 }
@@ -204,7 +208,7 @@ func (ws *WalletStore) Download(file string) {
 // Get a Wallet from its address
 //
 func (ws *WalletStore) GetWallet(address string) Wallet {
-	return *ws.Wallets[address]
+	return *ws.Wallets[address[:addressStringLength]]
 }
 
 //
@@ -230,7 +234,7 @@ func (ws *WalletStore) GetAddresses() []string {
 	var addresses []string
 
 	for address := range ws.Wallets {
-		addresses = append(addresses, address)
+		addresses = append(addresses, address[:addressStringLength])
 	}
 
 	return addresses

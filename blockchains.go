@@ -320,12 +320,20 @@ func (blockchains *Blockchains) AddTransactionToMempool(tx GenericTransaction, s
 		return false
 	}
 
-	// Validate transaction
+	// Validate transaction's signature
+	if !Verify(tx, blockchains.consensusState) {
+		Log("Failed due to invalid signature")
+		unlock()
+		return false
+	}
+
+	// Validate transaction against consensus state
 	if !blockchains.addGenericTransaction(symbol, tx, blockchains.mempoolUncommitted[symbol], false) {
 		Log("Failed to add tx to mempool consensus state")
 		unlock()
 		return false
 	}
+
 	Log("Tx added to mempool")
 	// Add transaction to mempool
 	blockchains.mempools[symbol][tx.ID()] = tx

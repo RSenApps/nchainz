@@ -3,9 +3,11 @@ package main
 import (
 	"bytes"
 	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/rand"
 	"encoding/gob"
 	"fmt"
+	"math/big"
 )
 
 type TokenInfo struct {
@@ -318,4 +320,83 @@ func Sign(privateKey ecdsa.PrivateKey, tx GenericTransaction) []byte {
 	r, s, _ := ecdsa.Sign(rand.Reader, &privateKey, tx.Serialize())
 	signature := append(r.Bytes(), s.Bytes()...)
 	return signature
+}
+
+//
+// Verify a transaction
+//
+func Verify(tx GenericTransaction, state ConsensusState) bool {
+	// Always valid if transaction doesn't need to be signed
+	if tx.TransactionType == MATCH || tx.TransactionType == CLAIM_FUNDS {
+		return true
+	}
+
+	// Get public key
+	ellipticCurve := elliptic.P256()
+	address := tx.GetTxAddress(state)
+	firstHalf := big.Int{}
+	secondHalf := big.Int{}
+	addrLen := len(address)
+	firstHalf.SetBytes(address[:(addrLen / 2)])
+	secondHalf.SetBytes(address[(addrLen / 2):])
+	publicKey := ecdsa.PublicKey{ellipticCurve, &firstHalf, &secondHalf}
+
+	// Get r, s (signature)
+	r := big.Int{}
+	s := big.Int{}
+	signature := tx.GetTxSignature()
+	sigLen := len(signature)
+	r.SetBytes(signature[:(sigLen / 2)])
+	s.SetBytes(signature[(sigLen / 2):])
+
+	// Verify
+	return ecdsa.Verify(&publicKey, tx.Serialize(), &r, &s)
+}
+
+//
+// Get an address from a transaction
+//
+func (tx GenericTransaction) GetTxAddress(state ConsensusState) []byte {
+	switch tx.TransactionType {
+	case ORDER:
+		address := tx.Transaction.(Order).SellerAddress
+		return address[:]
+	case TRANSFER:
+		address := tx.Transaction.(Transfer).FromAddress
+		return address[:]
+	case CANCEL_ORDER:
+		cancelOrder := tx.Transaction.(CancelOrder)
+		success, address := state.GetCancelAddress(cancelOrder)
+		if !success {
+			LogPanic("Failed to get an address from a cancel order")
+			return []byte{}
+		} else {
+			return address[:]
+		}
+	case CREATE_TOKEN:
+		address := tx.Transaction.(CreateToken).CreatorAddress
+		return address[:]
+	default:
+		LogPanic("Getting an address from a transaction that doesn't need to be signed.")
+		return []byte{}
+	}
+}
+
+//
+// Get a signature from a transaction
+//
+func (tx GenericTransaction) GetTxSignature() []byte {
+	switch tx.TransactionType {
+	case ORDER:
+		return tx.Transaction.(Order).Signature
+	case TRANSFER:
+		return tx.Transaction.(Transfer).Signature
+	case CANCEL_ORDER:
+		return tx.Transaction.(CancelOrder).Signature
+	case CREATE_TOKEN:
+		return tx.Transaction.(CreateToken).Signature
+	default:
+		LogPanic("Getting a signature from a transaction that doesn't need to be signed.")
+		return []byte{}
+	}
 }
