@@ -52,16 +52,20 @@ func generateKeys() ([addressLength]byte, ecdsa.PrivateKey) {
 	return publicKeyArray, *privateKey
 }
 
+func (w Wallet) GetAddress() [addressLength]byte {
+	return PublicKeyToAddress(w.PublicKey)
+}
+
 //
 // Convert public key into Base 58 address
 // encodeBase58(Version + Public key hash + Checksum)
 //
-func (w Wallet) GetAddress() [addressLength]byte {
+func PublicKeyToAddress(key [addressLength]byte) [addressLength]byte {
 	// Get & append version
 	rawAddress := []byte{version}
 
 	// Get public key hash
-	publicKeyHash := getPublicKeyHash(w.PublicKey)
+	publicKeyHash := getPublicKeyHash(key)
 	// Append public key hash
 	rawAddress = append(rawAddress, publicKeyHash...)
 
@@ -73,6 +77,11 @@ func (w Wallet) GetAddress() [addressLength]byte {
 
 	// return encodeBase58(rawAddress)
 	return Base58Encode(rawAddress)
+}
+
+func KeyToString(key [addressLength]byte) string {
+	address := PublicKeyToAddress(key)
+	return string(address[:addressLength])
 }
 
 //

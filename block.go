@@ -400,3 +400,53 @@ func (tx GenericTransaction) GetTxSignature() []byte {
 		return []byte{}
 	}
 }
+
+func (tx GenericTransaction) String() string {
+	switch tx.TransactionType {
+	case MATCH:
+		match := tx.Transaction.(Match)
+		return fmt.Sprintf("{MATCH#%v %s#%v / %s#%v : %v - %v/%v}", match.MatchID, match.BuySymbol, match.BuyOrderID, match.SellSymbol, match.SellOrderID, match.TransferAmt, match.BuyerLoss, match.SellerGain)
+	case ORDER:
+		order := tx.Transaction.(Order)
+		return fmt.Sprintf("{ORDER#%v %v %s / %v %s}", order.ID, order.AmountToBuy, order.BuySymbol, order.AmountToSell, KeyToString(order.SellerAddress))
+	case TRANSFER:
+		transfer := tx.Transaction.(Transfer)
+		return fmt.Sprintf("{TRANSFER#%v %v %s -> %s}", transfer.ID, transfer.Amount, KeyToString(transfer.FromAddress), KeyToString(transfer.ToAddress))
+	case CANCEL_ORDER:
+		cancel := tx.Transaction.(CancelOrder)
+		return fmt.Sprintf("{CANCEL %s#%v}", cancel.OrderSymbol, cancel.OrderID)
+	case CLAIM_FUNDS:
+		claim := tx.Transaction.(ClaimFunds)
+		return fmt.Sprintf("{CLAIM#%v %v %s}", claim.ID, claim.Amount, KeyToString(claim.Address))
+	case CREATE_TOKEN:
+		create := tx.Transaction.(CreateToken)
+		return fmt.Sprintf("{CREATE %v %s}", create.TokenInfo, KeyToString(create.CreatorAddress))
+	default:
+		return "{invalid tx}"
+	}
+}
+
+func (match Match) String() string {
+	tx := GenericTransaction{match, MATCH}
+	return tx.String()
+}
+func (order Order) String() string {
+	tx := GenericTransaction{order, ORDER}
+	return tx.String()
+}
+func (transfer Transfer) String() string {
+	tx := GenericTransaction{transfer, TRANSFER}
+	return tx.String()
+}
+func (cancel CancelOrder) String() string {
+	tx := GenericTransaction{cancel, CANCEL_ORDER}
+	return tx.String()
+}
+func (claim ClaimFunds) String() string {
+	tx := GenericTransaction{claim, CLAIM_FUNDS}
+	return tx.String()
+}
+func (create CreateToken) String() string {
+	tx := GenericTransaction{create, CREATE_TOKEN}
+	return tx.String()
+}
