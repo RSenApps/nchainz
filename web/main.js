@@ -3,7 +3,7 @@ import DepthChart from './DepthChart.js'
 import PriceChart from './PriceChart.js'
 
 const REFRESH_INTERVAL = 3000
-const DEFAULT_BOOK = "ETH/USD"
+const DEFAULT_BOOK = "LIZ/NEGAN"
 
 let bookname
 let url = new URL(window.location)

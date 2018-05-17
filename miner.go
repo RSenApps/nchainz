@@ -1,6 +1,6 @@
 package main
 
-const MAX_BLOCK_SIZE = 20
+const MAX_BLOCK_SIZE = 1000
 
 type NewBlockMsg struct {
 	BlockType BlockType // type of block we are adding transactions to
