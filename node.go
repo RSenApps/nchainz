@@ -434,7 +434,7 @@ type GetBalanceReply struct {
 }
 
 func (node *Node) GetBalance(args *GetBalanceArgs, reply *GetBalanceReply) error {
-	Log("Received GetBalance for address %v symbol %v", args.Address, args.Symbol)
+	Log("Received GetBalance for address %s symbol %v", KeyToString(args.Address), args.Symbol)
 	amount, ok := node.bcs.GetBalance(args.Symbol, args.Address)
 	if ok {
 		reply.Amount = amount
