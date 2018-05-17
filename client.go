@@ -174,7 +174,10 @@ func (client *Client) GetBalance(address string, symbol string) GetBalanceReply 
 	Log("Client sending GETBALANCE")
 	defer Log("Client done sending GETBALANCE")
 
-	request := GetBalanceArgs{address, symbol}
+	ws := NewWalletStore(false)
+	w := ws.GetWallet(address)
+
+	request := GetBalanceArgs{w.PublicKey, symbol}
 	var reply GetBalanceReply
 	err := client.rpc.Call("Node.GetBalance", &request, &reply)
 

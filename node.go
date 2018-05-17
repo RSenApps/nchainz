@@ -424,7 +424,7 @@ func (node *Node) callTx(peer *Peer, args *TxArgs) {
 // response: amount and success
 
 type GetBalanceArgs struct {
-	Address string
+	Address [addressLength]byte
 	Symbol  string
 }
 

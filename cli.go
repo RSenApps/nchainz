@@ -195,15 +195,6 @@ func (cli *CLI) getClient() *Client {
 ///////////////////////////////////////////////////////
 // CLI commands that really should live somewhere else
 
-func (cli *CLI) getBalance(db string, address string) {
-	bcs := CreateNewBlockchains(db+".db", false)
-	result, ok := bcs.GetBalance(NATIVE_CHAIN, address)
-	if !ok {
-		fmt.Println("Address not found")
-	}
-	fmt.Printf("Balance: %v\n", result)
-}
-
 func (cli *CLI) printChain(db string, symbol string) {
 	bcs := CreateNewBlockchains(db+".db", false)
 	bc := bcs.chains[symbol]

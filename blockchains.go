@@ -250,7 +250,7 @@ func (blockchains *Blockchains) GetBlockhashes() map[string][][]byte {
 	return blockhashes
 }
 
-func (blockchains *Blockchains) GetBalance(symbol string, address string) (uint64, bool) {
+func (blockchains *Blockchains) GetBalance(symbol string, address [addressLength]byte) (uint64, bool) {
 	blockchains.chainsLock.RLock()
 	defer blockchains.chainsLock.RUnlock()
 	state, ok := blockchains.consensusState.tokenStates[symbol]
@@ -259,10 +259,7 @@ func (blockchains *Blockchains) GetBalance(symbol string, address string) (uint6
 		return 0, false
 	}
 
-	ws := NewWalletStore(false)
-	w := ws.GetWallet(address)
-
-	balance, ok := state.balances[w.PublicKey]
+	balance, ok := state.balances[address]
 	if !ok {
 		return 0, true
 	} else {
@@ -270,7 +267,7 @@ func (blockchains *Blockchains) GetBalance(symbol string, address string) (uint6
 	}
 }
 
-func (blockchains *Blockchains) GetUnclaimedBalance(symbol string, address string) (uint64, bool) {
+func (blockchains *Blockchains) GetUnclaimedBalance(symbol string, address [addressLength]byte) (uint64, bool) {
 	blockchains.chainsLock.RLock()
 	defer blockchains.chainsLock.RUnlock()
 	state, ok := blockchains.consensusState.tokenStates[symbol]
@@ -279,10 +276,7 @@ func (blockchains *Blockchains) GetUnclaimedBalance(symbol string, address strin
 		return 0, false
 	}
 
-	ws := NewWalletStore(false)
-	w := ws.GetWallet(address)
-
-	balance, ok := state.unclaimedFunds[w.PublicKey]
+	balance, ok := state.unclaimedFunds[address]
 	return balance, ok
 }
 
