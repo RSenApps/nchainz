@@ -94,10 +94,10 @@ func TestManyTransfers(t *testing.T) {
 	ws := NewWalletStore(false)
 	address := ws.AddWallet()
 
-	for i := 0; i < 10000; i++ {
+	for i := 0; i < 1000; i++ {
 		client.Transfer(10, "NATIVE", genesisAddress, address)
 	}
-	success := checkBalance(client, []string{genesisAddress, address}, []uint64{99900000, 100000}, "NATIVE")
+	success := checkBalance(client, []string{genesisAddress, address}, []uint64{99990000, 10000}, "NATIVE")
 
 	if success {
 		LogRed("Passed: many transfers")
@@ -166,6 +166,14 @@ func TestMultipleClients(t *testing.T) {
 // Transfers that shouldn't work
 // Cyclic transfers
 
+func abs(x uint64, y uint64) uint64 {
+	if x >= y {
+		return x - y
+	} else {
+		return y - x
+	}
+}
+
 //
 // Helper method to check balances
 //
@@ -179,7 +187,7 @@ func checkBalance(client *Client, users []string, amounts []uint64, symbol strin
 		for i := 0; i < len(users); i++ {
 			r := client.GetBalance(users[i], symbol)
 
-			if r.Amount != amounts[i] {
+			if abs(r.Amount, amounts[i]) >= 100 {
 				success = false
 				break
 			}
