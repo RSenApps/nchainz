@@ -96,7 +96,7 @@ func TestManyTransfers(t *testing.T) {
 
 	totalTransfers := uint64(10000)
 	amtPerTransfer := uint64(10)
-	numClients := uint64(20)
+	numClients := uint64(25)
 
 	for i := uint64(0); i < numClients; i++ {
 		go func() {

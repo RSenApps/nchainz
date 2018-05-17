@@ -10,7 +10,7 @@ import (
 )
 
 // Controls difficulty of mining
-const targetBits = 26
+const targetBits = 24
 
 // Maximum value of counter
 var maxNonce = math.MaxInt32
