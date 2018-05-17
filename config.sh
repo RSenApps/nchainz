@@ -8,38 +8,38 @@ case $1 in
     pkill -f "dex"
     ;;
   "MC")
-    nchainz create NEGAN 100000000 5 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
-    nchainz create LIZ 100000000 2 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
+    nchainz create LIZ 100000000 5 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
+    nchainz create NEGAN 100000000 2 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
     ;;
   "MAKEMARKET")
-    nchainz order 1 NEGAN 990 LIZ 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
-    nchainz order 1100 LIZ 1 NEGAN 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
-    nchainz order 1 NEGAN 990 LIZ 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
-    nchainz order 1005 LIZ 1 NEGAN 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
-    nchainz order 1 NEGAN 850 LIZ 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
-    nchainz order 1042 LIZ 1 NEGAN 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
-    nchainz order 1 NEGAN 934 LIZ 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
-    nchainz order 1023 LIZ 1 NEGAN 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
-    nchainz order 1 NEGAN 923 LIZ 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
-    nchainz order 1092 LIZ 1 NEGAN 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
-    nchainz order 1 NEGAN 929 LIZ 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
-    nchainz order 1105 LIZ 1 NEGAN 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
+    nchainz order 1 LIZ 990 NEGAN 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
+    nchainz order 1100 NEGAN 1 LIZ 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
+    nchainz order 1 LIZ 990 NEGAN 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
+    nchainz order 1005 NEGAN 1 LIZ 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
+    nchainz order 1 LIZ 850 NEGAN 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
+    nchainz order 1042 NEGAN 1 LIZ 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
+    nchainz order 1 LIZ 934 NEGAN 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
+    nchainz order 1023 NEGAN 1 LIZ 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
+    nchainz order 1 LIZ 923 NEGAN 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
+    nchainz order 1092 NEGAN 1 LIZ 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
+    nchainz order 1 LIZ 929 NEGAN 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
+    nchainz order 1105 NEGAN 1 LIZ 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
     ;;
   "TAKEMARKET")
-    nchainz order 1 NEGAN 1100 LIZ 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
-    nchainz order 990 LIZ 1 NEGAN 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
-    nchainz order 1 NEGAN 1090 LIZ 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
-    nchainz order 850 LIZ 1 NEGAN 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
-    nchainz order 1 NEGAN 1010 LIZ 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
-    nchainz order 900 LIZ 1 NEGAN 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
-    nchainz order 1 NEGAN 1039 LIZ 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
-    nchainz order 905 LIZ 1 NEGAN 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
-    nchainz order 1 NEGAN 1017 LIZ 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
-    nchainz order 957 LIZ 1 NEGAN 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
-    nchainz order 1 NEGAN 1063 LIZ 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
-    nchainz order 963 LIZ 1 NEGAN 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
-    nchainz order 1 NEGAN 1033 LIZ 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
-    nchainz order 910 LIZ 1 NEGAN 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
+    nchainz order 1 LIZ 1100 NEGAN 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
+    nchainz order 990 NEGAN 1 LIZ 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
+    nchainz order 1 LIZ 1090 NEGAN 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
+    nchainz order 850 NEGAN 1 LIZ 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
+    nchainz order 1 LIZ 1010 NEGAN 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
+    nchainz order 900 NEGAN 1 LIZ 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
+    nchainz order 1 LIZ 1039 NEGAN 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
+    nchainz order 905 NEGAN 1 LIZ 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
+    nchainz order 1 LIZ 1017 NEGAN 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
+    nchainz order 957 NEGAN 1 LIZ 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
+    nchainz order 1 LIZ 1063 NEGAN 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
+    nchainz order 963 NEGAN 1 LIZ 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
+    nchainz order 1 LIZ 1033 NEGAN 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
+    nchainz order 910 NEGAN 1 LIZ 1CufpgmhVmV7fujYHqFCqUdJe5vwhcc96K
     ;;
   "MAINNET")
     printf "35.172.27.110:5000\n35.174.80.163:5000\n52.87.50.12:5000" > seeds.txt
