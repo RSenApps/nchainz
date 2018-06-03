@@ -19,8 +19,13 @@ type Mempool struct {
 	multichain         multichain.Multichain
 }
 
-////////////////////////////////
-// Mining
+func (mempool *Mempool) GetMultichain() *multichain.Multichain {
+	return mempool.multichain
+}
+
+func (mempool *Mempool) CreateMempool(dbName string, startMining bool) *Mempool {
+
+}
 
 func (mempool *Mempool) AddTransaction(tx GenericTransaction, symbol string, takeLocks bool) bool {
 	if blockchains.recovering {
