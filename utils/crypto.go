@@ -1,5 +1,7 @@
 package main
 
+// Source of Base58 code: https://github.com/Jeiwan/blockchain_go/blob/402b298d4f908d14df5d7e51e7ae917c0347da47/base58.go
+
 import (
 	"bytes"
 	"crypto/ecdsa"
@@ -7,27 +9,26 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/gob"
-	"golang.org/x/crypto/ripemd160" // go get -u golang.org/x/crypto/ripemd160
+	"golang.org/x/crypto/ripemd160"
 	"io/ioutil"
 	"log"
 	"math/big"
 	"os"
 )
 
-// Based on Jeiwan's tutorial
-// https://jeiwan.cc/posts/building-blockchain-in-go-part-5/
-// Source of Base58 code: https://github.com/Jeiwan/blockchain_go/blob/402b298d4f908d14df5d7e51e7ae917c0347da47/base58.go
-
 const checksumLength = 4
 const version = byte(0x00)
 
 const walletFile = "wallet.dat"
-
 const genesisFile = "genesis.dat"
 
 const addressLength = 64
 const addressStringLength = 34
 const addressChecksumLen = 4
+
+//////////////////////////////////////////
+// WALLET
+// Store a pair of public and private keys
 
 type Wallet struct {
 	PublicKey  [addressLength]byte // public key (concatenated X, Y coordinates)
@@ -39,9 +40,6 @@ func NewWallet() *Wallet {
 	return &Wallet{publicKey, privateKey}
 }
 
-//
-// Helper method to construct a new Wallet
-//
 func generateKeys() ([addressLength]byte, ecdsa.PrivateKey) {
 	ellipticCurve := elliptic.P256() // get elliptic curve
 	privateKey, _ := ecdsa.GenerateKey(ellipticCurve, rand.Reader)
@@ -58,7 +56,6 @@ func (w Wallet) GetAddress() [addressLength]byte {
 
 //
 // Convert public key into Base 58 address
-// encodeBase58(Version + Public key hash + Checksum)
 //
 func PublicKeyToAddress(key [addressLength]byte) [addressLength]byte {
 	// Get & append version
@@ -77,6 +74,13 @@ func PublicKeyToAddress(key [addressLength]byte) [addressLength]byte {
 
 	// return encodeBase58(rawAddress)
 	return Base58Encode(rawAddress)
+}
+
+//
+// Get a Wallet from its address
+//
+func (ws *WalletStore) GetWallet(address string) Wallet {
+	return *ws.Wallets[address[:addressStringLength]]
 }
 
 func KeyToString(key [addressLength]byte) string {
@@ -103,6 +107,11 @@ func getChecksum(data []byte) []byte {
 	second := sha256.Sum256(first[:])
 	return second[:checksumLength]
 }
+
+////////////////////////////////
+// BASE58 ENCODING
+// encode: byte array to base 58
+// decode: base 58 to byte array
 
 var b58Alphabet = []byte("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz")
 
@@ -159,7 +168,10 @@ func ReverseBytes(data []byte) {
 	}
 }
 
-// Storage for group of wallets
+/////////////////////////////
+// WALLETSTORE
+// Storage of list of wallets
+
 type WalletStore struct {
 	Wallets map[string]*Wallet
 }
@@ -176,9 +188,6 @@ func NewWalletStore(isGenesis bool) *WalletStore {
 	return &ws
 }
 
-//
-// Add a Wallet to WalletStore
-//
 func (ws *WalletStore) AddWallet() string {
 	wallet := NewWallet()
 	addressArray := wallet.GetAddress()
@@ -211,13 +220,6 @@ func (ws *WalletStore) Download(file string) {
 		k = k[:addressStringLength]
 		ws.Wallets[k] = v
 	}
-}
-
-//
-// Get a Wallet from its address
-//
-func (ws *WalletStore) GetWallet(address string) Wallet {
-	return *ws.Wallets[address[:addressStringLength]]
 }
 
 //
