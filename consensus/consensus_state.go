@@ -1,6 +1,7 @@
-package main
+package consensus
 
 import (
+	"github.com/rsenapps/blockchain"
 	"log"
 	"math"
 )

@@ -37,7 +37,7 @@ func printf(path string, format string, a ...interface{}) {
 		switch file {
 		case "node.go":
 			colored = color.HiBlueString(format)
-		case "blockchains.go", "blockchain.go":
+		case "multichain.go", "blockchain.go":
 			colored = color.HiGreenString(format)
 		case "consensus_state.go":
 			colored = color.HiMagentaString(format)
@@ -55,7 +55,7 @@ func printf(path string, format string, a ...interface{}) {
 		switch file {
 		case "node.go":
 			colored = color.BlueString(format)
-		case "blockchains.go", "blockchain.go", "block.go":
+		case "multichain.go", "blockchain.go", "block.go":
 			colored = color.GreenString(format)
 		case "consensus_state.go":
 			colored = color.MagentaString(format)
