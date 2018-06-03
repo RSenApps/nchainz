@@ -5,7 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/boltdb/bolt"
-	"math/rand"
+	"github.com/rsenapps/nchainz/blockchain"
+	"github.com/rsenapps/nchainz/consensus"
 	"os"
 	"sync"
 )
@@ -14,8 +15,8 @@ const MATCH_CHAIN = "MATCH"
 const NATIVE_CHAIN = "NATIVE"
 
 type Multichain struct {
-	chains         map[string]*Blockchain
-	consensusState ConsensusState
+	chains         map[string]*blockchain.Blockchain
+	consensusState consensus.ConsensusState
 	chainsLock     *sync.RWMutex // Lock on consensus state and chains
 	db             *bolt.DB
 	recovering     bool
