@@ -20,7 +20,7 @@ const version = byte(0x00)
 const walletFile = "wallet.dat"
 const genesisFile = "genesis.dat"
 
-const addressLength = 64
+const AddressLength = 64
 const addressStringLength = 34
 const addressChecksumLen = 4
 

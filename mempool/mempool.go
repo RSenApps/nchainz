@@ -2,57 +2,71 @@ package mempool
 
 import (
 	"bytes"
+	"github.com/rsenapps/nchainz/blockchain"
+	"github.com/rsenapps/nchainz/miner"
 	"github.com/rsenapps/nchainz/multichain"
+	"github.com/rsenapps/nchainz/utils"
 	"math/rand"
 	"sync"
 )
 
 type Mempool struct {
-	mempools           map[string]map[string]GenericTransaction // map of sets (of GenericTransaction ID)
-	mempoolUncommitted map[string]*UncommittedTransactions
-	mempoolsLock       *sync.Mutex // Lock on mempools
-	finishedBlockCh    chan BlockMsg
-	stopMiningCh       chan string
-	miner              *Miner
-	matcher            *Matcher
-	minerChosenToken   string
-	multichain         multichain.Multichain
+	transactions     map[string]map[string]blockchain.GenericTransaction // map of sets (of GenericTransaction ID)
+	uncommitted      map[string]*multichain.UncommittedTransactions
+	lock             *sync.Mutex // Lock on mempools
+	finishedBlockCh  chan miner.BlockMsg
+	stopMiningCh     chan string
+	miner            *miner.Miner
+	minerChosenToken string
+	multichain       *multichain.Multichain
 }
 
 func (mempool *Mempool) GetMultichain() *multichain.Multichain {
 	return mempool.multichain
 }
 
-func (mempool *Mempool) CreateMempool(dbName string, startMining bool) *Mempool {
+func CreateMempool(dbName string, startMining bool) *Mempool {
+	mempool := &Mempool{}
+	mempool.multichain = multichain.CreateMultichain(dbName)
 
+	mempool.finishedBlockCh = make(chan miner.BlockMsg, 1000)
+	mempool.miner = miner.NewMiner(mempool.finishedBlockCh)
+	mempool.stopMiningCh = make(chan string, 1000)
+	mempool.transactions = make(map[string]map[string]blockchain.GenericTransaction)
+	mempool.uncommitted = make(map[string]*multichain.UncommittedTransactions)
+
+	mempool.transactions[multichain.MATCH_CHAIN] = make(map[string]blockchain.GenericTransaction)
+	mempool.uncommitted[multichain.MATCH_CHAIN] = &multichain.UncommittedTransactions{}
+
+	mempool.lock = &sync.Mutex{}
+
+	if startMining {
+		go mempool.StartMining(true)
+		go mempool.ApplyLoop()
+	}
 }
 
-func (mempool *Mempool) AddTransaction(tx GenericTransaction, symbol string, takeLocks bool) bool {
-	if blockchains.recovering {
-		Log("Ignoring tx as still recovering")
-		return false
-	}
-
+func (mempool *Mempool) AddTransaction(tx blockchain.GenericTransaction, symbol string, takeLocks bool) bool {
 	unlock := func() {
 		if takeLocks {
-			blockchains.mempoolsLock.Unlock()
-			blockchains.chainsLock.Unlock()
+			mempool.lock.Unlock()
+			mempool.multichain.Unlock()
 		}
 	}
 
 	if takeLocks {
-		blockchains.chainsLock.Lock()
-		blockchains.mempoolsLock.Lock()
+		mempool.multichain.Lock()
+		mempool.lock.Lock()
 	}
 
-	if _, ok := blockchains.mempools[symbol][tx.ID()]; ok {
-		Log("Tx already in mempool, %v", tx.ID())
+	if _, ok := mempool.transactions[symbol][tx.ID()]; ok {
+		utils.Log("Tx already in mempool, %v", tx.ID())
 		unlock()
 		return false
 	}
 
 	// Validate transaction's signature
-	if !Verify(tx, blockchains.consensusState) {
+	if !blockchain.Verify(tx, blockchains.consensusState) {
 		Log("Failed due to invalid signature")
 		unlock()
 		return false

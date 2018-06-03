@@ -7,6 +7,8 @@ import (
 	"github.com/boltdb/bolt"
 	"github.com/rsenapps/nchainz/blockchain"
 	"github.com/rsenapps/nchainz/consensus"
+	"github.com/rsenapps/nchainz/matcher"
+	"github.com/rsenapps/nchainz/utils"
 	"os"
 	"sync"
 )
@@ -17,12 +19,21 @@ const NATIVE_CHAIN = "NATIVE"
 type Multichain struct {
 	chains         map[string]*blockchain.Blockchain
 	consensusState consensus.ConsensusState
-	chainsLock     *sync.RWMutex // Lock on consensus state and chains
+	lock           *sync.RWMutex // Lock on consensus state and chains
 	db             *bolt.DB
 	recovering     bool
+	matcher        *matcher.Matcher
 }
 
-func CreateMultichain(dbName string, startMining bool) *Multichain {
+func (multichain *Multichain) Lock() {
+	multichain.lock.Lock()
+}
+
+func (multichain *Multichain) Unlock() {
+	multichain.lock.Unlock()
+}
+
+func CreateMultichain(dbName string) *Multichain {
 	//instantiates state and blockchains
 	blockchains := &Multichain{}
 	newDatabase := true
@@ -33,40 +44,25 @@ func CreateMultichain(dbName string, startMining bool) *Multichain {
 	// Open BoltDB file
 	db, err := bolt.Open(dbName, 0600, nil)
 	if err != nil {
-		LogPanic(err.Error())
+		utils.LogPanic(err.Error())
 	}
 	blockchains.db = db
 
-	blockchains.finishedBlockCh = make(chan BlockMsg, 1000)
-	blockchains.miner = NewMiner(blockchains.finishedBlockCh)
-	blockchains.stopMiningCh = make(chan string, 1000)
-	blockchains.mempools = make(map[string]map[string]GenericTransaction)
-	blockchains.mempoolUncommitted = make(map[string]*UncommittedTransactions)
-
-	blockchains.mempools[MATCH_CHAIN] = make(map[string]GenericTransaction)
-	blockchains.mempoolUncommitted[MATCH_CHAIN] = &UncommittedTransactions{}
-
-	blockchains.matcher = StartMatcher(blockchains, nil)
-	blockchains.consensusState = NewConsensusState()
-	blockchains.chains = make(map[string]*Blockchain)
-	blockchains.chains[MATCH_CHAIN] = NewBlockchain(db, MATCH_CHAIN)
+	blockchains.matcher = matcher.StartMatcher(blockchains, nil)
+	blockchains.consensusState = consensus.NewConsensusState()
+	blockchains.chains = make(map[string]*blockchain.Blockchain)
+	blockchains.chains[MATCH_CHAIN] = blockchain.NewBlockchain(db, MATCH_CHAIN)
 	blockchains.chainsLock = &sync.RWMutex{}
-	blockchains.mempoolsLock = &sync.Mutex{}
 
-	blockchains.mempools[MATCH_CHAIN] = make(map[string]GenericTransaction)
-	blockchains.mempoolUncommitted[MATCH_CHAIN] = &UncommittedTransactions{}
 	if newDatabase {
 		blockchains.recovering = false
-		blockchains.AddBlock(MATCH_CHAIN, *NewGenesisBlock(), false)
+		blockchains.AddBlock(MATCH_CHAIN, *blockchain.NewGenesisBlock(), false)
 	} else {
 		blockchains.recovering = true
 		blockchains.restoreFromDatabase()
 		blockchains.recovering = false
 	}
-	if startMining {
-		go blockchains.StartMining(true)
-		go blockchains.ApplyLoop()
-	}
+
 	return blockchains
 }
 
