@@ -1,4 +1,4 @@
-package main
+package matcher
 
 type Matcher struct {
 	orderbooks map[string]map[string]*Orderbook
