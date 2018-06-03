@@ -1,4 +1,4 @@
-package main
+package miner
 
 const MAX_BLOCK_SIZE = 1000
 
