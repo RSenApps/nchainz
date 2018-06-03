@@ -8,6 +8,14 @@ import (
 	"runtime"
 )
 
+//////////////////////////////////////
+// LOGGING
+// Colored by system component
+// Blue: node.go
+// Green: multichain.go, blockchain.go
+// Magenta: consensus_state.go
+// Yellow: miner.go, pow.go
+
 func Log(format string, a ...interface{}) {
 	_, path, _, _ := runtime.Caller(1)
 	printf(path, format, a...)

@@ -2,17 +2,30 @@ package main
 
 const MAX_BLOCK_SIZE = 1000
 
-type NewBlockMsg struct {
-	BlockType BlockType // type of block we are adding transactions to
-	LastHash  []byte    // hash of previous block
-	Symbol    string
-}
+////////////////////////////////////////////////////
+// MESSAGES TO MINER
+// MinerMsg: interface for BlockMsg and NewBlockMsg
 
 type MinerMsg struct {
 	Msg        interface{}
 	IsNewBlock bool
 	MinerRound uint64
 }
+
+type BlockMsg struct {
+	Block     Block
+	TxInBlock map[string]GenericTransaction
+	Symbol    string
+}
+
+type NewBlockMsg struct {
+	BlockType BlockType // type of block we are adding transactions to
+	LastHash  []byte    // hash of previous block
+	Symbol    string
+}
+
+////////////////////////////////
+// MINER
 
 type Miner struct {
 	minerCh         chan MinerMsg
@@ -21,10 +34,12 @@ type Miner struct {
 	minerRound      uint64
 }
 
-type BlockMsg struct {
-	Block     Block
-	TxInBlock map[string]GenericTransaction
-	Symbol    string
+func NewMiner(finishedBlockCh chan BlockMsg) *Miner {
+	minerCh := make(chan MinerMsg, 1000)
+	var transactions []GenericTransaction
+	miner := &Miner{minerCh, finishedBlockCh, transactions, 0}
+	go miner.mineLoop()
+	return miner
 }
 
 func (miner *Miner) mineLoop() {
@@ -110,12 +125,4 @@ func (miner *Miner) mineLoop() {
 			}
 		}
 	}
-}
-
-func NewMiner(finishedBlockCh chan BlockMsg) *Miner {
-	minerCh := make(chan MinerMsg, 1000)
-	var transactions []GenericTransaction
-	miner := &Miner{minerCh, finishedBlockCh, transactions, 0}
-	go miner.mineLoop()
-	return miner
 }

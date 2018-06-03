@@ -7,26 +7,15 @@ import (
 	"log"
 )
 
+//////////////////////
+// BLOCKCHAIN
+
 type Blockchain struct {
 	tipHash     []byte   // Tip of chain
 	db          *bolt.DB // DB connection
 	height      uint64
 	bucketName  string
 	blockhashes [][]byte
-}
-
-// To iterate over blocks
-type BlockchainIterator struct {
-	currentHash []byte   // Hash of current block
-	db          *bolt.DB // DB connection
-	bucketName  string
-}
-
-type BlockchainForwardIterator struct {
-	hashes       [][]byte // Hash of current block
-	currentIndex int
-	db           *bolt.DB // DB connection
-	bucketName   string
 }
 
 func NewBlockchain(db *bolt.DB, symbol string) *Blockchain {
@@ -120,6 +109,88 @@ func (bc *Blockchain) DeleteStorage() {
 	})
 }
 
+func (bc *Blockchain) getBlockhashes() [][]byte {
+	blockhashes := make([][]byte, 0)
+	bci := bc.Iterator()
+
+	block, err := bci.Prev()
+	for err == nil {
+		blockhashes = append(blockhashes, block.Hash)
+		block, err = bci.Prev()
+	}
+
+	return blockhashes
+}
+
+func (bc *Blockchain) GetBlock(blockhash []byte) (*Block, error) {
+	bci := bc.Iterator()
+
+	block, err := bci.Prev()
+	for err == nil {
+		if bytes.Equal(block.Hash, blockhash) {
+			return block, nil
+		}
+		block, err = bci.Prev()
+	}
+
+	return nil, errors.New("block not found")
+}
+
+func (bc *Blockchain) getTipHash() []byte {
+	var lastHash []byte // Hash of last block
+
+	// Read-only transaction to get hash of last block
+	err := bc.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(bc.bucketName))
+		temp := b.Get([]byte("l"))
+		if temp == nil {
+			return errors.New("No hash stored")
+		}
+		buf := make([]byte, len(temp))
+		copy(buf, temp)
+		lastHash = buf
+		return nil
+	})
+
+	if err != nil || lastHash == nil {
+		return []byte{}
+	} else {
+		return lastHash
+	}
+}
+
+func (bc *Blockchain) DumpChain(amtRequested uint64) (string, uint64) {
+	var buffer bytes.Buffer
+	var i uint64
+	bci := bc.Iterator()
+
+	block, err := bci.Prev()
+	for i = 0; i < amtRequested && err == nil; i++ {
+		buffer.WriteString(block.Dump())
+		buffer.WriteString("\n")
+		block, err = bci.Prev()
+	}
+
+	return buffer.String(), i
+}
+
+////////////////////////////
+// BLOCKCHAIN ITERATOR
+// For iterating over blocks
+
+type BlockchainIterator struct {
+	currentHash []byte   // Hash of current block
+	db          *bolt.DB // DB connection
+	bucketName  string
+}
+
+type BlockchainForwardIterator struct {
+	hashes       [][]byte // Hash of current block
+	currentIndex int
+	db           *bolt.DB // DB connection
+	bucketName   string
+}
+
 //
 // Create iterator for a blockchain
 //
@@ -186,69 +257,4 @@ func (bci *BlockchainForwardIterator) Next() (*Block, error) {
 
 func (bci *BlockchainForwardIterator) Undo() {
 	bci.currentIndex++
-}
-
-func (bc *Blockchain) getBlockhashes() [][]byte {
-	blockhashes := make([][]byte, 0)
-	bci := bc.Iterator()
-
-	block, err := bci.Prev()
-	for err == nil {
-		blockhashes = append(blockhashes, block.Hash)
-		block, err = bci.Prev()
-	}
-
-	return blockhashes
-}
-
-func (bc *Blockchain) GetBlock(blockhash []byte) (*Block, error) {
-	bci := bc.Iterator()
-
-	block, err := bci.Prev()
-	for err == nil {
-		if bytes.Equal(block.Hash, blockhash) {
-			return block, nil
-		}
-		block, err = bci.Prev()
-	}
-
-	return nil, errors.New("block not found")
-}
-
-func (bc *Blockchain) getTipHash() []byte {
-	var lastHash []byte // Hash of last block
-
-	// Read-only transaction to get hash of last block
-	err := bc.db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte(bc.bucketName))
-		temp := b.Get([]byte("l"))
-		if temp == nil {
-			return errors.New("No hash stored")
-		}
-		buf := make([]byte, len(temp))
-		copy(buf, temp)
-		lastHash = buf
-		return nil
-	})
-
-	if err != nil || lastHash == nil {
-		return []byte{}
-	} else {
-		return lastHash
-	}
-}
-
-func (bc *Blockchain) DumpChain(amtRequested uint64) (string, uint64) {
-	var buffer bytes.Buffer
-	var i uint64
-	bci := bc.Iterator()
-
-	block, err := bci.Prev()
-	for i = 0; i < amtRequested && err == nil; i++ {
-		buffer.WriteString(block.Dump())
-		buffer.WriteString("\n")
-		block, err = bci.Prev()
-	}
-
-	return buffer.String(), i
 }

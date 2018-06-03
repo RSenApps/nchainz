@@ -1,7 +1,5 @@
 package main
 
-// Source of Base58 code: https://github.com/Jeiwan/blockchain_go/blob/402b298d4f908d14df5d7e51e7ae917c0347da47/base58.go
-
 import (
 	"bytes"
 	"crypto/ecdsa"
@@ -112,6 +110,8 @@ func getChecksum(data []byte) []byte {
 // BASE58 ENCODING
 // encode: byte array to base 58
 // decode: base 58 to byte array
+// Acknowledgement of Base58 code:
+// https://github.com/Jeiwan/blockchain_go/blob/402b298d4f908d14df5d7e51e7ae917c0347da47/base58.go
 
 var b58Alphabet = []byte("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz")
 

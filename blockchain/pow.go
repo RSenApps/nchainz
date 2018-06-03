@@ -15,6 +15,9 @@ const targetBits = 24
 // Maximum value of counter
 var maxNonce = math.MaxInt32
 
+///////////////////////
+// PROOF OF WORK
+
 type ProofOfWork struct {
 	block  *Block
 	target *big.Int
