@@ -5,6 +5,7 @@ import (
 	"encoding/gob"
 	"fmt"
 	"github.com/rsenapps/nchainz/txs"
+	"github.com/rsenapps/nchainz/utils"
 )
 
 ////////////////////////////////////////////
@@ -46,13 +47,13 @@ type Block struct {
 }
 
 func NewGenesisBlock() *Block {
-	ws := NewWalletStore(true)
+	ws := utils.NewWalletStore(true)
 	addresses := ws.GetAddresses()
 	w := ws.GetWallet(addresses[0])
 
-	createToken := CreateToken{
-		TokenInfo: TokenInfo{
-			Symbol:      NATIVE_CHAIN,
+	createToken := txs.CreateToken{
+		TokenInfo: txs.TokenInfo{
+			Symbol:      txs.NATIVE_TOKEN,
 			TotalSupply: 100 * 1000 * 1000,
 			Decimals:    18,
 		},
@@ -62,21 +63,21 @@ func NewGenesisBlock() *Block {
 	matchData := MatchData{
 		Matches:      nil,
 		CancelOrders: nil,
-		CreateTokens: []CreateToken{createToken},
+		CreateTokens: []txs.CreateToken{createToken},
 	}
 	block := &Block{2, MATCH_BLOCK, matchData, []byte{}, []byte{}, 0}
 	block.Hash = NewProofOfWork(block).GetHash()
 	return NewBlock(matchData, MATCH_BLOCK, []byte{})
 }
 
-func NewTokenGenesisBlock(createToken CreateToken) *Block {
-	claimFunds := ClaimFunds{
+func NewTokenGenesisBlock(createToken txs.CreateToken) *Block {
+	claimFunds := txs.ClaimFunds{
 		Address: createToken.CreatorAddress,
 		Amount:  createToken.TokenInfo.TotalSupply,
 	}
 	tokenData := TokenData{
 		Orders:     nil,
-		ClaimFunds: []ClaimFunds{claimFunds},
+		ClaimFunds: []txs.ClaimFunds{claimFunds},
 		Transfers:  nil,
 	}
 	return NewBlock(tokenData, TOKEN_BLOCK, []byte{})
@@ -88,36 +89,36 @@ func NewBlock(data BlockData, blockType BlockType, prevBlockHash []byte) *Block 
 	return block
 }
 
-func (b *Block) AddTransaction(tx GenericTransaction) {
+func (b *Block) AddTransaction(tx txs.Tx) {
 	newData := b.Data
 
-	switch tx.TransactionType {
-	case MATCH:
+	switch tx.TxType {
+	case txs.MATCH:
 		temp := newData.(MatchData)
-		temp.Matches = append(temp.Matches, tx.Transaction.(Match))
+		temp.Matches = append(temp.Matches, tx.Tx.(txs.Match))
 		newData = temp
-	case ORDER:
+	case txs.ORDER:
 		temp := newData.(TokenData)
-		temp.Orders = append(temp.Orders, tx.Transaction.(Order))
+		temp.Orders = append(temp.Orders, tx.Tx.(txs.Order))
 		newData = temp
-	case TRANSFER:
+	case txs.TRANSFER:
 		temp := newData.(TokenData)
-		temp.Transfers = append(temp.Transfers, tx.Transaction.(Transfer))
+		temp.Transfers = append(temp.Transfers, tx.Tx.(txs.Transfer))
 		newData = temp
-	case CANCEL_ORDER:
+	case txs.CANCEL_ORDER:
 		temp := newData.(MatchData)
-		temp.CancelOrders = append(temp.CancelOrders, tx.Transaction.(CancelOrder))
+		temp.CancelOrders = append(temp.CancelOrders, tx.Tx.(txs.CancelOrder))
 		newData = temp
-	case CLAIM_FUNDS:
+	case txs.CLAIM_FUNDS:
 		temp := newData.(TokenData)
-		temp.ClaimFunds = append(temp.ClaimFunds, tx.Transaction.(ClaimFunds))
+		temp.ClaimFunds = append(temp.ClaimFunds, tx.Tx.(txs.ClaimFunds))
 		newData = temp
-	case CREATE_TOKEN:
+	case txs.CREATE_TOKEN:
 		temp := newData.(MatchData)
-		temp.CreateTokens = append(temp.CreateTokens, tx.Transaction.(CreateToken))
+		temp.CreateTokens = append(temp.CreateTokens, tx.Tx.(txs.CreateToken))
 		newData = temp
 	default:
-		LogPanic("ERROR: unknown transaction type")
+		utils.LogPanic("ERROR: unknown transaction type")
 	}
 	b.Data = newData
 }
@@ -131,7 +132,7 @@ func (b *Block) Serialize() []byte {
 
 	err := encoder.Encode(b) // encode block
 	if err != nil {
-		LogPanic(err.Error())
+		utils.LogPanic(err.Error())
 	}
 
 	return result.Bytes()
@@ -146,7 +147,7 @@ func DeserializeBlock(d []byte) *Block {
 	decoder := gob.NewDecoder(bytes.NewReader(d))
 	err := decoder.Decode(&block)
 	if err != nil {
-		LogPanic(err.Error())
+		utils.LogPanic(err.Error())
 	}
 
 	return &block

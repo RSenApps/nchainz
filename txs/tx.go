@@ -7,6 +7,9 @@ import (
 	"github.com/rsenapps/nchainz/utils"
 )
 
+const MATCH_TOKEN = "MATCH"
+const NATIVE_TOKEN = "NATIVE"
+
 //////////////////////
 // TRANSACTION
 
@@ -111,13 +114,6 @@ type UnsignedCreateToken struct {
 }
 
 //
-// Helper function for serializing a transaction
-//
-func GetBytes(key interface{}) []byte {
-	return []byte(fmt.Sprintf("%v", key))
-}
-
-//
 // Serialize a transaction (minus the signature) so we can hash and sign it
 //
 func (tx Tx) Serialize() []byte {
@@ -127,21 +123,21 @@ func (tx Tx) Serialize() []byte {
 	case ORDER:
 		order := tx.Tx.(Order)
 		unsignedTx := UnsignedOrder{order.ID, order.BuySymbol, order.AmountToSell, order.AmountToBuy, order.SellerAddress}
-		return GetBytes(unsignedTx)
+		return utils.GetBytes(unsignedTx)
 	case TRANSFER:
 		transfer := tx.Tx.(Transfer)
 		unsignedTx := UnsignedTransfer{transfer.ID, transfer.Amount, transfer.FromAddress, transfer.ToAddress}
-		return GetBytes(unsignedTx)
+		return utils.GetBytes(unsignedTx)
 	case CANCEL_ORDER:
 		cancel := tx.Tx.(CancelOrder)
 		unsignedTx := UnsignedCancelOrder{cancel.OrderSymbol, cancel.OrderID}
-		return GetBytes(unsignedTx)
+		return utils.GetBytes(unsignedTx)
 	case CLAIM_FUNDS:
 		utils.LogPanic("ERROR: should not sign claim funds transaction")
 	case CREATE_TOKEN:
 		create := tx.Tx.(CreateToken)
 		unsignedTx := UnsignedCreateToken{create.TokenInfo, create.CreatorAddress}
-		return GetBytes(unsignedTx)
+		return utils.GetBytes(unsignedTx)
 	default:
 		utils.LogPanic("ERROR: unknown transaction type")
 	}

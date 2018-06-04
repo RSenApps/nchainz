@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
+	"github.com/rsenapps/nchainz/utils"
 	"math"
 	"math/big"
 	"math/rand"
@@ -30,14 +31,14 @@ func NewProofOfWork(b *Block) *ProofOfWork {
 }
 
 func (pow *ProofOfWork) Try(iterations int) (bool, int, []byte) {
-	blockBytes := GetBytes(pow.block.Data)
+	blockBytes := utils.GetBytes(pow.block.Data)
 	blockData := pow.prepareData(blockBytes)
 
 	for i := 0; i < iterations; i++ {
 		nonce := rand.Intn(maxNonce)
 		success, hash := pow.Calculate(blockData, nonce)
 		if success {
-			Log("MINING SUCCESS")
+			utils.Log("MINING SUCCESS")
 			return success, nonce, hash
 		}
 	}
@@ -71,7 +72,7 @@ func (pow *ProofOfWork) Validate() bool {
 }
 
 func (pow *ProofOfWork) GetHash() []byte {
-	blockBytes := GetBytes(pow.block.Data)
+	blockBytes := utils.GetBytes(pow.block.Data)
 	blockData := pow.prepareData(blockBytes)
 	return nonceHash(blockData, pow.block.Nonce)
 }
@@ -107,7 +108,7 @@ func IntToBytes(num int64) []byte {
 	buff := new(bytes.Buffer)
 	err := binary.Write(buff, binary.BigEndian, num)
 	if err != nil {
-		LogPanic(err.Error())
+		utils.LogPanic(err.Error())
 	}
 
 	return buff.Bytes()

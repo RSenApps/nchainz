@@ -8,13 +8,11 @@ import (
 	"github.com/rsenapps/nchainz/blockchain"
 	"github.com/rsenapps/nchainz/consensus"
 	"github.com/rsenapps/nchainz/matcher"
+	"github.com/rsenapps/nchainz/txs"
 	"github.com/rsenapps/nchainz/utils"
 	"os"
 	"sync"
 )
-
-const MATCH_CHAIN = "MATCH"
-const NATIVE_CHAIN = "NATIVE"
 
 type Multichain struct {
 	chains         map[string]*blockchain.Blockchain
@@ -29,8 +27,16 @@ func (multichain *Multichain) Lock() {
 	multichain.lock.Lock()
 }
 
+func (multichain *Multichain) RLock() {
+	multichain.lock.RLock()
+}
+
 func (multichain *Multichain) Unlock() {
 	multichain.lock.Unlock()
+}
+
+func (multichain *Multichain) RUnlock() {
+	multichain.lock.RUnlock()
 }
 
 func CreateMultichain(dbName string) *Multichain {
@@ -51,12 +57,12 @@ func CreateMultichain(dbName string) *Multichain {
 	blockchains.matcher = matcher.StartMatcher(blockchains, nil)
 	blockchains.consensusState = consensus.NewConsensusState()
 	blockchains.chains = make(map[string]*blockchain.Blockchain)
-	blockchains.chains[MATCH_CHAIN] = blockchain.NewBlockchain(db, MATCH_CHAIN)
-	blockchains.chainsLock = &sync.RWMutex{}
+	blockchains.chains[txs.MATCH_TOKEN] = blockchain.NewBlockchain(db, txs.MATCH_TOKEN)
+	blockchains.lock = &sync.RWMutex{}
 
 	if newDatabase {
 		blockchains.recovering = false
-		blockchains.AddBlock(MATCH_CHAIN, *blockchain.NewGenesisBlock(), false)
+		blockchains.AddBlock(txs.MATCH_TOKEN, *blockchain.NewGenesisBlock(), false)
 	} else {
 		blockchains.recovering = true
 		blockchains.restoreFromDatabase()
@@ -73,27 +79,27 @@ func (multichain *Multichain) RollbackAndAddBlocks(symbol string, height uint64)
 	//TODO:
 }
 
-func (multichain *Multichain) AddBlock(symbol string, block Block, takeLock bool) bool {
-	return multichain.AddBlocks(symbol, []Block{block}, takeLock)
+func (multichain *Multichain) AddBlock(symbol string, block blockchain.Block, takeLock bool) bool {
+	return multichain.AddBlocks(symbol, []blockchain.Block{block}, takeLock)
 }
 
-func (multichain *Multichain) AddBlocks(symbol string, blocks []Block, takeLock bool) bool {
+func (multichain *Multichain) AddBlocks(symbol string, blocks []blockchain.Block, takeLock bool) bool {
 	defer multichain.matcher.FindAllMatches()
 
 	if takeLock {
-		multichain.chainsLock.Lock()
-		defer multichain.chainsLock.Unlock()
+		multichain.Lock()
+		defer multichain.Unlock()
 	}
 
 	if _, ok := multichain.chains[symbol]; !ok {
-		Log("AddBlocks failed as symbol not found: %v", symbol)
+		utils.Log("AddBlocks failed as symbol not found: %v", symbol)
 		return false
 	}
 
 	if !multichain.recovering && takeLock {
 		go func() { multichain.stopMiningCh <- symbol }()
 		multichain.mempoolsLock.Lock()
-		Log("AddBlocks undoing transactions for: %v", symbol)
+		utils.Log("AddBlocks undoing transactions for: %v", symbol)
 		multichain.mempoolUncommitted[symbol].undoTransactions(symbol, multichain, false)
 		multichain.mempoolUncommitted[symbol] = &UncommittedTransactions{}
 		multichain.mempoolsLock.Unlock()
@@ -104,24 +110,24 @@ func (multichain *Multichain) AddBlocks(symbol string, blocks []Block, takeLock 
 	failed := false
 	for _, block := range blocks {
 		if !bytes.Equal(multichain.chains[symbol].tipHash, block.PrevBlockHash) {
-			Log("prevBlockHash does not match tipHash for symbol %v %x != %x \n", symbol, blockchains.chains[symbol].tipHash, block.PrevBlockHash)
+			utils.Log("prevBlockHash does not match tipHash for symbol %v %x != %x \n", symbol, multichain.chains[symbol].tipHash, block.PrevBlockHash)
 			failed = true
 			break
 		}
 
 		if multichain.chains[symbol].height > 1 {
-			pow := NewProofOfWork(&block)
+			pow := blockchain.NewProofOfWork(&block)
 			if !pow.Validate() {
-				Log("Proof of work of block is invalid")
+				utils.Log("Proof of work of block is invalid")
 			}
 		}
-		if symbol == MATCH_CHAIN {
-			if !multichain.addMatchData(block.Data.(MatchData), &uncommitted) {
+		if symbol == txs.MATCH_TOKEN {
+			if !multichain.addMatchData(block.Data.(blockchain.MatchData), &uncommitted) {
 				failed = true
 				break
 			}
 		} else {
-			if !multichain.addTokenData(symbol, block.Data.(TokenData), &uncommitted) {
+			if !multichain.addTokenData(symbol, block.Data.(blockchain.TokenData), &uncommitted) {
 				failed = true
 				break
 			}
@@ -130,14 +136,14 @@ func (multichain *Multichain) AddBlocks(symbol string, blocks []Block, takeLock 
 		blocksAdded++
 	}
 	if failed {
-		Log("Adding blocks failed, rolling back.")
+		utils.Log("Adding blocks failed, rolling back.")
 		uncommitted.undoTransactions(symbol, multichain, true)
 		for i := 0; i < blocksAdded; i++ {
 			multichain.chains[symbol].RemoveLastBlock()
 		}
 		return false
 	}
-	Log("AddBlocks added %v blocks to %v chain", blocksAdded, symbol)
+	utils.Log("AddBlocks added %v blocks to %v chain", blocksAdded, symbol)
 
 	return true
 }
@@ -145,13 +151,13 @@ func (multichain *Multichain) AddBlocks(symbol string, blocks []Block, takeLock 
 func (multichain *Multichain) RollbackToHeight(symbol string, height uint64, takeLock bool, takeMempoolLock bool) {
 	if takeLock {
 		defer multichain.matcher.FindAllMatches()
-		multichain.chainsLock.Lock()
-		defer multichain.chainsLock.Unlock()
+		multichain.Lock()
+		defer multichain.Unlock()
 	}
-	Log("Rolling back %v block to height: %v \n", symbol, height)
+	utils.Log("Rolling back %v block to height: %v \n", symbol, height)
 
 	if _, ok := multichain.chains[symbol]; !ok {
-		Log("RollbackToHeight failed as symbol not found: ", symbol)
+		utils.Log("RollbackToHeight failed as symbol not found: ", symbol)
 		return
 	}
 
@@ -160,7 +166,7 @@ func (multichain *Multichain) RollbackToHeight(symbol string, height uint64, tak
 			go func() { multichain.stopMiningCh <- symbol }()
 			multichain.mempoolsLock.Lock()
 		}
-		Log("RollbackToHeight undoing transactions for: %v", symbol)
+		utils.Log("RollbackToHeight undoing transactions for: %v", symbol)
 		multichain.mempoolUncommitted[symbol].undoTransactions(symbol, multichain, false)
 		multichain.mempoolUncommitted[symbol] = &UncommittedTransactions{}
 		if takeMempoolLock {
@@ -168,7 +174,7 @@ func (multichain *Multichain) RollbackToHeight(symbol string, height uint64, tak
 		}
 	}
 
-	if symbol == MATCH_CHAIN {
+	if symbol == txs.MATCH_TOKEN {
 		multichain.rollbackMatchToHeight(height)
 	} else {
 		multichain.rollbackTokenToHeight(symbol, height)
@@ -176,21 +182,21 @@ func (multichain *Multichain) RollbackToHeight(symbol string, height uint64, tak
 
 }
 
-func (multichain *Multichain) AddTokenChain(createToken CreateToken) {
+func (multichain *Multichain) AddTokenChain(createToken txs.CreateToken) {
 	//no lock needed
-	Log("Adding token chain")
-	chain := NewBlockchain(multichain.db, createToken.TokenInfo.Symbol)
+	utils.Log("Adding token chain")
+	chain := blockchain.NewBlockchain(multichain.db, createToken.TokenInfo.Symbol)
 	multichain.chains[createToken.TokenInfo.Symbol] = chain
-	multichain.mempools[createToken.TokenInfo.Symbol] = make(map[string]GenericTransaction)
+	multichain.mempools[createToken.TokenInfo.Symbol] = make(map[string]txs.Tx)
 	multichain.mempoolUncommitted[createToken.TokenInfo.Symbol] = &UncommittedTransactions{}
 
 	if !multichain.recovering { //recovery will replay this block normally
-		multichain.AddBlock(createToken.TokenInfo.Symbol, *NewTokenGenesisBlock(createToken), false)
+		multichain.AddBlock(createToken.TokenInfo.Symbol, *blockchain.NewTokenGenesisBlock(createToken), false)
 	}
 }
 
-func (multichain *Multichain) RemoveTokenChain(createToken CreateToken) {
-	Log("Removing token chain")
+func (multichain *Multichain) RemoveTokenChain(createToken txs.CreateToken) {
+	utils.Log("Removing token chain")
 	multichain.chains[createToken.TokenInfo.Symbol].DeleteStorage()
 	delete(multichain.chains, createToken.TokenInfo.Symbol)
 	delete(multichain.mempools, createToken.TokenInfo.Symbol)
@@ -200,9 +206,9 @@ func (multichain *Multichain) RemoveTokenChain(createToken CreateToken) {
 ////////////////////////////////
 // State Getters
 
-func (multichain *Multichain) GetBlock(symbol string, blockhash []byte) (*Block, error) {
-	multichain.chainsLock.RLock()
-	defer multichain.chainsLock.RUnlock()
+func (multichain *Multichain) GetBlock(symbol string, blockhash []byte) (*blockchain.Block, error) {
+	multichain.RLock()
+	defer multichain.RUnlock()
 
 	bc, ok := multichain.chains[symbol]
 	if !ok {
@@ -214,8 +220,8 @@ func (multichain *Multichain) GetBlock(symbol string, blockhash []byte) (*Block,
 }
 
 func (multichain *Multichain) GetHeights() map[string]uint64 {
-	multichain.chainsLock.RLock()
-	defer multichain.chainsLock.RUnlock()
+	multichain.RLock()
+	defer multichain.RUnlock()
 	heights := make(map[string]uint64)
 	for symbol, chain := range multichain.chains {
 		heights[symbol] = chain.height
@@ -224,14 +230,14 @@ func (multichain *Multichain) GetHeights() map[string]uint64 {
 }
 
 func (multichain *Multichain) GetHeight(symbol string) uint64 {
-	multichain.chainsLock.RLock()
-	defer multichain.chainsLock.RUnlock()
+	multichain.RLock()
+	defer multichain.RUnlock()
 	return multichain.chains[symbol].height
 }
 
 func (multichain *Multichain) GetBlockhashes() map[string][][]byte {
-	multichain.chainsLock.RLock()
-	defer multichain.chainsLock.RUnlock()
+	multichain.RLock()
+	defer multichain.RUnlock()
 	blockhashes := make(map[string][][]byte)
 	for symbol, chain := range multichain.chains {
 		blockhashes[symbol] = chain.blockhashes
@@ -239,12 +245,12 @@ func (multichain *Multichain) GetBlockhashes() map[string][][]byte {
 	return blockhashes
 }
 
-func (multichain *Multichain) GetBalance(symbol string, address [addressLength]byte) (uint64, bool) {
-	multichain.chainsLock.RLock()
-	defer multichain.chainsLock.RUnlock()
+func (multichain *Multichain) GetBalance(symbol string, address [utils.AddressLength]byte) (uint64, bool) {
+	multichain.RLock()
+	defer multichain.RUnlock()
 	state, ok := multichain.consensusState.tokenStates[symbol]
 	if !ok {
-		Log("GetBalance failed symbol %v does not exist", symbol)
+		utils.Log("GetBalance failed symbol %v does not exist", symbol)
 		return 0, false
 	}
 
@@ -256,12 +262,12 @@ func (multichain *Multichain) GetBalance(symbol string, address [addressLength]b
 	}
 }
 
-func (multichain *Multichain) GetUnclaimedBalance(symbol string, address [addressLength]byte) (uint64, bool) {
-	multichain.chainsLock.RLock()
-	defer multichain.chainsLock.RUnlock()
+func (multichain *Multichain) GetUnclaimedBalance(symbol string, address [utils.AddressLength]byte) (uint64, bool) {
+	multichain.RLock()
+	defer multichain.RUnlock()
 	state, ok := multichain.consensusState.tokenStates[symbol]
 	if !ok {
-		Log("GetBalance failed symbol %v does not exist", symbol)
+		utils.Log("GetBalance failed symbol %v does not exist", symbol)
 		return 0, false
 	}
 
@@ -269,9 +275,9 @@ func (multichain *Multichain) GetUnclaimedBalance(symbol string, address [addres
 	return balance, ok
 }
 
-func (multichain *Multichain) GetOpenOrders(symbol string) map[uint64]Order {
-	multichain.chainsLock.RLock()
-	defer multichain.chainsLock.RUnlock()
+func (multichain *Multichain) GetOpenOrders(symbol string) map[uint64]txs.Order {
+	multichain.RLock()
+	defer multichain.RUnlock()
 	state, _ := multichain.consensusState.tokenStates[symbol]
 	return state.openOrders
 }
@@ -279,11 +285,11 @@ func (multichain *Multichain) GetOpenOrders(symbol string) map[uint64]Order {
 ////////////////////////////////
 // Private Implementation
 
-func (multichain *Multichain) addTokenData(symbol string, tokenData TokenData, uncommitted *UncommittedTransactions) bool {
+func (multichain *Multichain) addTokenData(symbol string, tokenData blockchain.TokenData, uncommitted *UncommittedTransactions) bool {
 	for _, claimFunds := range tokenData.ClaimFunds {
-		tx := GenericTransaction{
-			Transaction:     claimFunds,
-			TransactionType: CLAIM_FUNDS,
+		tx := txs.Tx{
+			Tx:     claimFunds,
+			TxType: txs.CLAIM_FUNDS,
 		}
 		if !multichain.addGenericTransaction(symbol, tx, uncommitted, true) {
 			return false
@@ -291,9 +297,9 @@ func (multichain *Multichain) addTokenData(symbol string, tokenData TokenData, u
 	}
 
 	for _, transfer := range tokenData.Transfers {
-		tx := GenericTransaction{
-			Transaction:     transfer,
-			TransactionType: TRANSFER,
+		tx := txs.Tx{
+			Tx:     transfer,
+			TxType: txs.TRANSFER,
 		}
 		if !multichain.addGenericTransaction(symbol, tx, uncommitted, true) {
 			return false
@@ -301,9 +307,9 @@ func (multichain *Multichain) addTokenData(symbol string, tokenData TokenData, u
 	}
 
 	for _, order := range tokenData.Orders {
-		tx := GenericTransaction{
-			Transaction:     order,
-			TransactionType: ORDER,
+		tx := txs.Tx{
+			Tx:     order,
+			TxType: txs.ORDER,
 		}
 		if !multichain.addGenericTransaction(symbol, tx, uncommitted, true) {
 			return false
@@ -312,33 +318,33 @@ func (multichain *Multichain) addTokenData(symbol string, tokenData TokenData, u
 	return true
 }
 
-func (multichain *Multichain) addMatchData(matchData MatchData, uncommitted *UncommittedTransactions) bool {
+func (multichain *Multichain) addMatchData(matchData blockchain.MatchData, uncommitted *UncommittedTransactions) bool {
 	for _, createToken := range matchData.CreateTokens {
-		tx := GenericTransaction{
-			Transaction:     createToken,
-			TransactionType: CREATE_TOKEN,
+		tx := txs.Tx{
+			Tx:     createToken,
+			TxType: txs.CREATE_TOKEN,
 		}
-		if !multichain.addGenericTransaction(MATCH_CHAIN, tx, uncommitted, true) {
+		if !multichain.addGenericTransaction(txs.MATCH_TOKEN, tx, uncommitted, true) {
 			return false
 		}
 	}
 
 	for _, match := range matchData.Matches {
-		tx := GenericTransaction{
-			Transaction:     match,
-			TransactionType: MATCH,
+		tx := txs.Tx{
+			Tx:     match,
+			TxType: txs.MATCH,
 		}
-		if !multichain.addGenericTransaction(MATCH_CHAIN, tx, uncommitted, true) {
+		if !multichain.addGenericTransaction(txs.MATCH_TOKEN, tx, uncommitted, true) {
 			return false
 		}
 	}
 
 	for _, cancelOrder := range matchData.CancelOrders {
-		tx := GenericTransaction{
-			Transaction:     cancelOrder,
-			TransactionType: CANCEL_ORDER,
+		tx := txs.Tx{
+			Tx:     cancelOrder,
+			TxType: txs.CANCEL_ORDER,
 		}
-		if !multichain.addGenericTransaction(MATCH_CHAIN, tx, uncommitted, true) {
+		if !multichain.addGenericTransaction(txs.MATCH_TOKEN, tx, uncommitted, true) {
 			return false
 		}
 	}
@@ -352,7 +358,7 @@ func (multichain *Multichain) rollbackTokenToHeight(symbol string, height uint64
 	}
 	blocksToRemove := multichain.chains[symbol].height - height
 	for i := uint64(0); i < blocksToRemove; i++ {
-		removedData := multichain.chains[symbol].RemoveLastBlock().(TokenData)
+		removedData := multichain.chains[symbol].RemoveLastBlock().(blockchain.TokenData)
 		for j := len(removedData.Orders) - 1; j >= 0; j-- {
 			multichain.consensusState.RollbackUntilRollbackOrderSucceeds(symbol, removedData.Orders[j], multichain, true)
 			multichain.matcher.RemoveOrder(removedData.Orders[j], symbol)
@@ -370,13 +376,13 @@ func (multichain *Multichain) rollbackTokenToHeight(symbol string, height uint64
 }
 
 func (multichain *Multichain) rollbackMatchToHeight(height uint64) {
-	if height >= multichain.chains[MATCH_CHAIN].height {
+	if height >= multichain.chains[txs.MATCH_TOKEN].height {
 		return
 	}
 
-	blocksToRemove := multichain.chains[MATCH_CHAIN].height - height
+	blocksToRemove := multichain.chains[txs.MATCH_TOKEN].height - height
 	for i := uint64(0); i < blocksToRemove; i++ {
-		removedData := multichain.chains[MATCH_CHAIN].RemoveLastBlock().(MatchData)
+		removedData := multichain.chains[txs.MATCH_TOKEN].RemoveLastBlock().(blockchain.MatchData)
 
 		for j := len(removedData.CancelOrders) - 1; j >= 0; j-- {
 			multichain.consensusState.RollbackUntilRollbackCancelOrderSucceeds(removedData.CancelOrders[j], multichain, true)
@@ -398,81 +404,81 @@ func (multichain *Multichain) rollbackMatchToHeight(height uint64) {
 }
 
 //only send mined transactions to matcher
-func (multichain *Multichain) addGenericTransaction(symbol string, transaction GenericTransaction, uncommitted *UncommittedTransactions, mined bool) bool {
+func (multichain *Multichain) addGenericTransaction(symbol string, tx txs.Tx, uncommitted *UncommittedTransactions, mined bool) bool {
 	success := false
 
-	switch transaction.TransactionType {
-	case ORDER:
-		success = multichain.consensusState.AddOrder(symbol, transaction.Transaction.(Order))
-	case CLAIM_FUNDS:
-		success = multichain.consensusState.AddClaimFunds(symbol, transaction.Transaction.(ClaimFunds))
-	case TRANSFER:
-		success = multichain.consensusState.AddTransfer(symbol, transaction.Transaction.(Transfer))
-	case MATCH:
-		success = multichain.consensusState.AddMatch(transaction.Transaction.(Match))
-	case CANCEL_ORDER:
-		multichain.consensusState.AddCancelOrder(transaction.Transaction.(CancelOrder))
-	case CREATE_TOKEN:
-		success = multichain.consensusState.AddCreateToken(transaction.Transaction.(CreateToken), multichain)
+	switch tx.TxType {
+	case txs.ORDER:
+		success = multichain.consensusState.AddOrder(symbol, tx.Tx.(txs.Order))
+	case txs.CLAIM_FUNDS:
+		success = multichain.consensusState.AddClaimFunds(symbol, tx.Tx.(txs.ClaimFunds))
+	case txs.TRANSFER:
+		success = multichain.consensusState.AddTransfer(symbol, tx.Tx.(txs.Transfer))
+	case txs.MATCH:
+		success = multichain.consensusState.AddMatch(tx.Tx.(txs.Match))
+	case txs.CANCEL_ORDER:
+		multichain.consensusState.AddCancelOrder(tx.Tx.(txs.CancelOrder))
+	case txs.CREATE_TOKEN:
+		success = multichain.consensusState.AddCreateToken(tx.Tx.(txs.CreateToken), multichain)
 	}
 
 	if !success {
 		return false
 	}
-	uncommitted.addTransaction(transaction)
+	uncommitted.addTransaction(tx)
 
 	if mined {
-		switch transaction.TransactionType {
-		case ORDER:
-			multichain.matcher.AddOrder(transaction.Transaction.(Order), symbol)
-		case MATCH:
-			multichain.matcher.AddMatch(transaction.Transaction.(Match))
-		case CANCEL_ORDER:
-			multichain.matcher.AddCancelOrder(transaction.Transaction.(CancelOrder), symbol)
+		switch tx.TxType {
+		case txs.ORDER:
+			multichain.matcher.AddOrder(tx.Tx.(txs.Order), symbol)
+		case txs.MATCH:
+			multichain.matcher.AddMatch(tx.Tx.(txs.Match))
+		case txs.CANCEL_ORDER:
+			multichain.matcher.AddCancelOrder(tx.Tx.(txs.CancelOrder), symbol)
 		}
 	}
 
 	return true
 }
 
-func (multichain *Multichain) rollbackGenericTransaction(symbol string, transaction GenericTransaction, mined bool) {
-	var buyOrder, sellOrder Order
-	if mined && transaction.TransactionType == MATCH {
-		buyOrder, sellOrder = multichain.consensusState.GetBuySellOrdersForMatch(transaction.Transaction.(Match))
+func (multichain *Multichain) rollbackGenericTransaction(symbol string, tx txs.Tx, mined bool) {
+	var buyOrder, sellOrder txs.Order
+	if mined && tx.TxType == txs.MATCH {
+		buyOrder, sellOrder = multichain.consensusState.GetBuySellOrdersForMatch(tx.Tx.(txs.Match))
 	}
 
-	switch transaction.TransactionType {
-	case ORDER:
-		multichain.consensusState.RollbackUntilRollbackOrderSucceeds(symbol, transaction.Transaction.(Order), multichain, mined)
-		multichain.consensusState.RollbackOrder(symbol, transaction.Transaction.(Order))
-	case CLAIM_FUNDS:
-		multichain.consensusState.RollbackClaimFunds(symbol, transaction.Transaction.(ClaimFunds))
-	case TRANSFER:
-		multichain.consensusState.RollbackTransfer(symbol, transaction.Transaction.(Transfer))
-	case MATCH:
-		multichain.consensusState.RollbackUntilRollbackMatchSucceeds(transaction.Transaction.(Match), multichain, mined)
-		multichain.consensusState.RollbackMatch(transaction.Transaction.(Match))
-	case CANCEL_ORDER:
-		multichain.consensusState.RollbackUntilRollbackCancelOrderSucceeds(transaction.Transaction.(CancelOrder), multichain, mined)
-		multichain.consensusState.RollbackCancelOrder(transaction.Transaction.(CancelOrder))
-	case CREATE_TOKEN:
-		multichain.consensusState.RollbackCreateToken(transaction.Transaction.(CreateToken), multichain)
+	switch tx.TxType {
+	case txs.ORDER:
+		multichain.consensusState.RollbackUntilRollbackOrderSucceeds(symbol, tx.Tx.(txs.Order), multichain, mined)
+		multichain.consensusState.RollbackOrder(symbol, tx.Tx.(txs.Order))
+	case txs.CLAIM_FUNDS:
+		multichain.consensusState.RollbackClaimFunds(symbol, tx.Tx.(txs.ClaimFunds))
+	case txs.TRANSFER:
+		multichain.consensusState.RollbackTransfer(symbol, tx.Tx.(txs.Transfer))
+	case txs.MATCH:
+		multichain.consensusState.RollbackUntilRollbackMatchSucceeds(tx.Tx.(txs.Match), multichain, mined)
+		multichain.consensusState.RollbackMatch(tx.Tx.(txs.Match))
+	case txs.CANCEL_ORDER:
+		multichain.consensusState.RollbackUntilRollbackCancelOrderSucceeds(tx.Tx.(txs.CancelOrder), multichain, mined)
+		multichain.consensusState.RollbackCancelOrder(tx.Tx.(txs.CancelOrder))
+	case txs.CREATE_TOKEN:
+		multichain.consensusState.RollbackCreateToken(tx.Tx.(txs.CreateToken), multichain)
 	}
 
 	if mined {
-		switch transaction.TransactionType {
-		case ORDER:
-			multichain.matcher.RemoveOrder(transaction.Transaction.(Order), symbol)
-		case MATCH:
-			multichain.matcher.RemoveMatch(transaction.Transaction.(Match), buyOrder, sellOrder)
-		case CANCEL_ORDER:
-			multichain.matcher.RemoveCancelOrder(transaction.Transaction.(CancelOrder))
+		switch tx.TxType {
+		case txs.ORDER:
+			multichain.matcher.RemoveOrder(tx.Tx.(txs.Order), symbol)
+		case txs.MATCH:
+			multichain.matcher.RemoveMatch(tx.Tx.(txs.Match), buyOrder, sellOrder)
+		case txs.CANCEL_ORDER:
+			multichain.matcher.RemoveCancelOrder(tx.Tx.(txs.CancelOrder))
 		}
 	}
 }
 
 func (multichain *Multichain) restoreFromDatabase() {
-	iterators := make(map[string]*BlockchainForwardIterator)
+	iterators := make(map[string]*blockchain.BlockchainForwardIterator)
 	chainsDone := make(map[string]bool)
 	done := false
 	for !done {
@@ -488,16 +494,16 @@ func (multichain *Multichain) restoreFromDatabase() {
 			}
 			block, err := iterator.Next()
 			for err == nil {
-				if symbol == MATCH_CHAIN {
+				if symbol == txs.MATCH_TOKEN {
 					var uncommitted UncommittedTransactions
-					if !multichain.addMatchData(block.Data.(MatchData), &uncommitted) {
-						uncommitted.undoTransactions(MATCH_CHAIN, multichain, true)
+					if !multichain.addMatchData(block.Data.(blockchain.MatchData), &uncommitted) {
+						uncommitted.undoTransactions(txs.MATCH_TOKEN, multichain, true)
 						iterator.Undo()
 						break
 					}
 				} else {
 					var uncommitted UncommittedTransactions
-					if !multichain.addTokenData(symbol, block.Data.(TokenData), &uncommitted) {
+					if !multichain.addTokenData(symbol, block.Data.(blockchain.TokenData), &uncommitted) {
 						uncommitted.undoTransactions(symbol, multichain, true)
 						iterator.Undo()
 						break
@@ -520,7 +526,7 @@ func (multichain *Multichain) restoreFromDatabase() {
 }
 
 func (multichain *Multichain) Cleanup() {
-	multichain.chainsLock.Lock()
+	multichain.Lock()
 	multichain.mempoolsLock.Lock()
 
 	close(multichain.miner.minerCh)
@@ -528,8 +534,8 @@ func (multichain *Multichain) Cleanup() {
 }
 
 func (multichain *Multichain) DumpChains(amt uint64) string {
-	multichain.chainsLock.RLock()
-	defer multichain.chainsLock.RUnlock()
+	multichain.RLock()
+	defer multichain.RUnlock()
 
 	var buffer bytes.Buffer
 	buffer.WriteString(fmt.Sprintf("%v\n", len(multichain.chains)))
@@ -546,10 +552,10 @@ func (multichain *Multichain) DumpChains(amt uint64) string {
 }
 
 type UncommittedTransactions struct {
-	transactions []GenericTransaction
+	transactions []txs.Tx
 }
 
-func (uncommitted *UncommittedTransactions) addTransaction(transaction GenericTransaction) {
+func (uncommitted *UncommittedTransactions) addTransaction(transaction txs.Tx) {
 	uncommitted.transactions = append(uncommitted.transactions, transaction)
 }
 

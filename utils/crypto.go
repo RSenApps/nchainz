@@ -265,3 +265,24 @@ func ValidateAddress(address string) bool {
 
 	return bytes.Compare(actualChecksum, goalChecksum) == 0
 }
+
+func VerifySignature(address []byte, data []byte, signature []byte) bool {
+	// Get public key
+	ellipticCurve := elliptic.P256()
+	firstHalf := big.Int{}
+	secondHalf := big.Int{}
+	addrLen := len(address)
+	firstHalf.SetBytes(address[:(addrLen / 2)])
+	secondHalf.SetBytes(address[(addrLen / 2):])
+	publicKey := ecdsa.PublicKey{ellipticCurve, &firstHalf, &secondHalf}
+
+	// Get r, s (signature)
+	r := big.Int{}
+	s := big.Int{}
+	sigLen := len(signature)
+	r.SetBytes(signature[:(sigLen / 2)])
+	s.SetBytes(signature[(sigLen / 2):])
+
+	// Verify
+	return ecdsa.Verify(&publicKey, data, &r, &s)
+}
