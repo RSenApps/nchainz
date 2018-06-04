@@ -40,7 +40,7 @@ func (multichain *Multichain) RUnlock() {
 	multichain.lock.RUnlock()
 }
 
-func CreateMultichain(dbName string, mempool *Mempool) *Multichain {
+func createMultichain(dbName string, mempool *Mempool) *Multichain {
 	//instantiates state and blockchains
 	multichain := &Multichain{}
 	newDatabase := true

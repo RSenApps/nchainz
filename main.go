@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/rsenapps/nchainz/cli"
-	"github.com/rsenapps/nchainz/tx"
+	"github.com/rsenapps/nchainz/txs"
 )
 
 func main() {

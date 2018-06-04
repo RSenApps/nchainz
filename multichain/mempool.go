@@ -35,7 +35,7 @@ func (mempool *Mempool) GetMultichain() *Multichain {
 
 func CreateMempool(dbName string, startMining bool) *Mempool {
 	mempool := &Mempool{}
-	mempool.multichain = CreateMultichain(dbName, mempool)
+	mempool.multichain = createMultichain(dbName, mempool)
 
 	mempool.finishedBlockCh = make(chan miner.BlockMsg, 1000)
 	mempool.miner = miner.NewMiner(mempool.finishedBlockCh)
