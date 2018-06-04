@@ -1,10 +1,9 @@
-package mempool
+package multichain
 
 import (
 	"bytes"
 	"github.com/rsenapps/nchainz/blockchain"
 	"github.com/rsenapps/nchainz/miner"
-	"github.com/rsenapps/nchainz/multichain"
 	"github.com/rsenapps/nchainz/txs"
 	"github.com/rsenapps/nchainz/utils"
 	"math/rand"
@@ -13,31 +12,39 @@ import (
 
 type Mempool struct {
 	transactions     map[string]map[string]txs.Tx // map of sets (of GenericTransaction ID)
-	uncommitted      map[string]*multichain.UncommittedTransactions
+	uncommitted      map[string]*UncommittedTransactions
 	lock             *sync.Mutex // Lock on mempools
 	finishedBlockCh  chan miner.BlockMsg
 	stopMiningCh     chan string
 	miner            *miner.Miner
 	minerChosenToken string
-	multichain       *multichain.Multichain
+	multichain       *Multichain
 }
 
-func (mempool *Mempool) GetMultichain() *multichain.Multichain {
+func (mempool *Mempool) Lock() {
+	mempool.lock.Lock()
+}
+
+func (mempool *Mempool) Unlock() {
+	mempool.lock.Unlock()
+}
+
+func (mempool *Mempool) GetMultichain() *Multichain {
 	return mempool.multichain
 }
 
 func CreateMempool(dbName string, startMining bool) *Mempool {
 	mempool := &Mempool{}
-	mempool.multichain = multichain.CreateMultichain(dbName)
+	mempool.multichain = CreateMultichain(dbName, mempool)
 
 	mempool.finishedBlockCh = make(chan miner.BlockMsg, 1000)
 	mempool.miner = miner.NewMiner(mempool.finishedBlockCh)
 	mempool.stopMiningCh = make(chan string, 1000)
 	mempool.transactions = make(map[string]map[string]txs.Tx)
-	mempool.uncommitted = make(map[string]*multichain.UncommittedTransactions)
+	mempool.uncommitted = make(map[string]*UncommittedTransactions)
 
 	mempool.transactions[txs.MATCH_TOKEN] = make(map[string]txs.Tx)
-	mempool.uncommitted[txs.MATCH_TOKEN] = &multichain.UncommittedTransactions{}
+	mempool.uncommitted[txs.MATCH_TOKEN] = &UncommittedTransactions{}
 
 	mempool.lock = &sync.Mutex{}
 
@@ -118,7 +125,7 @@ func (mempool *Mempool) StartMining(chooseNewToken bool) {
 	}
 
 	mempool.uncommitted[newToken].undoTransactions(newToken, mempool.multichain, false)
-	mempool.uncommitted[newToken] = &multichain.UncommittedTransactions{}
+	mempool.uncommitted[newToken] = &UncommittedTransactions{}
 
 	// Send new block message
 	switch mempool.minerChosenToken {
@@ -188,7 +195,7 @@ func (mempool *Mempool) ApplyLoop() {
 
 				mempool.lock.Lock()
 				mempool.uncommitted[blockMsg.Symbol].undoTransactions(blockMsg.Symbol, blockchains, false)
-				mempool.uncommitted[blockMsg.Symbol] = &multichain.UncommittedTransactions{}
+				mempool.uncommitted[blockMsg.Symbol] = &UncommittedTransactions{}
 				//WARNING taking both locks always take chain lock first
 				mempool.lock.Unlock()
 				mempool.multichain.Unlock()
@@ -200,7 +207,7 @@ func (mempool *Mempool) ApplyLoop() {
 				txInBlock := blockMsg.TxInBlock
 				utils.Log("%v tx mined in block and added to chain %v", len(txInBlock), blockMsg.Symbol)
 
-				var stillUncommitted multichain.UncommittedTransactions
+				var stillUncommitted UncommittedTransactions
 				for _, tx := range mempool.uncommitted[blockMsg.Symbol].transactions {
 					if _, ok := txInBlock[tx.ID()]; !ok {
 						stillUncommitted.transactions = append(stillUncommitted.transactions, tx)
@@ -219,7 +226,7 @@ func (mempool *Mempool) ApplyLoop() {
 				}
 
 				stillUncommitted.undoTransactions(blockMsg.Symbol, mempool.multichain, false)
-				mempool.uncommitted[blockMsg.Symbol] = &multichain.UncommittedTransactions{}
+				mempool.uncommitted[blockMsg.Symbol] = &UncommittedTransactions{}
 				mempool.lock.Unlock()
 				mempool.multichain.Unlock()
 

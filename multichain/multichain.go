@@ -21,6 +21,7 @@ type Multichain struct {
 	db             *bolt.DB
 	recovering     bool
 	matcher        *matcher.Matcher
+	mempool        *Mempool
 }
 
 func (multichain *Multichain) Lock() {
@@ -39,9 +40,9 @@ func (multichain *Multichain) RUnlock() {
 	multichain.lock.RUnlock()
 }
 
-func CreateMultichain(dbName string) *Multichain {
+func CreateMultichain(dbName string, mempool *Mempool) *Multichain {
 	//instantiates state and blockchains
-	blockchains := &Multichain{}
+	multichain := &Multichain{}
 	newDatabase := true
 	if _, err := os.Stat(dbName); err == nil {
 		// path/to/whatever exists
@@ -52,24 +53,25 @@ func CreateMultichain(dbName string) *Multichain {
 	if err != nil {
 		utils.LogPanic(err.Error())
 	}
-	blockchains.db = db
+	multichain.db = db
 
-	blockchains.matcher = matcher.StartMatcher(blockchains, nil)
-	blockchains.consensusState = consensus.NewConsensusState()
-	blockchains.chains = make(map[string]*blockchain.Blockchain)
-	blockchains.chains[txs.MATCH_TOKEN] = blockchain.NewBlockchain(db, txs.MATCH_TOKEN)
-	blockchains.lock = &sync.RWMutex{}
+	multichain.matcher = matcher.StartMatcher(multichain, nil)
+	multichain.consensusState = consensus.NewConsensusState()
+	multichain.chains = make(map[string]*blockchain.Blockchain)
+	multichain.chains[txs.MATCH_TOKEN] = blockchain.NewBlockchain(db, txs.MATCH_TOKEN)
+	multichain.lock = &sync.RWMutex{}
+	multichain.mempool = mempool
 
 	if newDatabase {
-		blockchains.recovering = false
-		blockchains.AddBlock(txs.MATCH_TOKEN, *blockchain.NewGenesisBlock(), false)
+		multichain.recovering = false
+		multichain.AddBlock(txs.MATCH_TOKEN, *blockchain.NewGenesisBlock(), false)
 	} else {
-		blockchains.recovering = true
-		blockchains.restoreFromDatabase()
-		blockchains.recovering = false
+		multichain.recovering = true
+		multichain.restoreFromDatabase()
+		multichain.recovering = false
 	}
 
-	return blockchains
+	return multichain
 }
 
 ////////////////////////////////
@@ -97,12 +99,12 @@ func (multichain *Multichain) AddBlocks(symbol string, blocks []blockchain.Block
 	}
 
 	if !multichain.recovering && takeLock {
-		go func() { multichain.stopMiningCh <- symbol }()
-		multichain.mempoolsLock.Lock()
+		go func() { multichain.mempool.stopMiningCh <- symbol }()
+		multichain.mempool.Lock()
 		utils.Log("AddBlocks undoing transactions for: %v", symbol)
-		multichain.mempoolUncommitted[symbol].undoTransactions(symbol, multichain, false)
-		multichain.mempoolUncommitted[symbol] = &UncommittedTransactions{}
-		multichain.mempoolsLock.Unlock()
+		multichain.mempool.uncommitted[symbol].undoTransactions(symbol, multichain, false)
+		multichain.mempool.uncommitted[symbol] = &UncommittedTransactions{}
+		multichain.mempool.Unlock()
 	}
 
 	blocksAdded := 0
@@ -163,14 +165,14 @@ func (multichain *Multichain) RollbackToHeight(symbol string, height uint64, tak
 
 	if !multichain.recovering {
 		if takeMempoolLock {
-			go func() { multichain.stopMiningCh <- symbol }()
-			multichain.mempoolsLock.Lock()
+			go func() { multichain.mempool.stopMiningCh <- symbol }()
+			multichain.mempool.Lock()
 		}
 		utils.Log("RollbackToHeight undoing transactions for: %v", symbol)
-		multichain.mempoolUncommitted[symbol].undoTransactions(symbol, multichain, false)
-		multichain.mempoolUncommitted[symbol] = &UncommittedTransactions{}
+		multichain.mempool.uncommitted[symbol].undoTransactions(symbol, multichain, false)
+		multichain.mempool.uncommitted[symbol] = &UncommittedTransactions{}
 		if takeMempoolLock {
-			multichain.mempoolsLock.Unlock()
+			multichain.mempool.Unlock()
 		}
 	}
 
@@ -187,8 +189,8 @@ func (multichain *Multichain) AddTokenChain(createToken txs.CreateToken) {
 	utils.Log("Adding token chain")
 	chain := blockchain.NewBlockchain(multichain.db, createToken.TokenInfo.Symbol)
 	multichain.chains[createToken.TokenInfo.Symbol] = chain
-	multichain.mempools[createToken.TokenInfo.Symbol] = make(map[string]txs.Tx)
-	multichain.mempoolUncommitted[createToken.TokenInfo.Symbol] = &UncommittedTransactions{}
+	multichain.mempool.transactions[createToken.TokenInfo.Symbol] = make(map[string]txs.Tx)
+	multichain.mempool.uncommitted[createToken.TokenInfo.Symbol] = &UncommittedTransactions{}
 
 	if !multichain.recovering { //recovery will replay this block normally
 		multichain.AddBlock(createToken.TokenInfo.Symbol, *blockchain.NewTokenGenesisBlock(createToken), false)
@@ -199,8 +201,8 @@ func (multichain *Multichain) RemoveTokenChain(createToken txs.CreateToken) {
 	utils.Log("Removing token chain")
 	multichain.chains[createToken.TokenInfo.Symbol].DeleteStorage()
 	delete(multichain.chains, createToken.TokenInfo.Symbol)
-	delete(multichain.mempools, createToken.TokenInfo.Symbol)
-	delete(multichain.mempoolUncommitted, createToken.TokenInfo.Symbol)
+	delete(multichain.mempool.transactions, createToken.TokenInfo.Symbol)
+	delete(multichain.mempool.uncommitted, createToken.TokenInfo.Symbol)
 }
 
 ////////////////////////////////
@@ -527,9 +529,9 @@ func (multichain *Multichain) restoreFromDatabase() {
 
 func (multichain *Multichain) Cleanup() {
 	multichain.Lock()
-	multichain.mempoolsLock.Lock()
+	multichain.mempool.Lock()
 
-	close(multichain.miner.minerCh)
+	close(multichain.mempool.miner.minerCh)
 	multichain.db.Close()
 }
 
