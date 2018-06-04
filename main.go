@@ -5,6 +5,9 @@ import (
 	"github.com/fatih/color"
 	"math/rand"
 	"time"
+
+	"github.com/rsenapps/nchainz/cli"
+	"github.com/rsenapps/nchainz/tx"
 )
 
 func main() {
@@ -12,18 +15,18 @@ func main() {
 	gobRegister()
 	color.NoColor = false
 
-	cli := CLI{}
-	cli.Run()
+	nchainzCLI := cli.CLI{}
+	nchainzCLI.Run()
 }
 
 func gobRegister() {
-	gob.Register(MatchData{})
-	gob.Register(TokenData{})
-	gob.Register(CreateToken{})
-	gob.Register(Match{})
-	gob.Register(Order{})
-	gob.Register(Transfer{})
-	gob.Register(CancelOrder{})
-	gob.Register(ClaimFunds{})
-	gob.Register(GenericTransaction{})
+	gob.Register(tx.MatchData{})
+	gob.Register(tx.TokenData{})
+	gob.Register(tx.CreateToken{})
+	gob.Register(tx.Match{})
+	gob.Register(tx.Order{})
+	gob.Register(tx.Transfer{})
+	gob.Register(tx.CancelOrder{})
+	gob.Register(tx.ClaimFunds{})
+	gob.Register(tx.GenericTransaction{})
 }

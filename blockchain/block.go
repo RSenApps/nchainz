@@ -2,12 +2,9 @@ package blockchain
 
 import (
 	"bytes"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
 	"encoding/gob"
 	"fmt"
-	"math/big"
+	"github.com/rsenapps/nchainz/txs"
 )
 
 ////////////////////////////////////////////
@@ -17,15 +14,15 @@ import (
 type BlockData interface{}
 
 type MatchData struct {
-	Matches      []Match
-	CancelOrders []CancelOrder
-	CreateTokens []CreateToken
+	Matches      []txs.Match
+	CancelOrders []txs.CancelOrder
+	CreateTokens []txs.CreateToken
 }
 
 type TokenData struct {
-	Orders     []Order
-	ClaimFunds []ClaimFunds
-	Transfers  []Transfer
+	Orders     []txs.Order
+	ClaimFunds []txs.ClaimFunds
+	Transfers  []txs.Transfer
 }
 
 ////////////////////

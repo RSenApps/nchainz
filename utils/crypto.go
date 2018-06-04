@@ -29,7 +29,7 @@ const addressChecksumLen = 4
 // Store a pair of public and private keys
 
 type Wallet struct {
-	PublicKey  [addressLength]byte // public key (concatenated X, Y coordinates)
+	PublicKey  [AddressLength]byte // public key (concatenated X, Y coordinates)
 	PrivateKey ecdsa.PrivateKey    // private key
 }
 
@@ -38,24 +38,24 @@ func NewWallet() *Wallet {
 	return &Wallet{publicKey, privateKey}
 }
 
-func generateKeys() ([addressLength]byte, ecdsa.PrivateKey) {
+func generateKeys() ([AddressLength]byte, ecdsa.PrivateKey) {
 	ellipticCurve := elliptic.P256() // get elliptic curve
 	privateKey, _ := ecdsa.GenerateKey(ellipticCurve, rand.Reader)
 	publicKeySlice := append(privateKey.PublicKey.X.Bytes(), privateKey.PublicKey.Y.Bytes()...)
 
-	var publicKeyArray [addressLength]byte
+	var publicKeyArray [AddressLength]byte
 	copy(publicKeyArray[:], publicKeySlice)
 	return publicKeyArray, *privateKey
 }
 
-func (w Wallet) GetAddress() [addressLength]byte {
+func (w Wallet) GetAddress() [AddressLength]byte {
 	return PublicKeyToAddress(w.PublicKey)
 }
 
 //
 // Convert public key into Base 58 address
 //
-func PublicKeyToAddress(key [addressLength]byte) [addressLength]byte {
+func PublicKeyToAddress(key [AddressLength]byte) [AddressLength]byte {
 	// Get & append version
 	rawAddress := []byte{version}
 
@@ -81,15 +81,15 @@ func (ws *WalletStore) GetWallet(address string) Wallet {
 	return *ws.Wallets[address[:addressStringLength]]
 }
 
-func KeyToString(key [addressLength]byte) string {
+func KeyToString(key [AddressLength]byte) string {
 	address := PublicKeyToAddress(key)
-	return string(address[:addressLength])
+	return string(address[:AddressLength])
 }
 
 //
 // Helper method to hash public key with RIPEMD160(SHA256(publicKey)) algorithm
 //
-func getPublicKeyHash(publicKey [addressLength]byte) []byte {
+func getPublicKeyHash(publicKey [AddressLength]byte) []byte {
 	shaResult := sha256.Sum256(publicKey[:])
 
 	ripHasher := ripemd160.New()
@@ -116,7 +116,7 @@ func getChecksum(data []byte) []byte {
 var b58Alphabet = []byte("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz")
 
 // Base58Encode encodes a byte array to Base58
-func Base58Encode(input []byte) [addressLength]byte {
+func Base58Encode(input []byte) [AddressLength]byte {
 	var result []byte
 
 	x := big.NewInt(0).SetBytes(input)
@@ -137,7 +137,7 @@ func Base58Encode(input []byte) [addressLength]byte {
 
 	ReverseBytes(result)
 
-	var resultArray [addressLength]byte
+	var resultArray [AddressLength]byte
 	copy(resultArray[:], result)
 	return resultArray
 }
@@ -191,7 +191,7 @@ func NewWalletStore(isGenesis bool) *WalletStore {
 func (ws *WalletStore) AddWallet() string {
 	wallet := NewWallet()
 	addressArray := wallet.GetAddress()
-	address := string(addressArray[:addressLength])
+	address := string(addressArray[:AddressLength])
 
 	ws.Wallets[address] = wallet
 	ws.Persist()

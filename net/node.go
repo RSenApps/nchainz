@@ -6,13 +6,17 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"net"
+	netgo "net"
 	"net/rpc"
 	"os"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/rsenapps/nchainz/blockchain"
+	"github.com/rsenapps/nchainz/multichain"
+	"github.com/rsenapps/nchainz/utils"
 )
 
 type Node struct {
@@ -60,12 +64,12 @@ func StartNode(myIp string) {
 	dbName := fmt.Sprintf("db/%v.db", port)
 	localIp := fmt.Sprintf(":%v", port)
 
-	addr, err := net.ResolveTCPAddr("tcp", localIp)
+	addr, err := netgo.ResolveTCPAddr("tcp", localIp)
 	if err != nil {
 		LogFatal(err.Error())
 	}
 
-	inbound, err := net.ListenTCP("tcp", addr)
+	inbound, err := netgo.ListenTCP("tcp", addr)
 	if err != nil {
 		LogFatal(err.Error())
 	}

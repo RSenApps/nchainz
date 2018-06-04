@@ -5,6 +5,7 @@ import (
 	"container/heap"
 	"errors"
 	"fmt"
+	"github.com/rsenapps/nchainz/txs"
 )
 
 type OrderQueue struct {
@@ -15,7 +16,7 @@ type OrderQueue struct {
 
 type OrderQueueItem struct {
 	price float64
-	order *Order
+	order *txs.Order
 	index int
 }
 

@@ -1,12 +1,10 @@
-package tx
+package txs
 
 import (
 	"crypto/ecdsa"
-	"crypto/elliptic"
 	"crypto/rand"
 	"fmt"
 	"github.com/rsenapps/nchainz/utils"
-	"math/big"
 )
 
 //////////////////////
@@ -125,27 +123,27 @@ func GetBytes(key interface{}) []byte {
 func (tx Tx) Serialize() []byte {
 	switch tx.TxType {
 	case MATCH:
-		LogPanic("ERROR: should not sign match transaction")
+		utils.LogPanic("ERROR: should not sign match transaction")
 	case ORDER:
-		order := tx.Transaction.(Order)
+		order := tx.Tx.(Order)
 		unsignedTx := UnsignedOrder{order.ID, order.BuySymbol, order.AmountToSell, order.AmountToBuy, order.SellerAddress}
 		return GetBytes(unsignedTx)
 	case TRANSFER:
-		transfer := tx.Transaction.(Transfer)
+		transfer := tx.Tx.(Transfer)
 		unsignedTx := UnsignedTransfer{transfer.ID, transfer.Amount, transfer.FromAddress, transfer.ToAddress}
 		return GetBytes(unsignedTx)
 	case CANCEL_ORDER:
-		cancel := tx.Transaction.(CancelOrder)
+		cancel := tx.Tx.(CancelOrder)
 		unsignedTx := UnsignedCancelOrder{cancel.OrderSymbol, cancel.OrderID}
 		return GetBytes(unsignedTx)
 	case CLAIM_FUNDS:
-		LogPanic("ERROR: should not sign claim funds transaction")
+		utils.LogPanic("ERROR: should not sign claim funds transaction")
 	case CREATE_TOKEN:
-		create := tx.Transaction.(CreateToken)
+		create := tx.Tx.(CreateToken)
 		unsignedTx := UnsignedCreateToken{create.TokenInfo, create.CreatorAddress}
 		return GetBytes(unsignedTx)
 	default:
-		LogPanic("ERROR: unknown transaction type")
+		utils.LogPanic("ERROR: unknown transaction type")
 	}
 
 	return nil
@@ -156,18 +154,19 @@ func (tx Tx) Serialize() []byte {
 // Input: private key
 // Output: signature
 //
-func Sign(privateKey ecdsa.PrivateKey, tx GenericTransaction) []byte {
+func Sign(privateKey ecdsa.PrivateKey, tx Tx) []byte {
 	r, s, _ := ecdsa.Sign(rand.Reader, &privateKey, tx.Serialize())
 	signature := append(r.Bytes(), s.Bytes()...)
 	return signature
 }
 
+/*
 //
 // Verify a transaction
 //
-func Verify(tx GenericTransaction, state ConsensusState) bool {
+func Verify(tx Tx, state consensus.ConsensusState) bool {
 	// Always valid if transaction doesn't need to be signed
-	if tx.TransactionType == MATCH || tx.TransactionType == CLAIM_FUNDS {
+	if tx.TxType == MATCH || tx.TxType == CLAIM_FUNDS {
 		return true
 	}
 
@@ -196,47 +195,48 @@ func Verify(tx GenericTransaction, state ConsensusState) bool {
 //
 // Get an address from a transaction
 //
-func (tx GenericTransaction) GetTxAddress(state ConsensusState) []byte {
-	switch tx.TransactionType {
+func (tx Tx) GetTxAddress(state consensus.ConsensusState) []byte {
+	switch tx.TxType {
 	case ORDER:
-		address := tx.Transaction.(Order).SellerAddress
+		address := tx.Tx.(Order).SellerAddress
 		return address[:]
 	case TRANSFER:
-		address := tx.Transaction.(Transfer).FromAddress
+		address := tx.Tx.(Transfer).FromAddress
 		return address[:]
 	case CANCEL_ORDER:
-		cancelOrder := tx.Transaction.(CancelOrder)
+		cancelOrder := tx.Tx.(CancelOrder)
 		success, address := state.GetCancelAddress(cancelOrder)
 		if !success {
-			LogPanic("Failed to get an address from a cancel order")
+			utils.LogPanic("Failed to get an address from a cancel order")
 			return []byte{}
 		} else {
 			return address[:]
 		}
 	case CREATE_TOKEN:
-		address := tx.Transaction.(CreateToken).CreatorAddress
+		address := tx.Tx.(CreateToken).CreatorAddress
 		return address[:]
 	default:
-		LogPanic("Getting an address from a transaction that doesn't need to be signed.")
+		utils.LogPanic("Getting an address from a transaction that doesn't need to be signed.")
 		return []byte{}
 	}
 }
+*/
 
 //
 // Get a signature from a transaction
 //
-func (tx GenericTransaction) GetTxSignature() []byte {
-	switch tx.TransactionType {
+func (tx Tx) GetTxSignature() []byte {
+	switch tx.TxType {
 	case ORDER:
-		return tx.Transaction.(Order).Signature
+		return tx.Tx.(Order).Signature
 	case TRANSFER:
-		return tx.Transaction.(Transfer).Signature
+		return tx.Tx.(Transfer).Signature
 	case CANCEL_ORDER:
-		return tx.Transaction.(CancelOrder).Signature
+		return tx.Tx.(CancelOrder).Signature
 	case CREATE_TOKEN:
-		return tx.Transaction.(CreateToken).Signature
+		return tx.Tx.(CreateToken).Signature
 	default:
-		LogPanic("Getting a signature from a transaction that doesn't need to be signed.")
+		utils.LogPanic("Getting a signature from a transaction that doesn't need to be signed.")
 		return []byte{}
 	}
 }
@@ -244,70 +244,70 @@ func (tx GenericTransaction) GetTxSignature() []byte {
 //////////////////////
 // TRANSACTION LOGGING
 
-func (gt *GenericTransaction) ID() string {
-	switch gt.TransactionType {
+func (gt *Tx) ID() string {
+	switch gt.TxType {
 	case CREATE_TOKEN:
-		return fmt.Sprintf("%v,%v", gt.TransactionType, gt.Transaction.(CreateToken).TokenInfo.Symbol)
+		return fmt.Sprintf("%v,%v", gt.TxType, gt.Tx.(CreateToken).TokenInfo.Symbol)
 	case MATCH:
-		return fmt.Sprintf("%v,%v", gt.TransactionType, gt.Transaction.(Match).MatchID)
+		return fmt.Sprintf("%v,%v", gt.TxType, gt.Tx.(Match).MatchID)
 	case ORDER:
-		return fmt.Sprintf("%v,%v", gt.TransactionType, gt.Transaction.(Order).ID)
+		return fmt.Sprintf("%v,%v", gt.TxType, gt.Tx.(Order).ID)
 	case TRANSFER:
-		return fmt.Sprintf("%v,%v", gt.TransactionType, gt.Transaction.(Transfer).ID)
+		return fmt.Sprintf("%v,%v", gt.TxType, gt.Tx.(Transfer).ID)
 	case CANCEL_ORDER:
-		return fmt.Sprintf("%v,%v", gt.TransactionType, gt.Transaction.(CancelOrder).OrderID)
+		return fmt.Sprintf("%v,%v", gt.TxType, gt.Tx.(CancelOrder).OrderID)
 	case CLAIM_FUNDS:
-		return fmt.Sprintf("%v,%v", gt.TransactionType, gt.Transaction.(ClaimFunds).ID)
+		return fmt.Sprintf("%v,%v", gt.TxType, gt.Tx.(ClaimFunds).ID)
 	}
 	return ""
 }
 
-func (tx GenericTransaction) String() string {
-	switch tx.TransactionType {
+func (tx Tx) String() string {
+	switch tx.TxType {
 	case MATCH:
-		match := tx.Transaction.(Match)
+		match := tx.Tx.(Match)
 		return fmt.Sprintf("{MATCH#%v %s#%v / %s#%v : %v - %v/%v}", match.MatchID, match.BuySymbol, match.BuyOrderID, match.SellSymbol, match.SellOrderID, match.TransferAmt, match.BuyerLoss, match.SellerGain)
 	case ORDER:
-		order := tx.Transaction.(Order)
-		return fmt.Sprintf("{ORDER#%v %v %s / %v %s}", order.ID, order.AmountToBuy, order.BuySymbol, order.AmountToSell, KeyToString(order.SellerAddress))
+		order := tx.Tx.(Order)
+		return fmt.Sprintf("{ORDER#%v %v %s / %v %s}", order.ID, order.AmountToBuy, order.BuySymbol, order.AmountToSell, utils.KeyToString(order.SellerAddress))
 	case TRANSFER:
-		transfer := tx.Transaction.(Transfer)
-		return fmt.Sprintf("{TRANSFER#%v %v %s -> %s}", transfer.ID, transfer.Amount, KeyToString(transfer.FromAddress), KeyToString(transfer.ToAddress))
+		transfer := tx.Tx.(Transfer)
+		return fmt.Sprintf("{TRANSFER#%v %v %s -> %s}", transfer.ID, transfer.Amount, utils.KeyToString(transfer.FromAddress), utils.KeyToString(transfer.ToAddress))
 	case CANCEL_ORDER:
-		cancel := tx.Transaction.(CancelOrder)
+		cancel := tx.Tx.(CancelOrder)
 		return fmt.Sprintf("{CANCEL %s#%v}", cancel.OrderSymbol, cancel.OrderID)
 	case CLAIM_FUNDS:
-		claim := tx.Transaction.(ClaimFunds)
-		return fmt.Sprintf("{CLAIM#%v %v %s}", claim.ID, claim.Amount, KeyToString(claim.Address))
+		claim := tx.Tx.(ClaimFunds)
+		return fmt.Sprintf("{CLAIM#%v %v %s}", claim.ID, claim.Amount, utils.KeyToString(claim.Address))
 	case CREATE_TOKEN:
-		create := tx.Transaction.(CreateToken)
-		return fmt.Sprintf("{CREATE %v %s}", create.TokenInfo, KeyToString(create.CreatorAddress))
+		create := tx.Tx.(CreateToken)
+		return fmt.Sprintf("{CREATE %v %s}", create.TokenInfo, utils.KeyToString(create.CreatorAddress))
 	default:
 		return "{invalid tx}"
 	}
 }
 
 func (match Match) String() string {
-	tx := GenericTransaction{match, MATCH}
+	tx := Tx{match, MATCH}
 	return tx.String()
 }
 func (order Order) String() string {
-	tx := GenericTransaction{order, ORDER}
+	tx := Tx{order, ORDER}
 	return tx.String()
 }
 func (transfer Transfer) String() string {
-	tx := GenericTransaction{transfer, TRANSFER}
+	tx := Tx{transfer, TRANSFER}
 	return tx.String()
 }
 func (cancel CancelOrder) String() string {
-	tx := GenericTransaction{cancel, CANCEL_ORDER}
+	tx := Tx{cancel, CANCEL_ORDER}
 	return tx.String()
 }
 func (claim ClaimFunds) String() string {
-	tx := GenericTransaction{claim, CLAIM_FUNDS}
+	tx := Tx{claim, CLAIM_FUNDS}
 	return tx.String()
 }
 func (create CreateToken) String() string {
-	tx := GenericTransaction{create, CREATE_TOKEN}
+	tx := Tx{create, CREATE_TOKEN}
 	return tx.String()
 }

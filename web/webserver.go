@@ -2,13 +2,14 @@ package web
 
 import (
 	"fmt"
+	"github.com/rsenapps/nchainz/net"
 	"net/http"
 	"strings"
 )
 
 type Webserver struct {
 	port   uint64
-	client *Client
+	client *net.Client
 }
 
 func StartWebserver(port uint64) {

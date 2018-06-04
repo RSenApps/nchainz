@@ -1,7 +1,7 @@
 package consensus
 
 import (
-	"github.com/rsenapps/blockchain"
+	"github.com/rsenapps/nchainz/blockchain"
 	"log"
 	"math"
 )
