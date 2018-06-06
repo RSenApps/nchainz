@@ -248,3 +248,15 @@ func (mempool *Mempool) ApplyLoop() {
 
 	}
 }
+
+func (mempool *Mempool) rollbackTxForSymbol(symbol string, takeMempoolLock bool) {
+	go func() { mempool.stopMiningCh <- symbol }()
+	if takeMempoolLock {
+		mempool.Lock()
+		defer mempool.Unlock()
+	}
+	utils.Log("AddBlocks undoing transactions for: %v", symbol)
+	mempool.uncommitted[symbol].undoTransactions(symbol, mempool.multichain, false)
+	mempool.uncommitted[symbol] = &UncommittedTransactions{}
+
+}

@@ -99,12 +99,7 @@ func (multichain *Multichain) AddBlocks(symbol string, blocks []blockchain.Block
 	}
 
 	if !multichain.recovering && takeLock {
-		go func() { multichain.mempool.stopMiningCh <- symbol }()
-		multichain.mempool.Lock()
-		utils.Log("AddBlocks undoing transactions for: %v", symbol)
-		multichain.mempool.uncommitted[symbol].undoTransactions(symbol, multichain, false)
-		multichain.mempool.uncommitted[symbol] = &UncommittedTransactions{}
-		multichain.mempool.Unlock()
+		multichain.mempool.rollbackTxForSymbol(symbol)
 	}
 
 	blocksAdded := 0
@@ -164,16 +159,7 @@ func (multichain *Multichain) RollbackToHeight(symbol string, height uint64, tak
 	}
 
 	if !multichain.recovering {
-		if takeMempoolLock {
-			go func() { multichain.mempool.stopMiningCh <- symbol }()
-			multichain.mempool.Lock()
-		}
-		utils.Log("RollbackToHeight undoing transactions for: %v", symbol)
-		multichain.mempool.uncommitted[symbol].undoTransactions(symbol, multichain, false)
-		multichain.mempool.uncommitted[symbol] = &UncommittedTransactions{}
-		if takeMempoolLock {
-			multichain.mempool.Unlock()
-		}
+		multichain.mempool.rollbackTxForSymbol(symbol, takeMempoolLock)
 	}
 
 	if symbol == txs.MATCH_TOKEN {
