@@ -1,5 +1,10 @@
 package miner
 
+import (
+	"github.com/rsenapps/nchainz/blockchain"
+	"github.com/rsenapps/nchainz/txs"
+)
+
 const MAX_BLOCK_SIZE = 1000
 
 ////////////////////////////////////////////////////
@@ -13,14 +18,14 @@ type MinerMsg struct {
 }
 
 type BlockMsg struct {
-	Block     Block
-	TxInBlock map[string]GenericTransaction
+	Block     blockchain.Block
+	TxInBlock map[string]txs.Tx
 	Symbol    string
 }
 
 type NewBlockMsg struct {
-	BlockType BlockType // type of block we are adding transactions to
-	LastHash  []byte    // hash of previous block
+	BlockType blockchain.BlockType // type of block we are adding transactions to
+	LastHash  []byte               // hash of previous block
 	Symbol    string
 }
 
@@ -28,34 +33,34 @@ type NewBlockMsg struct {
 // MINER
 
 type Miner struct {
-	minerCh         chan MinerMsg
+	MinerCh         chan MinerMsg
 	finishedBlockCh chan BlockMsg
-	transactions    []GenericTransaction
-	minerRound      uint64
+	transactions    []txs.Tx
+	MinerRound      uint64
 }
 
 func NewMiner(finishedBlockCh chan BlockMsg) *Miner {
 	minerCh := make(chan MinerMsg, 1000)
-	var transactions []GenericTransaction
+	var transactions []txs.Tx
 	miner := &Miner{minerCh, finishedBlockCh, transactions, 0}
 	go miner.mineLoop()
 	return miner
 }
 
 func (miner *Miner) mineLoop() {
-	var block *Block
-	var txInBlock map[string]GenericTransaction
+	var block *blockchain.Block
+	var txInBlock map[string]txs.Tx
 	var symbol string
-	var pow *ProofOfWork
+	var pow *blockchain.ProofOfWork
 	for {
 		select {
-		case msg := <-miner.minerCh:
+		case msg := <-miner.MinerCh:
 			// Stop mining
 			if msg.IsNewBlock {
-				miner.transactions = []GenericTransaction{}
+				miner.transactions = []txs.Tx{}
 				newBlock := msg.Msg.(NewBlockMsg)
 				symbol = newBlock.Symbol
-				miner.minerRound++
+				miner.MinerRound++
 
 				switch symbol {
 				case MATCH_CHAIN:
@@ -76,7 +81,7 @@ func (miner *Miner) mineLoop() {
 					txInBlock = make(map[string]GenericTransaction)
 					Log("Mining new block: %s %v", newBlock.Symbol, newBlock.BlockType)
 				}
-			} else if msg.MinerRound == miner.minerRound && len(txInBlock) < MAX_BLOCK_SIZE {
+			} else if msg.MinerRound == miner.MinerRound && len(txInBlock) < MAX_BLOCK_SIZE {
 				transaction := msg.Msg.(GenericTransaction)
 
 				if block == nil {

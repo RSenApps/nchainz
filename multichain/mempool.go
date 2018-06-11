@@ -52,6 +52,8 @@ func CreateMempool(dbName string, startMining bool) *Mempool {
 		go mempool.StartMining(true)
 		go mempool.ApplyLoop()
 	}
+
+	return mempool
 }
 
 func (mempool *Mempool) AddTransaction(tx txs.Tx, symbol string, takeLocks bool) bool {
@@ -74,7 +76,7 @@ func (mempool *Mempool) AddTransaction(tx txs.Tx, symbol string, takeLocks bool)
 	}
 
 	// Validate transaction's signature
-	if !blockchain.Verify(tx, mempool.GetMultichain().consensusState) {
+	if !mempool.multichain.verifyTxSig(tx) {
 		utils.Log("Failed due to invalid signature")
 		unlock()
 		return false
@@ -93,11 +95,11 @@ func (mempool *Mempool) AddTransaction(tx txs.Tx, symbol string, takeLocks bool)
 
 	if mempool.minerChosenToken == symbol {
 		// Send transaction to miner
-		minerRound := mempool.miner.minerRound
+		minerRound := mempool.miner.MinerRound
 		unlock()
-		mempool.miner.minerCh <- miner.MinerMsg{tx, false, minerRound}
+		mempool.miner.MinerCh <- miner.MinerMsg{tx, false, minerRound}
 	} else {
-		mempool.uncommitted[symbol].rollbackLast(symbol, mempool, false)
+		mempool.uncommitted[symbol].rollbackLast(symbol, mempool.multichain, false)
 		unlock()
 	}
 
@@ -131,16 +133,16 @@ func (mempool *Mempool) StartMining(chooseNewToken bool) {
 	switch mempool.minerChosenToken {
 	case txs.MATCH_TOKEN:
 		utils.Log("Starting match block")
-		msg := miner.MinerMsg{miner.NewBlockMsg{blockchain.MATCH_BLOCK, mempool.multichain.chains[mempool.minerChosenToken].tipHash, mempool.minerChosenToken}, true, 0}
+		msg := miner.MinerMsg{miner.NewBlockMsg{blockchain.MATCH_BLOCK, mempool.multichain.chains[mempool.minerChosenToken].TipHash, mempool.minerChosenToken}, true, 0}
 		mempool.lock.Unlock()
 		mempool.multichain.Unlock()
-		mempool.miner.minerCh <- msg
+		mempool.miner.MinerCh <- msg
 	default:
 		utils.Log("Starting %v block", mempool.minerChosenToken)
-		msg := miner.MinerMsg{miner.NewBlockMsg{blockchain.TOKEN_BLOCK, mempool.multichain.chains[blockchains.minerChosenToken].tipHash, blockchains.minerChosenToken}, true, 0}
+		msg := miner.MinerMsg{miner.NewBlockMsg{blockchain.TOKEN_BLOCK, mempool.multichain.chains[mempool.minerChosenToken].TipHash, mempool.minerChosenToken}, true, 0}
 		mempool.lock.Unlock()
 		mempool.multichain.Unlock()
-		mempool.miner.minerCh <- msg
+		mempool.miner.MinerCh <- msg
 	}
 
 	utils.Log("%v TX in mempool to revalidate and send", len(txInPool))
@@ -163,13 +165,13 @@ func (mempool *Mempool) StartMining(chooseNewToken bool) {
 				mempool.multichain.Unlock()
 				continue
 			}
-			minerRound := mempool.miner.minerRound
+			minerRound := mempool.miner.MinerRound
 			mempool.lock.Unlock()
 			mempool.multichain.Unlock()
 
 			// Send transaction to miner
 			utils.Log("Sending from re-validated mempool")
-			mempool.miner.minerCh <- miner.MinerMsg{tx, false, minerRound}
+			mempool.miner.MinerCh <- miner.MinerMsg{tx, false, minerRound}
 		}
 	}(newToken, txInPool)
 }
@@ -189,12 +191,12 @@ func (mempool *Mempool) ApplyLoop() {
 				continue
 			}
 
-			if !bytes.Equal(chain.tipHash, blockMsg.Block.PrevBlockHash) {
+			if !bytes.Equal(chain.TipHash, blockMsg.Block.PrevBlockHash) {
 				//block failed so retry
-				utils.Log("miner prevBlockHash does not match tipHash %x != %x", chain.tipHash, blockMsg.Block.PrevBlockHash)
+				utils.Log("miner prevBlockHash does not match tipHash %x != %x", chain.TipHash, blockMsg.Block.PrevBlockHash)
 
 				mempool.lock.Lock()
-				mempool.uncommitted[blockMsg.Symbol].undoTransactions(blockMsg.Symbol, blockchains, false)
+				mempool.uncommitted[blockMsg.Symbol].undoTransactions(blockMsg.Symbol, mempool.multichain, false)
 				mempool.uncommitted[blockMsg.Symbol] = &UncommittedTransactions{}
 				//WARNING taking both locks always take chain lock first
 				mempool.lock.Unlock()

@@ -11,11 +11,11 @@ import (
 // BLOCKCHAIN
 
 type Blockchain struct {
-	tipHash     []byte   // Tip of chain
+	TipHash     []byte   // Tip of chain
 	db          *bolt.DB // DB connection
-	height      uint64
+	Height      uint64
 	bucketName  string
-	blockhashes [][]byte
+	Blockhashes [][]byte
 }
 
 func NewBlockchain(db *bolt.DB, symbol string) *Blockchain {
@@ -35,8 +35,8 @@ func NewBlockchain(db *bolt.DB, symbol string) *Blockchain {
 		log.Panic(err)
 	}
 	blockchain := Blockchain{[]byte{}, db, 0, symbol, [][]byte{}}
-	blockchain.tipHash = blockchain.getTipHash()
-	blockchain.blockhashes = blockchain.getBlockhashes()
+	blockchain.TipHash = blockchain.getTipHash()
+	blockchain.Blockhashes = blockchain.getBlockhashes()
 
 	return &blockchain
 }
@@ -60,12 +60,12 @@ func (bc *Blockchain) AddBlock(block Block) {
 		// Update tip
 		temp := make([]byte, len(block.Hash))
 		copy(temp, block.Hash)
-		bc.tipHash = temp
+		bc.TipHash = temp
 		return nil
 	})
 
-	bc.height += 1
-	bc.blockhashes = append([][]byte{block.Hash}, bc.blockhashes...)
+	bc.Height += 1
+	bc.Blockhashes = append([][]byte{block.Hash}, bc.Blockhashes...)
 }
 
 func (bc *Blockchain) RemoveLastBlock() BlockData {
@@ -90,12 +90,12 @@ func (bc *Blockchain) RemoveLastBlock() BlockData {
 		// Update tip to second to last block
 		temp := make([]byte, len(lastBlock.PrevBlockHash))
 		copy(temp, lastBlock.PrevBlockHash)
-		bc.tipHash = temp
+		bc.TipHash = temp
 		return nil
 	})
 
-	bc.height -= 1
-	bc.blockhashes = bc.blockhashes[1:]
+	bc.Height -= 1
+	bc.Blockhashes = bc.Blockhashes[1:]
 
 	return lastBlock.Data
 }
@@ -185,7 +185,7 @@ type BlockchainIterator struct {
 }
 
 type BlockchainForwardIterator struct {
-	hashes       [][]byte // Hash of current block
+	Hashes       [][]byte // Hash of current block
 	currentIndex int
 	db           *bolt.DB // DB connection
 	bucketName   string
@@ -195,12 +195,12 @@ type BlockchainForwardIterator struct {
 // Create iterator for a blockchain
 //
 func (bc *Blockchain) Iterator() *BlockchainIterator {
-	bci := &BlockchainIterator{bc.tipHash, bc.db, bc.bucketName}
+	bci := &BlockchainIterator{bc.TipHash, bc.db, bc.bucketName}
 	return bci
 }
 
 func (bc *Blockchain) ForwardIterator() *BlockchainForwardIterator {
-	hashes := bc.blockhashes
+	hashes := bc.Blockhashes
 	return &BlockchainForwardIterator{hashes, len(hashes) - 1, bc.db, bc.bucketName}
 }
 

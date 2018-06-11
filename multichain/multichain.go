@@ -99,20 +99,20 @@ func (multichain *Multichain) AddBlocks(symbol string, blocks []blockchain.Block
 	}
 
 	if !multichain.recovering && takeLock {
-		multichain.mempool.rollbackTxForSymbol(symbol)
+		multichain.mempool.rollbackTxForSymbol(symbol, true)
 	}
 
 	blocksAdded := 0
 	var uncommitted UncommittedTransactions
 	failed := false
 	for _, block := range blocks {
-		if !bytes.Equal(multichain.chains[symbol].tipHash, block.PrevBlockHash) {
-			utils.Log("prevBlockHash does not match tipHash for symbol %v %x != %x \n", symbol, multichain.chains[symbol].tipHash, block.PrevBlockHash)
+		if !bytes.Equal(multichain.chains[symbol].TipHash, block.PrevBlockHash) {
+			utils.Log("prevBlockHash does not match TipHash for symbol %v %x != %x \n", symbol, multichain.chains[symbol].TipHash, block.PrevBlockHash)
 			failed = true
 			break
 		}
 
-		if multichain.chains[symbol].height > 1 {
+		if multichain.chains[symbol].Height > 1 {
 			pow := blockchain.NewProofOfWork(&block)
 			if !pow.Validate() {
 				utils.Log("Proof of work of block is invalid")
@@ -212,7 +212,7 @@ func (multichain *Multichain) GetHeights() map[string]uint64 {
 	defer multichain.RUnlock()
 	heights := make(map[string]uint64)
 	for symbol, chain := range multichain.chains {
-		heights[symbol] = chain.height
+		heights[symbol] = chain.Height
 	}
 	return heights
 }
@@ -220,7 +220,7 @@ func (multichain *Multichain) GetHeights() map[string]uint64 {
 func (multichain *Multichain) GetHeight(symbol string) uint64 {
 	multichain.RLock()
 	defer multichain.RUnlock()
-	return multichain.chains[symbol].height
+	return multichain.chains[symbol].Height
 }
 
 func (multichain *Multichain) GetBlockhashes() map[string][][]byte {
@@ -228,46 +228,27 @@ func (multichain *Multichain) GetBlockhashes() map[string][][]byte {
 	defer multichain.RUnlock()
 	blockhashes := make(map[string][][]byte)
 	for symbol, chain := range multichain.chains {
-		blockhashes[symbol] = chain.blockhashes
+		blockhashes[symbol] = chain.Blockhashes
 	}
 	return blockhashes
 }
 
-func (multichain *Multichain) GetBalance(symbol string, address [utils.AddressLength]byte) (uint64, bool) {
+func (multichain *Multichain) GetBalance(symbol string, address [utils.AddressLength]byte) uint64 {
 	multichain.RLock()
 	defer multichain.RUnlock()
-	state, ok := multichain.consensusState.tokenStates[symbol]
-	if !ok {
-		utils.Log("GetBalance failed symbol %v does not exist", symbol)
-		return 0, false
-	}
-
-	balance, ok := state.balances[address]
-	if !ok {
-		return 0, true
-	} else {
-		return balance, ok
-	}
+	return multichain.consensusState.GetBalance(symbol, address)
 }
 
-func (multichain *Multichain) GetUnclaimedBalance(symbol string, address [utils.AddressLength]byte) (uint64, bool) {
+func (multichain *Multichain) GetUnclaimedBalance(symbol string, address [utils.AddressLength]byte) uint64 {
 	multichain.RLock()
 	defer multichain.RUnlock()
-	state, ok := multichain.consensusState.tokenStates[symbol]
-	if !ok {
-		utils.Log("GetBalance failed symbol %v does not exist", symbol)
-		return 0, false
-	}
-
-	balance, ok := state.unclaimedFunds[address]
-	return balance, ok
+	return multichain.consensusState.GetUnclaimedBalance(symbol, address)
 }
 
 func (multichain *Multichain) GetOpenOrders(symbol string) map[uint64]txs.Order {
 	multichain.RLock()
 	defer multichain.RUnlock()
-	state, _ := multichain.consensusState.tokenStates[symbol]
-	return state.openOrders
+	return multichain.consensusState.GetOpenOrders(symbol)
 }
 
 ////////////////////////////////
@@ -341,14 +322,14 @@ func (multichain *Multichain) addMatchData(matchData blockchain.MatchData, uncom
 }
 
 func (multichain *Multichain) rollbackTokenToHeight(symbol string, height uint64) {
-	if height >= multichain.chains[symbol].height {
+	if height >= multichain.chains[symbol].Height {
 		return
 	}
-	blocksToRemove := multichain.chains[symbol].height - height
+	blocksToRemove := multichain.chains[symbol].Height - height
 	for i := uint64(0); i < blocksToRemove; i++ {
 		removedData := multichain.chains[symbol].RemoveLastBlock().(blockchain.TokenData)
 		for j := len(removedData.Orders) - 1; j >= 0; j-- {
-			multichain.consensusState.RollbackUntilRollbackOrderSucceeds(symbol, removedData.Orders[j], multichain, true)
+			multichain.rollbackUntilRollbackOrderSucceeds(symbol, removedData.Orders[j], true)
 			multichain.matcher.RemoveOrder(removedData.Orders[j], symbol)
 			multichain.consensusState.RollbackOrder(symbol, removedData.Orders[j])
 		}
@@ -364,29 +345,30 @@ func (multichain *Multichain) rollbackTokenToHeight(symbol string, height uint64
 }
 
 func (multichain *Multichain) rollbackMatchToHeight(height uint64) {
-	if height >= multichain.chains[txs.MATCH_TOKEN].height {
+	if height >= multichain.chains[txs.MATCH_TOKEN].Height {
 		return
 	}
 
-	blocksToRemove := multichain.chains[txs.MATCH_TOKEN].height - height
+	blocksToRemove := multichain.chains[txs.MATCH_TOKEN].Height - height
 	for i := uint64(0); i < blocksToRemove; i++ {
 		removedData := multichain.chains[txs.MATCH_TOKEN].RemoveLastBlock().(blockchain.MatchData)
 
 		for j := len(removedData.CancelOrders) - 1; j >= 0; j-- {
-			multichain.consensusState.RollbackUntilRollbackCancelOrderSucceeds(removedData.CancelOrders[j], multichain, true)
+			multichain.rollbackUntilRollbackCancelOrderSucceeds(removedData.CancelOrders[j], true)
 			multichain.matcher.RemoveCancelOrder(removedData.CancelOrders[j])
 			multichain.consensusState.RollbackCancelOrder(removedData.CancelOrders[j])
 		}
 
 		for j := len(removedData.Matches) - 1; j >= 0; j-- {
-			multichain.consensusState.RollbackUntilRollbackMatchSucceeds(removedData.Matches[j], multichain, true)
+			multichain.rollbackUntilRollbackMatchSucceeds(removedData.Matches[j], true)
 			buyOrder, sellOrder := multichain.consensusState.GetBuySellOrdersForMatch(removedData.Matches[j])
 			multichain.matcher.RemoveMatch(removedData.Matches[j], buyOrder, sellOrder)
 			multichain.consensusState.RollbackMatch(removedData.Matches[j])
 		}
 
 		for j := len(removedData.CreateTokens) - 1; j >= 0; j-- {
-			multichain.consensusState.RollbackCreateToken(removedData.CreateTokens[j], multichain)
+			multichain.consensusState.RollbackCreateToken(removedData.CreateTokens[j])
+			multichain.RemoveTokenChain(removedData.CreateTokens[j])
 		}
 	}
 }
@@ -407,7 +389,8 @@ func (multichain *Multichain) addGenericTransaction(symbol string, tx txs.Tx, un
 	case txs.CANCEL_ORDER:
 		multichain.consensusState.AddCancelOrder(tx.Tx.(txs.CancelOrder))
 	case txs.CREATE_TOKEN:
-		success = multichain.consensusState.AddCreateToken(tx.Tx.(txs.CreateToken), multichain)
+		success = multichain.consensusState.AddCreateToken(tx.Tx.(txs.CreateToken))
+		multichain.AddTokenChain(tx.Tx.(txs.CreateToken))
 	}
 
 	if !success {
@@ -437,20 +420,21 @@ func (multichain *Multichain) rollbackGenericTransaction(symbol string, tx txs.T
 
 	switch tx.TxType {
 	case txs.ORDER:
-		multichain.consensusState.RollbackUntilRollbackOrderSucceeds(symbol, tx.Tx.(txs.Order), multichain, mined)
+		multichain.rollbackUntilRollbackOrderSucceeds(symbol, tx.Tx.(txs.Order), mined)
 		multichain.consensusState.RollbackOrder(symbol, tx.Tx.(txs.Order))
 	case txs.CLAIM_FUNDS:
 		multichain.consensusState.RollbackClaimFunds(symbol, tx.Tx.(txs.ClaimFunds))
 	case txs.TRANSFER:
 		multichain.consensusState.RollbackTransfer(symbol, tx.Tx.(txs.Transfer))
 	case txs.MATCH:
-		multichain.consensusState.RollbackUntilRollbackMatchSucceeds(tx.Tx.(txs.Match), multichain, mined)
+		multichain.rollbackUntilRollbackMatchSucceeds(tx.Tx.(txs.Match), mined)
 		multichain.consensusState.RollbackMatch(tx.Tx.(txs.Match))
 	case txs.CANCEL_ORDER:
-		multichain.consensusState.RollbackUntilRollbackCancelOrderSucceeds(tx.Tx.(txs.CancelOrder), multichain, mined)
+		multichain.rollbackUntilRollbackCancelOrderSucceeds(tx.Tx.(txs.CancelOrder), mined)
 		multichain.consensusState.RollbackCancelOrder(tx.Tx.(txs.CancelOrder))
 	case txs.CREATE_TOKEN:
-		multichain.consensusState.RollbackCreateToken(tx.Tx.(txs.CreateToken), multichain)
+		multichain.consensusState.RollbackCreateToken(tx.Tx.(txs.CreateToken))
+		multichain.RemoveTokenChain(tx.Tx.(txs.CreateToken))
 	}
 
 	if mined {
@@ -477,7 +461,7 @@ func (multichain *Multichain) restoreFromDatabase() {
 			iterator, ok := iterators[symbol]
 			if !ok {
 				iterator = chain.ForwardIterator()
-				chain.height = uint64(len(iterator.hashes))
+				chain.Height = uint64(len(iterator.Hashes))
 				iterators[symbol] = iterator
 			}
 			block, err := iterator.Next()
@@ -517,7 +501,7 @@ func (multichain *Multichain) Cleanup() {
 	multichain.Lock()
 	multichain.mempool.Lock()
 
-	close(multichain.mempool.miner.minerCh)
+	close(multichain.mempool.miner.MinerCh)
 	multichain.db.Close()
 }
 
@@ -530,7 +514,7 @@ func (multichain *Multichain) DumpChains(amt uint64) string {
 
 	for symbol, chain := range multichain.chains {
 		chainDump, numBlocks := chain.DumpChain(amt)
-		header := fmt.Sprintf("%s %v %v\n", symbol, chain.height, numBlocks)
+		header := fmt.Sprintf("%s %v %v\n", symbol, chain.Height, numBlocks)
 
 		buffer.WriteString(header)
 		buffer.WriteString(chainDump)
@@ -557,4 +541,100 @@ func (uncommitted *UncommittedTransactions) undoTransactions(symbol string, bloc
 func (uncommitted *UncommittedTransactions) rollbackLast(symbol string, blockchains *Multichain, mined bool) {
 	blockchains.rollbackGenericTransaction(symbol, uncommitted.transactions[len(uncommitted.transactions)-1], mined)
 	uncommitted.transactions = uncommitted.transactions[:len(uncommitted.transactions)-1]
+}
+
+func (multichain *Multichain) rollbackUntilRollbackOrderSucceeds(symbol string, order txs.Order, takeMempoolLock bool) {
+	//if rolling back order and not in openOrders then it must have been matched (cancels would be rolled back already)
+	//Rollback match chain until it works (start with current height to forget unmined)
+	if count, ok := multichain.consensusState.GetOrderUpdatesCount(symbol, order.ID); count > 0 || !ok {
+		if !ok {
+			panic("error")
+		}
+		utils.Log("Rolling back unmined matches as Order %v has %v updates still", order.ID, count)
+		multichain.RollbackToHeight(txs.MATCH_TOKEN, multichain.chains[txs.MATCH_TOKEN].Height, false, takeMempoolLock)
+	}
+
+	count, _ := multichain.consensusState.GetOrderUpdatesCount(symbol, order.ID)
+	for count > 0 {
+		utils.Log("Rolling back match chain to height %v as Order %v has %v updates still", multichain.chains[txs.MATCH_TOKEN].Height-1, order.ID, count)
+		multichain.RollbackToHeight(txs.MATCH_TOKEN, multichain.chains[txs.MATCH_TOKEN].Height-1, false, takeMempoolLock)
+		count, _ = multichain.consensusState.GetOrderUpdatesCount(symbol, order.ID)
+	}
+}
+
+func (multichain *Multichain) rollbackUntilRollbackMatchSucceeds(match txs.Match, takeMempoolLock bool) {
+	// were orders deleted?
+	buyOrder, sellOrder := multichain.consensusState.GetBuySellOrdersForMatch(match)
+
+	//if rolling back match and unclaimed funds will become negative then it must rollback token chain until claim funds are removed
+	if unclaimed := multichain.consensusState.GetUnclaimedBalance(match.BuySymbol, sellOrder.SellerAddress); unclaimed < match.SellerGain {
+		utils.Log("Rolling back unmined token %v as rolling back match %v would result in a negative unclaimed funds %v < %v", match.BuySymbol, match, unclaimed, match.SellerGain)
+		panic("error") //TODO: DEBUG
+		multichain.RollbackToHeight(match.BuySymbol, multichain.chains[match.BuySymbol].Height, false, takeMempoolLock)
+	}
+
+	for multichain.consensusState.GetUnclaimedBalance(match.BuySymbol, sellOrder.SellerAddress) < match.SellerGain {
+		utils.Log("Rolling back token %v to height %v as rolling back match %v would result in a negative unclaimed funds", match.BuySymbol, multichain.chains[match.SellSymbol].Height, match)
+		multichain.RollbackToHeight(match.BuySymbol, multichain.chains[match.BuySymbol].Height-1, false, takeMempoolLock)
+	}
+
+	//if rolling back match and unclaimed funds will become negative then it must rollback token chain until claim funds are removed
+	if unclaimed := multichain.consensusState.GetUnclaimedBalance(match.SellSymbol, buyOrder.SellerAddress); unclaimed < match.TransferAmt {
+		utils.Log("Rolling back unmined token %v as rolling back match %v would result in a negative unclaimed funds %v < %v", match.SellSymbol, match, unclaimed, match.TransferAmt)
+		panic("error") //TODO: DEBUG
+		multichain.RollbackToHeight(match.SellSymbol, multichain.chains[match.SellSymbol].Height, false, takeMempoolLock)
+	}
+
+	for multichain.consensusState.GetUnclaimedBalance(match.SellSymbol, buyOrder.SellerAddress) < match.TransferAmt {
+		utils.Log("Rolling back token %v to height %v as rolling back match %v would result in a negative unclaimed funds", match.SellSymbol, multichain.chains[match.SellSymbol].Height, match)
+		multichain.RollbackToHeight(match.SellSymbol, multichain.chains[match.SellSymbol].Height-1, false, takeMempoolLock)
+	}
+}
+
+func (multichain *Multichain) rollbackUntilRollbackCancelOrderSucceeds(cancelOrder txs.CancelOrder, takeMempoolLock bool) {
+	deletedOrder, _ := multichain.consensusState.GetDeletedOrder(cancelOrder.OrderSymbol, cancelOrder.OrderID)
+
+	//if rolling back cancel order and unclaimed funds will become negative then it must rollback token chain until claim funds are removed
+	if multichain.consensusState.GetUnclaimedBalance(cancelOrder.OrderSymbol, deletedOrder.SellerAddress) < deletedOrder.AmountToSell {
+		utils.Log("Rolling back unmined token %v as rolling back cancel order %v would result in a negative unclaimed funds", cancelOrder.OrderSymbol, cancelOrder)
+		multichain.RollbackToHeight(cancelOrder.OrderSymbol, multichain.chains[cancelOrder.OrderSymbol].Height, false, takeMempoolLock)
+	}
+
+	for multichain.consensusState.GetUnclaimedBalance(cancelOrder.OrderSymbol, deletedOrder.SellerAddress) < deletedOrder.AmountToSell {
+		utils.Log("Rolling back token %v to height %v as rolling back cancel order %v would result in a negative unclaimed funds", cancelOrder.OrderSymbol, multichain.chains[cancelOrder.OrderSymbol].Height, cancelOrder)
+		multichain.RollbackToHeight(cancelOrder.OrderSymbol, multichain.chains[cancelOrder.OrderSymbol].Height, false, takeMempoolLock)
+	}
+}
+
+func (multichain *Multichain) verifyTxSig(tx txs.Tx) bool {
+	if tx.TxType == txs.MATCH || tx.TxType == txs.CLAIM_FUNDS {
+		return true
+	}
+	return utils.VerifySignature(multichain.GetTxAddress(tx), tx.Serialize(), tx.GetTxSignature())
+}
+
+func (multichain Multichain) GetTxAddress(tx txs.Tx) []byte {
+	switch tx.TxType {
+	case txs.ORDER:
+		address := tx.Tx.(txs.Order).SellerAddress
+		return address[:]
+	case txs.TRANSFER:
+		address := tx.Tx.(txs.Transfer).FromAddress
+		return address[:]
+	case txs.CANCEL_ORDER:
+		cancelOrder := tx.Tx.(txs.CancelOrder)
+		success, address := multichain.consensusState.GetCancelAddress(cancelOrder)
+		if !success {
+			utils.LogPanic("Failed to get an address from a cancel order")
+			return []byte{}
+		} else {
+			return address[:]
+		}
+	case txs.CREATE_TOKEN:
+		address := tx.Tx.(txs.CreateToken).CreatorAddress
+		return address[:]
+	default:
+		utils.LogPanic("Getting an address from a transaction that doesn't need to be signed.")
+		return []byte{}
+	}
 }
