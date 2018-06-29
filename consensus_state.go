@@ -77,7 +77,7 @@ func (state *ConsensusState) RollbackUntilRollbackOrderSucceeds(symbol string, o
 
 	//if rolling back order and not in openOrders then it must have been matched (cancels would be rolled back already)
 	//Rollback match chain until it works (start with current height to forget unmined)
-	if count, ok := tokenState.orderUpdatesCount[order.ID]; count > 0 {
+	if count, ok := tokenState.orderUpdatesCount[order.ID]; count > 0 || !ok {
 		if !ok {
 			panic("error")
 		}
@@ -307,26 +307,34 @@ func (state *ConsensusState) RollbackUntilRollbackMatchSucceeds(match Match, blo
 	buyOrder, sellOrder := state.GetBuySellOrdersForMatch(match)
 
 	//if rolling back match and unclaimed funds will become negative then it must rollback token chain until claim funds are removed
-	if buyTokenState.unclaimedFunds[sellOrder.SellerAddress] < match.SellerGain {
+	unclaimed, ok := buyTokenState.unclaimedFunds[sellOrder.SellerAddress]
+	if !ok {
+		unclaimed = 0
+	}
+	if unclaimed < match.SellerGain {
 		Log("Rolling back unmined token %v as rolling back match %v would result in a negative unclaimed funds %v < %v", match.BuySymbol, match, buyTokenState.unclaimedFunds[sellOrder.SellerAddress], match.SellerGain)
 		panic("error") //TODO: DEBUG
 		blockchains.RollbackToHeight(match.BuySymbol, blockchains.chains[match.BuySymbol].height, false, takeMempoolLock)
 	}
 
-	for buyTokenState.unclaimedFunds[sellOrder.SellerAddress] < match.SellerGain {
+	for unclaimed, ok = buyTokenState.unclaimedFunds[sellOrder.SellerAddress]; !ok || unclaimed < match.SellerGain; unclaimed, ok = buyTokenState.unclaimedFunds[sellOrder.SellerAddress] {
 		Log("Rolling back token %v to height %v as rolling back match %v would result in a negative unclaimed funds", match.BuySymbol, blockchains.chains[match.SellSymbol].height, match)
 		blockchains.RollbackToHeight(match.BuySymbol, blockchains.chains[match.BuySymbol].height-1, false, takeMempoolLock)
 	}
 	buyTokenState.unclaimedFunds[sellOrder.SellerAddress] -= match.SellerGain
 
+	unclaimed, ok = sellTokenState.unclaimedFunds[buyOrder.SellerAddress]
+	if !ok {
+		unclaimed = 0
+	}
 	//if rolling back match and unclaimed funds will become negative then it must rollback token chain until claim funds are removed
-	if sellTokenState.unclaimedFunds[buyOrder.SellerAddress] < match.TransferAmt {
+	if unclaimed < match.TransferAmt {
 		Log("Rolling back unmined token %v as rolling back match %v would result in a negative unclaimed funds %v < %v", match.SellSymbol, match, sellTokenState.unclaimedFunds[buyOrder.SellerAddress], match.TransferAmt)
 		panic("error") //TODO: DEBUG
 		blockchains.RollbackToHeight(match.SellSymbol, blockchains.chains[match.SellSymbol].height, false, takeMempoolLock)
 	}
 
-	for sellTokenState.unclaimedFunds[buyOrder.SellerAddress] < match.TransferAmt {
+	for unclaimed, ok = sellTokenState.unclaimedFunds[buyOrder.SellerAddress]; !ok || unclaimed < match.TransferAmt; unclaimed, ok = sellTokenState.unclaimedFunds[buyOrder.SellerAddress] {
 		Log("Rolling back token %v to height %v as rolling back match %v would result in a negative unclaimed funds", match.SellSymbol, blockchains.chains[match.SellSymbol].height, match)
 		blockchains.RollbackToHeight(match.SellSymbol, blockchains.chains[match.SellSymbol].height-1, false, takeMempoolLock)
 	}
@@ -410,12 +418,12 @@ func (state *ConsensusState) RollbackUntilRollbackCancelOrderSucceeds(cancelOrde
 	deletedOrder, _ := tokenState.deletedOrders[cancelOrder.OrderID]
 
 	//if rolling back cancel order and unclaimed funds will become negative then it must rollback token chain until claim funds are removed
-	if tokenState.unclaimedFunds[deletedOrder.SellerAddress] < deletedOrder.AmountToSell {
+	if unclaimed, ok := tokenState.unclaimedFunds[deletedOrder.SellerAddress]; !ok || unclaimed < deletedOrder.AmountToSell {
 		Log("Rolling back unmined token %v as rolling back cancel order %v would result in a negative unclaimed funds", cancelOrder.OrderSymbol, cancelOrder)
 		blockchains.RollbackToHeight(cancelOrder.OrderSymbol, blockchains.chains[cancelOrder.OrderSymbol].height, false, takeMempoolLock)
 	}
 
-	for tokenState.unclaimedFunds[deletedOrder.SellerAddress] < deletedOrder.AmountToSell {
+	for unclaimed, ok := tokenState.unclaimedFunds[deletedOrder.SellerAddress]; !ok || unclaimed < deletedOrder.AmountToSell; unclaimed, ok = tokenState.unclaimedFunds[deletedOrder.SellerAddress] {
 		Log("Rolling back token %v to height %v as rolling back cancel order %v would result in a negative unclaimed funds", cancelOrder.OrderSymbol, blockchains.chains[cancelOrder.OrderSymbol].height, cancelOrder)
 		blockchains.RollbackToHeight(cancelOrder.OrderSymbol, blockchains.chains[cancelOrder.OrderSymbol].height, false, takeMempoolLock)
 	}
