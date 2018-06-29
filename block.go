@@ -33,6 +33,7 @@ const (
 	CANCEL_ORDER
 	CLAIM_FUNDS
 	CREATE_TOKEN
+	FREEZE
 )
 
 type Block struct {
@@ -56,6 +57,7 @@ type TokenData struct {
 	Orders     []Order
 	ClaimFunds []ClaimFunds
 	Transfers  []Transfer
+	Freezes    []Freeze
 }
 
 type GenericTransaction struct {
@@ -77,6 +79,8 @@ func (gt *GenericTransaction) ID() string {
 		return fmt.Sprintf("%v,%v", gt.TransactionType, gt.Transaction.(CancelOrder).OrderID)
 	case CLAIM_FUNDS:
 		return fmt.Sprintf("%v,%v", gt.TransactionType, gt.Transaction.(ClaimFunds).ID)
+	case FREEZE:
+		return fmt.Sprintf("%v,%v", gt.TransactionType, gt.Transaction.(Freeze).ID)
 	}
 	return ""
 }
@@ -127,6 +131,21 @@ type Transfer struct {
 	FromAddress [addressLength]byte
 	ToAddress   [addressLength]byte
 	Signature   []byte
+}
+
+type Freeze struct {
+	ID            uint64
+	Amount        uint64
+	FromAddress   [addressLength]byte
+	UnfreezeBlock uint64
+	Signature     []byte
+}
+
+type UnsignedFreeze struct {
+	ID            uint64
+	Amount        uint64
+	FromAddress   [addressLength]byte
+	UnfreezeBlock uint64
 }
 
 type UnsignedTransfer struct {
@@ -190,6 +209,7 @@ func NewTokenGenesisBlock(createToken CreateToken) *Block {
 		Orders:     nil,
 		ClaimFunds: []ClaimFunds{claimFunds},
 		Transfers:  nil,
+		Freezes:    nil,
 	}
 	return NewBlock(tokenData, TOKEN_BLOCK, []byte{})
 }
@@ -215,6 +235,10 @@ func (b *Block) AddTransaction(tx GenericTransaction) {
 	case TRANSFER:
 		temp := newData.(TokenData)
 		temp.Transfers = append(temp.Transfers, tx.Transaction.(Transfer))
+		newData = temp
+	case FREEZE:
+		temp := newData.(TokenData)
+		temp.Freezes = append(temp.Freezes, tx.Transaction.(Freeze))
 		newData = temp
 	case CANCEL_ORDER:
 		temp := newData.(MatchData)
@@ -268,7 +292,7 @@ func (b *Block) Dump() string {
 	switch b.Type {
 	case TOKEN_BLOCK:
 		data := b.Data.(TokenData)
-		return fmt.Sprintf("%x %v %v %v", b.Hash, len(data.Orders), len(data.ClaimFunds), len(data.Transfers))
+		return fmt.Sprintf("%x %v %v %v %v", b.Hash, len(data.Orders), len(data.ClaimFunds), len(data.Transfers), len(data.Freezes))
 
 	case MATCH_BLOCK:
 		data := b.Data.(MatchData)
@@ -293,6 +317,10 @@ func (tx GenericTransaction) Serialize() []byte {
 	case TRANSFER:
 		transfer := tx.Transaction.(Transfer)
 		unsignedTx := UnsignedTransfer{transfer.ID, transfer.Amount, transfer.FromAddress, transfer.ToAddress}
+		return GetBytes(unsignedTx)
+	case FREEZE:
+		freeze := tx.Transaction.(Freeze)
+		unsignedTx := UnsignedFreeze{freeze.ID, freeze.Amount, freeze.FromAddress, freeze.UnfreezeBlock}
 		return GetBytes(unsignedTx)
 	case CANCEL_ORDER:
 		cancel := tx.Transaction.(CancelOrder)
@@ -364,6 +392,9 @@ func (tx GenericTransaction) GetTxAddress(state ConsensusState) []byte {
 	case TRANSFER:
 		address := tx.Transaction.(Transfer).FromAddress
 		return address[:]
+	case FREEZE:
+		address := tx.Transaction.(Freeze).FromAddress
+		return address[:]
 	case CANCEL_ORDER:
 		cancelOrder := tx.Transaction.(CancelOrder)
 		success, address := state.GetCancelAddress(cancelOrder)
@@ -391,6 +422,8 @@ func (tx GenericTransaction) GetTxSignature() []byte {
 		return tx.Transaction.(Order).Signature
 	case TRANSFER:
 		return tx.Transaction.(Transfer).Signature
+	case FREEZE:
+		return tx.Transaction.(Freeze).Signature
 	case CANCEL_ORDER:
 		return tx.Transaction.(CancelOrder).Signature
 	case CREATE_TOKEN:
@@ -412,6 +445,9 @@ func (tx GenericTransaction) String() string {
 	case TRANSFER:
 		transfer := tx.Transaction.(Transfer)
 		return fmt.Sprintf("{TRANSFER#%v %v %s -> %s}", transfer.ID, transfer.Amount, KeyToString(transfer.FromAddress), KeyToString(transfer.ToAddress))
+	case FREEZE:
+		freeze := tx.Transaction.(Freeze)
+		return fmt.Sprintf("{FREEZE#%v %v %s -> %s}", freeze.ID, freeze.Amount, KeyToString(freeze.FromAddress), freeze.UnfreezeBlock)
 	case CANCEL_ORDER:
 		cancel := tx.Transaction.(CancelOrder)
 		return fmt.Sprintf("{CANCEL %s#%v}", cancel.OrderSymbol, cancel.OrderID)
@@ -436,6 +472,10 @@ func (order Order) String() string {
 }
 func (transfer Transfer) String() string {
 	tx := GenericTransaction{transfer, TRANSFER}
+	return tx.String()
+}
+func (freeze Freeze) String() string {
+	tx := GenericTransaction{freeze, FREEZE}
 	return tx.String()
 }
 func (cancel CancelOrder) String() string {

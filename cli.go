@@ -29,6 +29,8 @@ Creating transactions
 		Create an ORDER transaction
 	transfer AMT SYMBOL FROM TO
 		Create a TRANSFER transaction
+	freeze AMT SYMBOL FROM UNFREEZE_BLOCK
+		Create a FREEZE tokens transaction
 	cancel SYMBOL ORDER_ID
 		Create a CANCEL_ORDER transaction
 	claim AMT SYMBOL ADDRESS
@@ -91,6 +93,15 @@ func (cli *CLI) Run() {
 
 		client := cli.getClient()
 		client.Transfer(amt, symbol, from, to)
+
+	case "freeze":
+		amt := cli.getUint(0)
+		symbol := cli.getString(1)
+		from := cli.getString(2)
+		unfreezeBlock := cli.getUint(3)
+
+		client := cli.getClient()
+		client.Freeze(amt, symbol, from, unfreezeBlock)
 
 	case "cancel":
 		orderSymbol := cli.getString(0)

@@ -56,6 +56,7 @@ func (miner *Miner) mineLoop() {
 						Orders:     nil,
 						ClaimFunds: nil,
 						Transfers:  nil,
+						Freezes:    nil,
 					}
 					block = NewBlock(tokenData, newBlock.BlockType, newBlock.LastHash)
 					txInBlock = make(map[string]GenericTransaction)

@@ -120,6 +120,29 @@ func (client *Client) Transfer(amount uint64, symbol string, from string, to str
 	}
 }
 
+func (client *Client) Freeze(amount uint64, symbol string, from string, unfreezeBlock uint64) {
+	Log("Client sending FREEZE")
+	defer Log("Client done sending FREEZE")
+
+	var empty []byte
+	id := rand.Uint64()
+
+	ws := NewWalletStore(false)
+	wfrom := ws.GetWallet(from)
+
+	unsignedFreeze := Freeze{id, amount, wfrom.PublicKey, unfreezeBlock, empty}
+	unsignedTx := &GenericTransaction{unsignedFreeze, FREEZE}
+
+	signature := Sign(wfrom.PrivateKey, *unsignedTx)
+	signedFreeze := Freeze{id, amount, wfrom.PublicKey, unfreezeBlock, signature}
+	signedTx := &GenericTransaction{signedFreeze, FREEZE}
+
+	err := client.SendTx(signedTx, symbol)
+	if err == nil {
+		Log("transaction id: %v", id)
+	}
+}
+
 func (client *Client) Cancel(symbol string, orderId uint64) {
 	Log("Client sending CANCEL_ORDER")
 	defer Log("Client done sending CANCEL_ORDER")

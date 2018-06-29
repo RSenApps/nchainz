@@ -13,7 +13,9 @@ type ConsensusStateToken struct {
 	//unclaimedFundsLock sync.Mutex
 	deletedOrders map[uint64]Order
 	//deletedOrdersLock sync.Mutex
-	usedTransferIDs map[uint64]bool
+	usedTransferIDs  map[uint64]bool
+	usedFreezeIDs    map[uint64]bool
+	frozenTokenStore map[uint64]map[[addressLength]byte]uint64 // map of block height to address to amount
 }
 
 type ConsensusState struct {
@@ -29,6 +31,8 @@ func NewConsensusStateToken() *ConsensusStateToken {
 	token.unclaimedFunds = make(map[[addressLength]byte]uint64)
 	token.deletedOrders = make(map[uint64]Order)
 	token.usedTransferIDs = make(map[uint64]bool)
+	token.usedFreezeIDs = make(map[uint64]bool)
+	token.frozenTokenStore = make(map[uint64]map[[addressLength]byte]uint64)
 	token.orderUpdatesCount = make(map[uint64]uint32)
 	return &token
 }
@@ -156,6 +160,73 @@ func (state *ConsensusState) RollbackTransfer(symbol string, transfer Transfer) 
 	tokenState.balances[transfer.ToAddress] -= transfer.Amount
 
 	Log("Transfer rolled back from consensus state %v FromBalance %v ToBalance %v", transfer, tokenState.balances[transfer.FromAddress], tokenState.balances[transfer.ToAddress])
+}
+
+func (state *ConsensusState) AddFreeze(symbol string, freeze Freeze) bool {
+	tokenState, symbolExists := state.tokenStates[symbol]
+	if !symbolExists {
+		Log("Freeze failed as %v chain does not exist", symbol)
+		return false
+	}
+
+	if _, ok := tokenState.usedFreezeIDs[freeze.ID]; ok {
+		Log("Freeze failed as freezeID in usedFreezeIDs")
+		return false
+	}
+	if freeze.Amount < 0 {
+		Log("Freeze failed as amount < 0")
+		return false
+	}
+	if tokenState.balances[freeze.FromAddress] < freeze.Amount {
+		log.Printf("Freeze failed due to insufficient funds Address: %v Balance: %v AMT: %v \n", freeze.FromAddress, tokenState.balances[freeze.FromAddress], freeze.Amount)
+		return false
+	}
+	tokenState.balances[freeze.FromAddress] -= freeze.Amount
+	blockFreezes, ok := tokenState.frozenTokenStore[freeze.UnfreezeBlock]
+	if !ok {
+		blockFreezes = make(map[[addressLength]byte]uint64)
+	}
+	blockFreezes[freeze.FromAddress] += freeze.Amount
+	tokenState.frozenTokenStore[freeze.UnfreezeBlock] = blockFreezes
+
+	Log("Freeze added to consensus state %v FromBalance %v FrozenBalance %v", freeze, tokenState.balances[freeze.FromAddress], blockFreezes[freeze.FromAddress])
+	tokenState.usedFreezeIDs[freeze.ID] = true
+	return true
+}
+
+func (state *ConsensusState) RollbackFreeze(symbol string, freeze Freeze) {
+	tokenState := state.tokenStates[symbol]
+	delete(tokenState.usedFreezeIDs, freeze.ID)
+	tokenState.balances[freeze.FromAddress] += freeze.Amount
+	tokenState.frozenTokenStore[freeze.UnfreezeBlock][freeze.FromAddress] -= freeze.Amount
+
+	Log("Freeze rolled back from consensus state %v FromBalance %v FrozenBalance %v", freeze, tokenState.balances[freeze.FromAddress], tokenState.frozenTokenStore[freeze.UnfreezeBlock][freeze.FromAddress])
+}
+
+func (state *ConsensusState) ApplyUnfreezesForBlock(symbol string, height uint64) {
+	tokenState, _ := state.tokenStates[symbol]
+
+	blockFreezes, ok := tokenState.frozenTokenStore[height]
+	if !ok {
+		return
+	}
+	for address, frozen := range blockFreezes {
+		Log("%v Tokens for Address %v became unfrozen at block %v", frozen, address, height)
+		tokenState.balances[address] += frozen
+	}
+}
+
+func (state *ConsensusState) RollbackUnfreezesForBlock(symbol string, height uint64) {
+	tokenState, _ := state.tokenStates[symbol]
+
+	blockFreezes, ok := tokenState.frozenTokenStore[height]
+	if !ok {
+		return
+	}
+	for address, frozen := range blockFreezes {
+		Log("Rolling back unfreeze of %v Tokens for Address %v at block %v", frozen, address, height)
+		tokenState.balances[address] -= frozen
+	}
 }
 
 func (state *ConsensusState) AddMatch(match Match) bool {

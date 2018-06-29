@@ -80,10 +80,6 @@ func CreateNewBlockchains(dbName string, startMining bool) *Blockchains {
 ////////////////////////////////
 // Chain Manipulation
 
-func (blockchains *Blockchains) RollbackAndAddBlocks(symbol string, height uint64) {
-	//TODO:
-}
-
 func (blockchains *Blockchains) AddBlock(symbol string, block Block, takeLock bool) bool {
 	return blockchains.AddBlocks(symbol, []Block{block}, takeLock)
 }
@@ -136,6 +132,7 @@ func (blockchains *Blockchains) AddBlocks(symbol string, blocks []Block, takeLoc
 				failed = true
 				break
 			}
+			blockchains.consensusState.ApplyUnfreezesForBlock(symbol, blockchains.chains[symbol].height+1)
 		}
 		blockchains.chains[symbol].AddBlock(block)
 		blocksAdded++
@@ -514,6 +511,16 @@ func (blockchains *Blockchains) addTokenData(symbol string, tokenData TokenData,
 		}
 	}
 
+	for _, freeze := range tokenData.Freezes {
+		tx := GenericTransaction{
+			Transaction:     freeze,
+			TransactionType: FREEZE,
+		}
+		if !blockchains.addGenericTransaction(symbol, tx, uncommitted, true) {
+			return false
+		}
+	}
+
 	for _, order := range tokenData.Orders {
 		tx := GenericTransaction{
 			Transaction:     order,
@@ -566,11 +573,16 @@ func (blockchains *Blockchains) rollbackTokenToHeight(symbol string, height uint
 	}
 	blocksToRemove := blockchains.chains[symbol].height - height
 	for i := uint64(0); i < blocksToRemove; i++ {
+		blockchains.consensusState.RollbackUnfreezesForBlock(symbol, height+blocksToRemove-i)
 		removedData := blockchains.chains[symbol].RemoveLastBlock().(TokenData)
 		for j := len(removedData.Orders) - 1; j >= 0; j-- {
 			blockchains.consensusState.RollbackUntilRollbackOrderSucceeds(symbol, removedData.Orders[j], blockchains, true)
 			blockchains.matcher.RemoveOrder(removedData.Orders[j], symbol)
 			blockchains.consensusState.RollbackOrder(symbol, removedData.Orders[j])
+		}
+
+		for j := len(removedData.Freezes) - 1; j >= 0; j-- {
+			blockchains.consensusState.RollbackFreeze(symbol, removedData.Freezes[j])
 		}
 
 		for j := len(removedData.Transfers) - 1; j >= 0; j-- {
@@ -622,6 +634,8 @@ func (blockchains *Blockchains) addGenericTransaction(symbol string, transaction
 		success = blockchains.consensusState.AddClaimFunds(symbol, transaction.Transaction.(ClaimFunds))
 	case TRANSFER:
 		success = blockchains.consensusState.AddTransfer(symbol, transaction.Transaction.(Transfer))
+	case FREEZE:
+		success = blockchains.consensusState.AddFreeze(symbol, transaction.Transaction.(Freeze))
 	case MATCH:
 		success = blockchains.consensusState.AddMatch(transaction.Transaction.(Match))
 	case CANCEL_ORDER:
@@ -663,6 +677,8 @@ func (blockchains *Blockchains) rollbackGenericTransaction(symbol string, transa
 		blockchains.consensusState.RollbackClaimFunds(symbol, transaction.Transaction.(ClaimFunds))
 	case TRANSFER:
 		blockchains.consensusState.RollbackTransfer(symbol, transaction.Transaction.(Transfer))
+	case FREEZE:
+		blockchains.consensusState.RollbackFreeze(symbol, transaction.Transaction.(Freeze))
 	case MATCH:
 		blockchains.consensusState.RollbackUntilRollbackMatchSucceeds(transaction.Transaction.(Match), blockchains, mined)
 		blockchains.consensusState.RollbackMatch(transaction.Transaction.(Match))
