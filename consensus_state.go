@@ -344,6 +344,9 @@ func (state *ConsensusState) AddMatch(match Match) bool {
 		buyTokenState.openOrders[buyOrder.ID] = buyOrder
 	}
 
+	execution := &Execution{&match, buyOrder.SellerAddress, sellOrder.SellerAddress}
+	LogExecutionReport(execution)
+
 	state.usedMatchIDs[match.MatchID] = true
 	return true
 }
