@@ -179,6 +179,9 @@ func GetBytes(key interface{}) []byte {
 func NewGenesisBlock() *Block {
 	ws := NewWalletStore(true)
 	addresses := ws.GetAddresses()
+	if len(addresses) < 1 {
+		LogPanic("No wallet found. Run `nchainz createwallet` before starting node.")
+	}
 	w := ws.GetWallet(addresses[0])
 
 	createToken := CreateToken{

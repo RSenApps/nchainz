@@ -57,6 +57,7 @@ func StartNode(myIp string) {
 	Log("Starting node")
 
 	port, _ := strconv.Atoi(strings.Split(myIp, ":")[1])
+	os.MkdirAll("db", os.ModePerm)
 	dbName := fmt.Sprintf("db/%v.db", port)
 	localIp := fmt.Sprintf(":%v", port)
 
