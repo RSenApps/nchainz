@@ -38,6 +38,8 @@ Print all adddreses in wallet file
 Create an ORDER transaction
 * ``transfer AMT SYMBOL FROM TO``  
 Create a TRANSFER transaction
+* ``freeze AMT SYMBOL FROM UNFREEZE_BLOCK``  
+Create a FREEZE tokens transaction
 * ``cancel SYMBOL ORDER_ID``  
 Create a CANCEL_ORDER transaction
 * ``claim AMT SYMBOL ADDRESS``  
@@ -51,6 +53,8 @@ Create a CREATE_TOKEN transaction
   Start up a full node providing your hostname on the given port
 * ``printchain DB SYMBOL``  
   Prints all the blocks in the blockchain
+* ``webserver PORT``  
+  Run a webserver on the given port
   
 ## Authors
 

@@ -38,11 +38,13 @@ Creating transactions
 	create SYMBOL SUPPLY DECIMALS ADDRESS
 		Create a CREATE_TOKEN transaction
 
-Running a node or miner
+Running a node, miner, or webserver
 	node HOSTNAME:PORT
 		Start up a full node providing your hostname on the given port
 	printchain DB SYMBOL
 		Prints all the blocks in the blockchain
+	webserver PORT
+		Run a webserver on the given port
 `
 
 func (cli *CLI) Run() {
