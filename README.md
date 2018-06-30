@@ -2,7 +2,7 @@
 
 Centralized exchanges rely on trusting that their owners will take the proper security precautions. This has led to many incidents of stolen cryptocurrency adding up to billions of dollars worth of losses, and is a stark contrast to the decentralization of the rest of the space. On the other hand, decentralized exchanges have the potential to be much more secure: theoretically, users are not vulnerable to server downtime and hacks, and can retain anonymity. 
 
-We present **N Chainz**, a decentralized cryptocurrency exchange. Specifically, N Chainz’s features include block generation, limit orders, and the ability to trade a base token with another token. More details are included in our [writeup](http://github.com/RSenApps/nchainz/blob/master/proj-final.pdf).
+We present **N Chainz**, a decentralized cryptocurrency exchange with a unique multi-chain architecture. We built N Chainz from the ground up, and included features such as block generation, limit orders, and the ability to trade a base token with another token. More details are included in our [whitepaper](http://github.com/RSenApps/nchainz/blob/master/proj-final.pdf).
 
 ## System Overview
 
