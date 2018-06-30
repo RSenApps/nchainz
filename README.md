@@ -21,6 +21,7 @@ We present **N Chainz**, a decentralized cryptocurrency exchange with a unique m
 	go install github.com/rsenapps/nchainz
 
 ## Usage
+(from project root):  
 ``nchainz COMMAND [ARGS]``
 
 ### Account management
