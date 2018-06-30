@@ -1,6 +1,6 @@
 package main
 
-/*import (
+import (
 	"fmt"
 	"math/rand"
 	"testing"
@@ -183,7 +183,7 @@ func TestCancellation(t *testing.T) {
 func makeOrder(buyAmt uint64, buySymbol string, sellAmt uint64) Order {
 	orderId := rand.Uint64()
 	signature := []byte{}
-	user := ""
+	var user [addressLength]byte
 
 	return Order{orderId, buySymbol, sellAmt, buyAmt, user, signature}
 }
@@ -194,4 +194,4 @@ func assertEqual(t *testing.T, a interface{}, b interface{}) {
 		msg := fmt.Sprintf("Assertion failed: %v != %v", a, b)
 		t.Fatal(msg)
 	}
-}*/
+}

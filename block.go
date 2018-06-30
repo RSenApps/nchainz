@@ -450,7 +450,7 @@ func (tx GenericTransaction) String() string {
 		return fmt.Sprintf("{TRANSFER#%v %v %s -> %s}", transfer.ID, transfer.Amount, KeyToString(transfer.FromAddress), KeyToString(transfer.ToAddress))
 	case FREEZE:
 		freeze := tx.Transaction.(Freeze)
-		return fmt.Sprintf("{FREEZE#%v %v %s -> %s}", freeze.ID, freeze.Amount, KeyToString(freeze.FromAddress), freeze.UnfreezeBlock)
+		return fmt.Sprintf("{FREEZE#%v %v %s -> %v}", freeze.ID, freeze.Amount, KeyToString(freeze.FromAddress), freeze.UnfreezeBlock)
 	case CANCEL_ORDER:
 		cancel := tx.Transaction.(CancelOrder)
 		return fmt.Sprintf("{CANCEL %s#%v}", cancel.OrderSymbol, cancel.OrderID)
