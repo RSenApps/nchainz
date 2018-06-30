@@ -17,8 +17,8 @@ We present **N Chainz**, a decentralized cryptocurrency exchange. Specifically, 
 ![A system overview](images/3.png?raw=true)
 
 ## Setup
-	go get -d github.com/RSenApps/nchainz
-	go install github.com/RSenApps/nchainz
+	go get -d github.com/rsenapps/nchainz
+	go install github.com/rsenapps/nchainz
 
 ## Usage
 ``nchainz COMMAND [ARGS]``
